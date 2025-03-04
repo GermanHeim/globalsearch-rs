@@ -1,4 +1,4 @@
-name: Python GlobalSearch CI
+name: PyGlobalSearch CI
 
 on:
   push:
@@ -38,13 +38,7 @@ jobs:
           cd python
           uv venv .venv
           source .venv/bin/activate
-          if [ -f uv.lock ]; then
-            uv pip sync uv.lock
-          else
-            uv pip install -e .[dev]
-            uv pip install maturin pytest
-            uv lock
-          fi
+          uv pip install maturin pytest
 
       - name: Run maturin develop
         run: |
