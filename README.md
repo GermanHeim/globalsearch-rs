@@ -13,9 +13,13 @@
 </p>
 
 <div align="center">
-    <img src="https://img.shields.io/crates/v/globalsearch?logo=rust&color=E05D44" alt="crates version" />
-    <img src="https://img.shields.io/github/actions/workflow/status/GermanHeim/globalsearch-rs/globalsearch-rs-CI.yml?branch=main&label=globalsearch%20CI" alt="CI" />
-        <a href="https://app.codecov.io/gh/GermanHeim/globalsearch-rs">
+    <a href="https://crates.io/crates/globalsearch">
+        <img src="https://img.shields.io/crates/v/globalsearch?logo=rust&color=E05D44" alt="crates version" />
+    </a> 
+    <a href="https://github.com/GermanHeim/globalsearch-rs/actions/workflows/globalsearch-rs-CI.yml">
+        <img src="https://img.shields.io/github/actions/workflow/status/GermanHeim/globalsearch-rs/globalsearch-rs-CI.yml?branch=main&label=globalsearch%20CI&logo=github" alt="CI" />
+    </a> 
+    <a href="https://app.codecov.io/gh/GermanHeim/globalsearch-rs">
         <img src="https://img.shields.io/codecov/c/github/GermanHeim/globalsearch-rs?logo=codecov&color=FF0077&token=C2FI2Z26ME" alt="Codecov" />
     </a>
     <a href="https://github.com/GermanHeim/globalsearch-rs/blob/main/LICENSE.txt">
@@ -28,6 +32,8 @@
 Similar to MATLAB's `GlobalSearch` \[2\], using argmin, rayon and ndarray.
 
 ## Features
+
+- 🐍 [Python Bindings](https://github.com/GermanHeim/globalsearch-rs/tree/main/python)
 
 - 🎯 Multistart heuristic framework for global optimization
 

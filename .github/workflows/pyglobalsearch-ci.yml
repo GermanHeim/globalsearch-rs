@@ -1,0 +1,59 @@
+name: Python GlobalSearch CI
+
+on:
+  push:
+    paths:
+      - "python/**"
+  pull_request:
+    paths:
+      - "python/**"
+
+jobs:
+  test:
+    name: Run Python Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Create virtual environment and install dependencies
+        run: |
+          cd python
+          uv venv .venv
+          source .venv/bin/activate
+          if [ -f uv.lock ]; then
+            uv pip sync uv.lock
+          else
+            uv pip install -e .[dev]
+            uv pip install maturin pytest
+            uv lock
+          fi
+
+      - name: Run maturin develop
+        run: |
+          cd python
+          source .venv/bin/activate
+          maturin develop
+
+      - name: Run tests
+        run: |
+          cd python
+          source .venv/bin/activate
+          pytest tests/

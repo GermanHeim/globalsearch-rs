@@ -1,0 +1,23 @@
+[package]
+name = "pyglobalsearch"
+version = "0.2.0"
+edition = "2021"
+authors = ["Germán Martín Heim <german.martin.heim@gmail.com>"]
+license = "MIT"
+description = "Python bindings for the globalsearch crate"
+readme = "README.md"
+repository = "https://github.com/GermanHeim/globalsearch-rs"
+keywords = ["optimization", "math", "science"]
+categories = ["science", "mathematics"]
+publish = false
+rust-version = "1.78"
+exclude = ["/media"]
+
+[lib]
+name = "pyglobalsearch"
+crate-type = ["cdylib"]
+
+[dependencies]
+globalsearch = { version = "0.2.0", path = ".." }
+pyo3 = { version = "0.23.5", features = ["extension-module"] }
+ndarray = "0.15.6"

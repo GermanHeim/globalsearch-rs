@@ -1,0 +1,38 @@
+[build-system]
+requires = ["maturin>=1.8,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "pyglobalsearch"
+description = "This package provides a Python interface to Rust's globalsearch crate. globalsearch is a Global optimization algorithm with scatter search and local NLP solvers written in Rust."
+requires-python = ">=3.8"
+keywords = ["optimization", "math", "science"]
+license = "MIT"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "License :: OSI Approved :: MIT License",
+]
+dynamic = ["version"]
+authors = [
+    { name = "Germán Martín Heim", email = "german.martin.heim@gmail.com" },
+]
+dependencies = ["numpy>=1.24.4", "pytest>=8.3.5", "ruff>=0.9.9"]
+
+[project.urls]
+Repository = "https://github.com/GermanHeim/globalsearch-rs"
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+module-name = "pyglobalsearch"
+
+[tool.mypy]
+plugins = ["numpy.typing.mypy_plugin"]
+
+[tool.pytest.ini_options]
+pythonpath = ".venv"
+addopts = ["--import-mode=importlib"]
