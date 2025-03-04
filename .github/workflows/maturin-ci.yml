@@ -46,6 +46,7 @@ jobs:
           args: --release --out dist --find-interpreter
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: auto
+          working-directory: ./python
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -77,6 +78,7 @@ jobs:
           args: --release --out dist --find-interpreter
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: musllinux_1_2
+          working-directory: ./python
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -104,6 +106,7 @@ jobs:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          working-directory: ./python
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -130,6 +133,7 @@ jobs:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          working-directory: ./python
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -145,6 +149,7 @@ jobs:
         with:
           command: sdist
           args: --out dist
+          working-directory: ./python
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
@@ -177,3 +182,4 @@ jobs:
         with:
           command: upload
           args: --non-interactive --skip-existing wheels-*/*
+          working-directory: ./python

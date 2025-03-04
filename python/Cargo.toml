@@ -21,3 +21,6 @@ crate-type = ["cdylib"]
 globalsearch = { version = "0.2.0", path = ".." }
 pyo3 = { version = "0.23.5", features = ["extension-module"] }
 ndarray = "0.15.6"
+
+[package.metadata.maturin]
+bindings = "pyo3"
