@@ -155,9 +155,7 @@ impl<P: Problem> LocalSolver<P> {
             LocalSolverType::NewtonCG => {
                 self.solve_newton_cg(initial_point, &self.local_solver_config)
             }
-            LocalSolverType::COBYLA => {
-                self.solve_cobyla(initial_point, &self.local_solver_config)
-            }
+            LocalSolverType::COBYLA => self.solve_cobyla(initial_point, &self.local_solver_config),
         }
     }
 
@@ -826,7 +824,7 @@ impl<P: Problem> LocalSolver<P> {
             // Create the objective function for COBYLA (needs 2 arguments: x and user_data)
             let objective = |x: &[f64], _user_data: &mut ()| -> f64 {
                 let point = Array1::from_vec(x.to_vec());
-                
+
                 match self.problem.objective(&point) {
                     Ok(value) => value,
                     Err(_) => f64::INFINITY,
@@ -835,14 +833,14 @@ impl<P: Problem> LocalSolver<P> {
 
             let constraint_funcs = self.problem.constraints();
             let problem_bounds = self.problem.variable_bounds();
-            
+
             if problem_bounds.nrows() != x0.len() {
                 return Err(LocalSolverError::InvalidCOBYLAConfig(
                     format!("Problem bounds dimension mismatch: expected {} bounds for {} variables, got {} bounds", 
                            x0.len(), x0.len(), problem_bounds.nrows())
                 ));
             }
-            
+
             let bounds: Vec<(f64, f64)> = (0..x0.len())
                 .map(|i| (problem_bounds[[i, 0]], problem_bounds[[i, 1]]))
                 .collect();
@@ -859,7 +857,11 @@ impl<P: Problem> LocalSolver<P> {
                     ftol_rel: *ftol_rel,
                     ftol_abs: *ftol_abs,
                     xtol_rel: *xtol_rel,
-                    xtol_abs: if xtol_abs.is_empty() { vec![] } else { xtol_abs.clone() },
+                    xtol_abs: if xtol_abs.is_empty() {
+                        vec![]
+                    } else {
+                        xtol_abs.clone()
+                    },
                 }),
             ) {
                 Ok((_status, solution_x, objective_value)) => {
@@ -921,8 +923,6 @@ mod tests_local_solvers {
         fn variable_bounds(&self) -> Array2<f64> {
             array![[0.0, 2.0], [0.0, 2.0]]
         }
-
-
 
         fn constraints(&self) -> Vec<fn(&[f64], &mut ()) -> f64> {
             vec![
@@ -1424,20 +1424,24 @@ mod tests_local_solvers {
 
         let initial_point: Array1<f64> = array![0.5, 0.5];
         let res: LocalSolution = local_solver.solve(initial_point).unwrap();
-        
+
         // Check that the solution respects bounds
         assert!(res.point[0] >= 0.0 && res.point[0] <= 2.0);
         assert!(res.point[1] >= 0.0 && res.point[1] <= 2.0);
-        
+
         // Check that the constraint is approximately satisfied (with tolerance)
         let constraint_value = res.point[0] + res.point[1] - 1.5;
         assert!(constraint_value <= 0.01); // Small tolerance for numerical errors
-        
+
         // The constrained optimum should be around (0.75, 0.75) with objective ~0.125
         // With penalty method, the result may be slightly different
         let expected_obj = 0.125;
-        assert!((res.objective - expected_obj).abs() < 0.2, 
-                "Expected objective ~{}, got {}", expected_obj, res.objective);
+        assert!(
+            (res.objective - expected_obj).abs() < 0.2,
+            "Expected objective ~{}, got {}",
+            expected_obj,
+            res.objective
+        );
     }
 
     #[test]
@@ -1445,12 +1449,12 @@ mod tests_local_solvers {
     fn test_constraint_evaluation() {
         let problem = ConstrainedQuadratic;
         let constraints = problem.constraints();
-        
+
         // Test constraint at a point that satisfies it
         let feasible_point = array![0.5, 0.5];
         let constraint_val = constraints[0](&[feasible_point[0], feasible_point[1]], &mut ());
         assert!(constraint_val > 0.0); // Should be positive (satisfied in COBYLA convention)
-        
+
         // Test constraint at a point that violates it
         let infeasible_point = array![1.0, 1.0];
         let constraint_val = constraints[0](&[infeasible_point[0], infeasible_point[1]], &mut ());

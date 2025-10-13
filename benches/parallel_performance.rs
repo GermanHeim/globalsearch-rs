@@ -10,17 +10,19 @@
 //! - **ScatterSearch Algorithm**: Core scatter search with parallel control
 //! - **Different Population Sizes**: Small, medium, and large populations
 //! - **Parallel vs Sequential**: Direct comparison of execution modes
-//! 
+//!
 //! Run the benchmark with:
 //! ```bash
 //! cargo bench --features rayon --bench parallel_performance
 //! ```
 #[cfg(not(feature = "rayon"))]
-compile_error!("This benchmark requires the 'rayon' feature. Run with: cargo bench --features rayon");
+compile_error!(
+    "This benchmark requires the 'rayon' feature. Run with: cargo bench --features rayon"
+);
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use globalsearch::scatter_search::ScatterSearch;
 use globalsearch::problem::Problem;
+use globalsearch::scatter_search::ScatterSearch;
 use globalsearch::types::{EvaluationError, OQNLPParams};
 use ndarray::{array, Array1, Array2};
 use std::hint::black_box;
@@ -73,7 +75,7 @@ fn bench_scatter_search_parallel_vs_sequential(c: &mut Criterion) {
         population_size: 5000,
         ..OQNLPParams::default()
     };
-    
+
     c.bench_function("scatter_search_parallel", |b| {
         b.iter(|| {
             let problem = SixHumpCamel;
@@ -84,7 +86,7 @@ fn bench_scatter_search_parallel_vs_sequential(c: &mut Criterion) {
             black_box(result);
         });
     });
-    
+
     c.bench_function("scatter_search_sequential", |b| {
         b.iter(|| {
             let problem = SixHumpCamel;
@@ -103,7 +105,7 @@ fn bench_parallel_overhead_small_scale(c: &mut Criterion) {
         population_size: 100, // Small population where overhead should dominate
         ..OQNLPParams::default()
     };
-    
+
     c.bench_function("small_scale_parallel", |b| {
         b.iter(|| {
             let problem = DummyProblem::new(2);
@@ -114,7 +116,7 @@ fn bench_parallel_overhead_small_scale(c: &mut Criterion) {
             black_box(result);
         });
     });
-    
+
     c.bench_function("small_scale_sequential", |b| {
         b.iter(|| {
             let problem = DummyProblem::new(2);
@@ -133,7 +135,7 @@ fn bench_parallel_scaling_large_population(c: &mut Criterion) {
         population_size: 15000, // Large population to maximize parallel benefits
         ..OQNLPParams::default()
     };
-    
+
     c.bench_function("large_scale_parallel", |b| {
         b.iter(|| {
             let problem = SixHumpCamel;
@@ -144,7 +146,7 @@ fn bench_parallel_scaling_large_population(c: &mut Criterion) {
             black_box(result);
         });
     });
-    
+
     c.bench_function("large_scale_sequential", |b| {
         b.iter(|| {
             let problem = SixHumpCamel;
@@ -163,7 +165,7 @@ fn bench_computational_load_comparison(c: &mut Criterion) {
         population_size: 2000,
         ..OQNLPParams::default()
     };
-    
+
     // SixHump Camel (moderate computation)
     c.bench_function("sixhump_parallel", |b| {
         b.iter(|| {
@@ -175,7 +177,7 @@ fn bench_computational_load_comparison(c: &mut Criterion) {
             black_box(result);
         });
     });
-    
+
     c.bench_function("sixhump_sequential", |b| {
         b.iter(|| {
             let problem = SixHumpCamel;
@@ -186,7 +188,7 @@ fn bench_computational_load_comparison(c: &mut Criterion) {
             black_box(result);
         });
     });
-    
+
     // Dummy Problem (minimal computation)
     c.bench_function("dummy_parallel", |b| {
         b.iter(|| {
@@ -198,7 +200,7 @@ fn bench_computational_load_comparison(c: &mut Criterion) {
             black_box(result);
         });
     });
-    
+
     c.bench_function("dummy_sequential", |b| {
         b.iter(|| {
             let problem = DummyProblem::new(2);
@@ -217,7 +219,7 @@ criterion_group! {
         .warm_up_time(std::time::Duration::from_secs(3))
         .sample_size(15)
         .measurement_time(std::time::Duration::from_secs(60));
-    targets = 
+    targets =
         bench_scatter_search_parallel_vs_sequential,
         bench_parallel_overhead_small_scale,
         bench_parallel_scaling_large_population,

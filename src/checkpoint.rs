@@ -70,7 +70,7 @@ pub enum BincodeError {
     /// Encoding error
     #[error("Encode error: {0}")]
     EncodeError(#[from] bincode::error::EncodeError),
-    
+
     /// Decoding error
     #[error("Decode error: {0}")]
     DecodeError(#[from] bincode::error::DecodeError),
@@ -239,8 +239,9 @@ impl CheckpointManager {
         }
 
         let encoded = fs::read(path)?;
-        let (checkpoint, _): (OQNLPCheckpoint, usize) = bincode::serde::decode_from_slice(&encoded, bincode::config::legacy())
-            .map_err(BincodeError::DecodeError)?;
+        let (checkpoint, _): (OQNLPCheckpoint, usize) =
+            bincode::serde::decode_from_slice(&encoded, bincode::config::legacy())
+                .map_err(BincodeError::DecodeError)?;
 
         Ok(checkpoint)
     }
@@ -352,8 +353,9 @@ pub fn read_checkpoint_file(path: &Path) -> Result<OQNLPCheckpoint, CheckpointEr
     }
 
     let encoded = fs::read(path)?;
-    let (checkpoint, _): (OQNLPCheckpoint, usize) = bincode::serde::decode_from_slice(&encoded, bincode::config::legacy())
-        .map_err(BincodeError::DecodeError)?;
+    let (checkpoint, _): (OQNLPCheckpoint, usize) =
+        bincode::serde::decode_from_slice(&encoded, bincode::config::legacy())
+            .map_err(BincodeError::DecodeError)?;
 
     Ok(checkpoint)
 }

@@ -145,7 +145,7 @@ impl<P: Problem + Sync + Send> ScatterSearch<P> {
     }
 
     /// Control whether parallel processing is enabled at runtime
-    /// 
+    ///
     /// This method allows you to disable parallel processing even when the `rayon` feature is enabled,
     /// which can be useful for:
     /// - Python bindings
@@ -183,13 +183,13 @@ impl<P: Problem + Sync + Send> ScatterSearch<P> {
             pb.set_description("Stage 1, found best solution");
             pb.update(1).expect("Failed to update progress bar");
         }
-        
+
         let reference_set_with_objectives: Vec<(Array1<f64>, f64)> = self
             .reference_set
             .into_iter()
             .zip(self.reference_set_objectives)
             .collect();
-            
+
         Ok((reference_set_with_objectives, best))
     }
 
@@ -207,13 +207,13 @@ impl<P: Problem + Sync + Send> ScatterSearch<P> {
         }
 
         self.diversify_reference_set(&mut ref_set)?;
-        
+
         // Evaluate objectives for the initial reference set
         let objectives: Vec<f64> = ref_set
             .iter()
             .map(|point| self.problem.objective(point))
             .collect::<Result<Vec<f64>, _>>()?;
-            
+
         self.reference_set = ref_set;
         self.reference_set_objectives = objectives;
 

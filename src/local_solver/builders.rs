@@ -191,20 +191,34 @@ impl std::fmt::Debug for LocalSolverConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             LocalSolverConfig::LBFGS { .. } => f.debug_struct("LBFGS").finish_non_exhaustive(),
-            LocalSolverConfig::NelderMead { .. } => f.debug_struct("NelderMead").finish_non_exhaustive(),
-            LocalSolverConfig::SteepestDescent { .. } => f.debug_struct("SteepestDescent").finish_non_exhaustive(),
-            LocalSolverConfig::TrustRegion { .. } => f.debug_struct("TrustRegion").finish_non_exhaustive(),
-            LocalSolverConfig::NewtonCG { .. } => f.debug_struct("NewtonCG").finish_non_exhaustive(),
-            LocalSolverConfig::COBYLA { max_iter, initial_step_size, ftol_rel, ftol_abs, xtol_rel, xtol_abs } => {
-                f.debug_struct("COBYLA")
-                    .field("max_iter", max_iter)
-                    .field("initial_step_size", initial_step_size)
-                    .field("ftol_rel", ftol_rel)
-                    .field("ftol_abs", ftol_abs)
-                    .field("xtol_rel", xtol_rel)
-                    .field("xtol_abs", xtol_abs)
-                    .finish()
+            LocalSolverConfig::NelderMead { .. } => {
+                f.debug_struct("NelderMead").finish_non_exhaustive()
             }
+            LocalSolverConfig::SteepestDescent { .. } => {
+                f.debug_struct("SteepestDescent").finish_non_exhaustive()
+            }
+            LocalSolverConfig::TrustRegion { .. } => {
+                f.debug_struct("TrustRegion").finish_non_exhaustive()
+            }
+            LocalSolverConfig::NewtonCG { .. } => {
+                f.debug_struct("NewtonCG").finish_non_exhaustive()
+            }
+            LocalSolverConfig::COBYLA {
+                max_iter,
+                initial_step_size,
+                ftol_rel,
+                ftol_abs,
+                xtol_rel,
+                xtol_abs,
+            } => f
+                .debug_struct("COBYLA")
+                .field("max_iter", max_iter)
+                .field("initial_step_size", initial_step_size)
+                .field("ftol_rel", ftol_rel)
+                .field("ftol_abs", ftol_abs)
+                .field("xtol_rel", xtol_rel)
+                .field("xtol_abs", xtol_abs)
+                .finish(),
         }
     }
 }
@@ -212,60 +226,84 @@ impl std::fmt::Debug for LocalSolverConfig {
 impl Clone for LocalSolverConfig {
     fn clone(&self) -> Self {
         match self {
-            LocalSolverConfig::LBFGS { max_iter, tolerance_grad, tolerance_cost, history_size, l1_coefficient, line_search_params } => {
-                LocalSolverConfig::LBFGS {
-                    max_iter: *max_iter,
-                    tolerance_grad: *tolerance_grad,
-                    tolerance_cost: *tolerance_cost,
-                    history_size: *history_size,
-                    l1_coefficient: *l1_coefficient,
-                    line_search_params: line_search_params.clone(),
-                }
-            }
-            LocalSolverConfig::NelderMead { simplex_delta, sd_tolerance, max_iter, alpha, gamma, rho, sigma } => {
-                LocalSolverConfig::NelderMead {
-                    simplex_delta: *simplex_delta,
-                    sd_tolerance: *sd_tolerance,
-                    max_iter: *max_iter,
-                    alpha: *alpha,
-                    gamma: *gamma,
-                    rho: *rho,
-                    sigma: *sigma,
-                }
-            }
-            LocalSolverConfig::SteepestDescent { max_iter, line_search_params } => {
-                LocalSolverConfig::SteepestDescent {
-                    max_iter: *max_iter,
-                    line_search_params: line_search_params.clone(),
-                }
-            }
-            LocalSolverConfig::TrustRegion { trust_region_radius_method, max_iter, radius, max_radius, eta } => {
-                LocalSolverConfig::TrustRegion {
-                    trust_region_radius_method: trust_region_radius_method.clone(),
-                    max_iter: *max_iter,
-                    radius: *radius,
-                    max_radius: *max_radius,
-                    eta: *eta,
-                }
-            }
-            LocalSolverConfig::NewtonCG { max_iter, curvature_threshold, tolerance, line_search_params } => {
-                LocalSolverConfig::NewtonCG {
-                    max_iter: *max_iter,
-                    curvature_threshold: *curvature_threshold,
-                    tolerance: *tolerance,
-                    line_search_params: line_search_params.clone(),
-                }
-            }
-            LocalSolverConfig::COBYLA { max_iter, initial_step_size, ftol_rel, ftol_abs, xtol_rel, xtol_abs } => {
-                LocalSolverConfig::COBYLA {
-                    max_iter: *max_iter,
-                    initial_step_size: *initial_step_size,
-                    ftol_rel: *ftol_rel,
-                    ftol_abs: *ftol_abs,
-                    xtol_rel: *xtol_rel,
-                    xtol_abs: xtol_abs.clone(),
-                }
-            }
+            LocalSolverConfig::LBFGS {
+                max_iter,
+                tolerance_grad,
+                tolerance_cost,
+                history_size,
+                l1_coefficient,
+                line_search_params,
+            } => LocalSolverConfig::LBFGS {
+                max_iter: *max_iter,
+                tolerance_grad: *tolerance_grad,
+                tolerance_cost: *tolerance_cost,
+                history_size: *history_size,
+                l1_coefficient: *l1_coefficient,
+                line_search_params: line_search_params.clone(),
+            },
+            LocalSolverConfig::NelderMead {
+                simplex_delta,
+                sd_tolerance,
+                max_iter,
+                alpha,
+                gamma,
+                rho,
+                sigma,
+            } => LocalSolverConfig::NelderMead {
+                simplex_delta: *simplex_delta,
+                sd_tolerance: *sd_tolerance,
+                max_iter: *max_iter,
+                alpha: *alpha,
+                gamma: *gamma,
+                rho: *rho,
+                sigma: *sigma,
+            },
+            LocalSolverConfig::SteepestDescent {
+                max_iter,
+                line_search_params,
+            } => LocalSolverConfig::SteepestDescent {
+                max_iter: *max_iter,
+                line_search_params: line_search_params.clone(),
+            },
+            LocalSolverConfig::TrustRegion {
+                trust_region_radius_method,
+                max_iter,
+                radius,
+                max_radius,
+                eta,
+            } => LocalSolverConfig::TrustRegion {
+                trust_region_radius_method: trust_region_radius_method.clone(),
+                max_iter: *max_iter,
+                radius: *radius,
+                max_radius: *max_radius,
+                eta: *eta,
+            },
+            LocalSolverConfig::NewtonCG {
+                max_iter,
+                curvature_threshold,
+                tolerance,
+                line_search_params,
+            } => LocalSolverConfig::NewtonCG {
+                max_iter: *max_iter,
+                curvature_threshold: *curvature_threshold,
+                tolerance: *tolerance,
+                line_search_params: line_search_params.clone(),
+            },
+            LocalSolverConfig::COBYLA {
+                max_iter,
+                initial_step_size,
+                ftol_rel,
+                ftol_abs,
+                xtol_rel,
+                xtol_abs,
+            } => LocalSolverConfig::COBYLA {
+                max_iter: *max_iter,
+                initial_step_size: *initial_step_size,
+                ftol_rel: *ftol_rel,
+                ftol_abs: *ftol_abs,
+                xtol_rel: *xtol_rel,
+                xtol_abs: xtol_abs.clone(),
+            },
         }
     }
 }
@@ -1028,10 +1066,7 @@ pub struct COBYLABuilder {
 /// ```
 impl COBYLABuilder {
     /// Create a new COBYLA builder
-    pub fn new(
-        max_iter: u64,
-        initial_step_size: f64,
-    ) -> Self {
+    pub fn new(max_iter: u64, initial_step_size: f64) -> Self {
         COBYLABuilder {
             max_iter,
             initial_step_size,
@@ -1049,8 +1084,8 @@ impl COBYLABuilder {
             initial_step_size: self.initial_step_size,
             ftol_rel: self.ftol_rel.unwrap_or(1e-6),
             ftol_abs: self.ftol_abs.unwrap_or(1e-8),
-            xtol_rel: self.xtol_rel.unwrap_or(0.0),    // No default for x tolerances
-            xtol_abs: self.xtol_abs.unwrap_or_default(),  // Empty vector means no tolerance
+            xtol_rel: self.xtol_rel.unwrap_or(0.0), // No default for x tolerances
+            xtol_abs: self.xtol_abs.unwrap_or_default(), // Empty vector means no tolerance
         }
     }
 
@@ -1067,7 +1102,7 @@ impl COBYLABuilder {
     }
 
     /// Set the relative function tolerance for the COBYLA local solver
-    /// 
+    ///
     /// The local solver stops when the objective function changes by less than `ftol_rel * |f(x)|`
     pub fn ftol_rel(mut self, ftol_rel: f64) -> Self {
         self.ftol_rel = Some(ftol_rel);
@@ -1075,7 +1110,7 @@ impl COBYLABuilder {
     }
 
     /// Set the absolute function tolerance for the COBYLA local solver
-    /// 
+    ///
     /// The local solver stops when the objective function changes by less than `ftol_abs`
     pub fn ftol_abs(mut self, ftol_abs: f64) -> Self {
         self.ftol_abs = Some(ftol_abs);
@@ -1083,7 +1118,7 @@ impl COBYLABuilder {
     }
 
     /// Set the relative parameter tolerance for the COBYLA local solver
-    /// 
+    ///
     /// The local solver stops when all `x[i]` changes by less than `xtol_rel * x[i]`
     pub fn xtol_rel(mut self, xtol_rel: f64) -> Self {
         self.xtol_rel = Some(xtol_rel);
@@ -1091,7 +1126,7 @@ impl COBYLABuilder {
     }
 
     /// Set the absolute parameter tolerance for the COBYLA local solver
-    /// 
+    ///
     /// The local solver stops when all `x\[i\]` changes by less than `xtol_abs\[i\]`.
     /// Each element in the vector corresponds to the tolerance for that variable.
     /// If the vector is shorter than the number of variables, the last value is used
@@ -2183,10 +2218,10 @@ mod tests_builders {
             } => {
                 assert_eq!(max_iter, 300);
                 assert_eq!(initial_step_size, 0.5);
-                assert_eq!(ftol_rel, 1e-6);  // REL_TOL default
-                assert_eq!(ftol_abs, 1e-8);  // ABS_TOL default
-                assert_eq!(xtol_rel, 0.0);   // No default
-                assert_eq!(xtol_abs, Vec::<f64>::new());   // No default (empty vector)
+                assert_eq!(ftol_rel, 1e-6); // REL_TOL default
+                assert_eq!(ftol_abs, 1e-8); // ABS_TOL default
+                assert_eq!(xtol_rel, 0.0); // No default
+                assert_eq!(xtol_abs, Vec::<f64>::new()); // No default (empty vector)
             }
             _ => panic!("Expected COBYLA local solver"),
         }
@@ -2254,7 +2289,7 @@ mod tests_builders {
             .ftol_rel(1e-8)
             .xtol_abs(xtol_vec.clone())
             .build();
-        
+
         match cobyla {
             LocalSolverConfig::COBYLA {
                 max_iter,
