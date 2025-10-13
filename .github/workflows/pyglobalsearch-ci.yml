@@ -47,3 +47,13 @@ jobs:
           cd python
           source .venv/bin/activate
           pytest tests/
+
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check pyglobalsearch formatting
+        run: cargo fmt --manifest-path python/Cargo.toml -- --check

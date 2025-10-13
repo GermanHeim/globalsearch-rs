@@ -38,3 +38,13 @@ jobs:
         run: cargo clippy --features "rayon" --verbose
       - name: Clippy with checkpointing
         run: cargo clippy --features "checkpointing" --verbose
+
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --all -- --check
