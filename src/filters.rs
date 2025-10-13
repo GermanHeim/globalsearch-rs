@@ -100,10 +100,7 @@ pub enum FiltersErrors {
 /// assert!(!filter.check(-4.0));  // Worse solution - rejected
 /// ```
 #[derive(Debug)]
-#[cfg_attr(
-    feature = "checkpointing",
-    derive(serde::Serialize, serde::Deserialize)
-)]
+#[cfg_attr(feature = "checkpointing", derive(serde::Serialize, serde::Deserialize))]
 pub struct MeritFilter {
     pub threshold: f64,
 }
@@ -117,9 +114,7 @@ impl Default for MeritFilter {
 impl MeritFilter {
     /// Create a new MeritFilter
     pub fn new() -> Self {
-        Self {
-            threshold: f64::INFINITY,
-        }
+        Self { threshold: f64::INFINITY }
     }
 
     pub fn update_threshold(&mut self, threshold: f64) {
@@ -184,10 +179,7 @@ impl MeritFilter {
 /// # Ok::<(), globalsearch::filters::FiltersErrors>(())
 /// ```
 #[derive(Debug)]
-#[cfg_attr(
-    feature = "checkpointing",
-    derive(serde::Serialize, serde::Deserialize)
-)]
+#[cfg_attr(feature = "checkpointing", derive(serde::Serialize, serde::Deserialize))]
 pub struct DistanceFilter {
     solutions: Vec<LocalSolution>, // TODO: Change to ndarray?
     params: FilterParams,
@@ -204,9 +196,7 @@ impl DistanceFilter {
     /// Returns an error if the distance factor is negative
     pub fn new(params: FilterParams) -> Result<Self, FiltersErrors> {
         if params.distance_factor < 0.0 {
-            return Err(FiltersErrors::NegativeDistanceFactor(
-                params.distance_factor,
-            ));
+            return Err(FiltersErrors::NegativeDistanceFactor(params.distance_factor));
         }
 
         Ok(Self {
@@ -243,10 +233,7 @@ impl DistanceFilter {
 
 /// Euclidean distance squared
 fn euclidean_distance_squared(a: &Array1<f64>, b: &Array1<f64>) -> f64 {
-    a.iter()
-        .zip(b.iter())
-        .map(|(x, y)| (x - y).powi(2))
-        .sum::<f64>()
+    a.iter().zip(b.iter()).map(|(x, y)| (x - y).powi(2)).sum::<f64>()
 }
 
 #[cfg(test)]
@@ -265,10 +252,7 @@ mod test_filters {
 
         let df: Result<DistanceFilter, FiltersErrors> = DistanceFilter::new(params);
 
-        assert!(matches!(
-            df,
-            Err(FiltersErrors::NegativeDistanceFactor(-0.5))
-        ));
+        assert!(matches!(df, Err(FiltersErrors::NegativeDistanceFactor(-0.5))));
     }
 
     #[test]
@@ -282,11 +266,7 @@ mod test_filters {
     #[test]
     /// Test valid construction of DistanceFilter
     fn test_distance_filter_valid() {
-        let params = FilterParams {
-            distance_factor: 1.0,
-            wait_cycle: 5,
-            threshold_factor: 0.2,
-        };
+        let params = FilterParams { distance_factor: 1.0, wait_cycle: 5, threshold_factor: 0.2 };
 
         let filter = DistanceFilter::new(params).unwrap();
         assert_eq!(filter.params.distance_factor, 1.0);
@@ -296,17 +276,10 @@ mod test_filters {
     #[test]
     /// Test adding solutions to DistanceFilter
     fn test_distance_filter_add_solution() {
-        let params = FilterParams {
-            distance_factor: 1.0,
-            wait_cycle: 5,
-            threshold_factor: 0.2,
-        };
+        let params = FilterParams { distance_factor: 1.0, wait_cycle: 5, threshold_factor: 0.2 };
 
         let mut filter = DistanceFilter::new(params).unwrap();
-        let solution = LocalSolution {
-            point: array![1.0, 2.0, 3.0],
-            objective: 5.0,
-        };
+        let solution = LocalSolution { point: array![1.0, 2.0, 3.0], objective: 5.0 };
 
         filter.add_solution(solution);
         assert_eq!(filter.solutions.len(), 1);
@@ -316,18 +289,11 @@ mod test_filters {
     #[test]
     /// Test distance check
     fn test_distance_filter_check() {
-        let params = FilterParams {
-            distance_factor: 2.0,
-            wait_cycle: 5,
-            threshold_factor: 0.2,
-        };
+        let params = FilterParams { distance_factor: 2.0, wait_cycle: 5, threshold_factor: 0.2 };
 
         let mut filter = DistanceFilter::new(params).unwrap();
 
-        filter.add_solution(LocalSolution {
-            point: array![0.0, 0.0, 0.0],
-            objective: 5.0,
-        });
+        filter.add_solution(LocalSolution { point: array![0.0, 0.0, 0.0], objective: 5.0 });
 
         // Point is at distance 1.73... from origin, which is less than distance_factor=2.0
         assert!(!filter.check(&array![1.0, 1.0, 1.0]));

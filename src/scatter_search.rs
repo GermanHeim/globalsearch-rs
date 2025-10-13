@@ -145,7 +145,7 @@ impl<P: Problem + Sync + Send> ScatterSearch<P> {
     }
 
     /// Control whether parallel processing is enabled at runtime
-    /// 
+    ///
     /// This method allows you to disable parallel processing even when the `rayon` feature is enabled,
     /// which can be useful for:
     /// - Python bindings
@@ -183,13 +183,10 @@ impl<P: Problem + Sync + Send> ScatterSearch<P> {
             pb.set_description("Stage 1, found best solution");
             pb.update(1).expect("Failed to update progress bar");
         }
-        
-        let reference_set_with_objectives: Vec<(Array1<f64>, f64)> = self
-            .reference_set
-            .into_iter()
-            .zip(self.reference_set_objectives)
-            .collect();
-            
+
+        let reference_set_with_objectives: Vec<(Array1<f64>, f64)> =
+            self.reference_set.into_iter().zip(self.reference_set_objectives).collect();
+
         Ok((reference_set_with_objectives, best))
     }
 
@@ -207,13 +204,13 @@ impl<P: Problem + Sync + Send> ScatterSearch<P> {
         }
 
         self.diversify_reference_set(&mut ref_set)?;
-        
+
         // Evaluate objectives for the initial reference set
         let objectives: Vec<f64> = ref_set
             .iter()
             .map(|point| self.problem.objective(point))
             .collect::<Result<Vec<f64>, _>>()?;
-            
+
         self.reference_set = ref_set;
         self.reference_set_objectives = objectives;
 
@@ -234,22 +231,14 @@ impl<P: Problem + Sync + Send> ScatterSearch<P> {
 
         #[cfg(feature = "rayon")]
         let mut min_dists: Vec<f64> = if self.enable_parallel {
-            candidates
-                .par_iter()
-                .map(|c| self.min_distance(c, ref_set))
-                .collect()
+            candidates.par_iter().map(|c| self.min_distance(c, ref_set)).collect()
         } else {
-            candidates
-                .iter()
-                .map(|c| self.min_distance(c, ref_set))
-                .collect()
+            candidates.iter().map(|c| self.min_distance(c, ref_set)).collect()
         };
 
         #[cfg(not(feature = "rayon"))]
-        let mut min_dists: Vec<f64> = candidates
-            .iter()
-            .map(|c| self.min_distance(c, ref_set))
-            .collect();
+        let mut min_dists: Vec<f64> =
+            candidates.iter().map(|c| self.min_distance(c, ref_set)).collect();
 
         while ref_set.len() < self.params.population_size {
             #[cfg(feature = "rayon")]
@@ -405,9 +394,8 @@ impl<P: Problem + Sync + Send> ScatterSearch<P> {
         let k = k.max(2).min(self.reference_set.len());
 
         // Create combinations only between the best k points
-        let indices: Vec<(usize, usize)> = (0..k)
-            .flat_map(|i| ((i + 1)..k).map(move |j| (i, j)))
-            .collect();
+        let indices: Vec<(usize, usize)> =
+            (0..k).flat_map(|i| ((i + 1)..k).map(move |j| (i, j))).collect();
 
         // Pre-allocate the result vector
         let n_combinations = indices.len();
@@ -418,9 +406,7 @@ impl<P: Problem + Sync + Send> ScatterSearch<P> {
         // Precompute seeds for each combine_points call
         let seeds: Vec<u64> = {
             let mut rng = self.rng.lock().unwrap();
-            (0..indices.len())
-                .map(|_| rng.random::<u64>())
-                .collect::<Vec<_>>()
+            (0..indices.len()).map(|_| rng.random::<u64>()).collect::<Vec<_>>()
         };
 
         #[cfg(feature = "rayon")]
@@ -521,10 +507,7 @@ impl<P: Problem + Sync + Send> ScatterSearch<P> {
         ref_evaluated.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
 
         // Get worst objective value in reference set
-        let worst_obj = ref_evaluated
-            .last()
-            .map(|(_, obj)| *obj)
-            .unwrap_or(f64::INFINITY);
+        let worst_obj = ref_evaluated.last().map(|(_, obj)| *obj).unwrap_or(f64::INFINITY);
 
         #[cfg(feature = "rayon")]
         let trial_evaluated: Vec<(Array1<f64>, f64)> = trials
@@ -596,9 +579,7 @@ impl<P: Problem + Sync + Send> ScatterSearch<P> {
                     Some(current) => Some(current),
                 };
             }
-            best_point
-                .map(|(p, _)| p.clone())
-                .ok_or(ScatterSearchError::NoCandidates)
+            best_point.map(|(p, _)| p.clone()).ok_or(ScatterSearchError::NoCandidates)
         }
     }
 
@@ -639,11 +620,9 @@ mod tests_scatter_search {
 
     impl Problem for SixHumpCamel {
         fn objective(&self, x: &Array1<f64>) -> Result<f64, EvaluationError> {
-            Ok(
-                (4.0 - 2.1 * x[0].powi(2) + x[0].powi(4) / 3.0) * x[0].powi(2)
-                    + x[0] * x[1]
-                    + (-4.0 + 4.0 * x[1].powi(2)) * x[1].powi(2),
-            )
+            Ok((4.0 - 2.1 * x[0].powi(2) + x[0].powi(4) / 3.0) * x[0].powi(2)
+                + x[0] * x[1]
+                + (-4.0 + 4.0 * x[1].powi(2)) * x[1].powi(2))
         }
 
         fn variable_bounds(&self) -> Array2<f64> {

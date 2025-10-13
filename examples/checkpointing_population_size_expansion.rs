@@ -30,11 +30,9 @@ pub struct SixHumpCamel;
 #[cfg(feature = "checkpointing")]
 impl Problem for SixHumpCamel {
     fn objective(&self, x: &Array1<f64>) -> Result<f64, EvaluationError> {
-        Ok(
-            (4.0 - 2.1 * x[0].powi(2) + x[0].powi(4) / 3.0) * x[0].powi(2)
-                + x[0] * x[1]
-                + (-4.0 + 4.0 * x[1].powi(2)) * x[1].powi(2),
-        )
+        Ok((4.0 - 2.1 * x[0].powi(2) + x[0].powi(4) / 3.0) * x[0].powi(2)
+            + x[0] * x[1]
+            + (-4.0 + 4.0 * x[1].powi(2)) * x[1].powi(2))
     }
 
     fn gradient(&self, x: &Array1<f64>) -> Result<Array1<f64>, EvaluationError> {
@@ -81,24 +79,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         auto_resume: false,
     };
 
-    println!(
-        "Stage 1: Running with population_size = {}",
-        initial_params.population_size
-    );
+    println!("Stage 1: Running with population_size = {}", initial_params.population_size);
 
     let mut oqnlp = OQNLP::new(problem.clone(), initial_params)?
         .with_checkpointing(checkpoint_config.clone())?
         .verbose();
 
     let solution_set1 = oqnlp.run()?;
-    println!(
-        "Stage 1 completed. Found {} solutions.",
-        solution_set1.len()
-    );
-    println!(
-        "Best objective: {:.8}\n",
-        solution_set1.best_solution().unwrap().objective
-    );
+    println!("Stage 1 completed. Found {} solutions.", solution_set1.len());
+    println!("Best objective: {:.8}\n", solution_set1.best_solution().unwrap().objective);
 
     // Stage 2: Resume with expanded population size
     let expanded_params = OQNLPParams {
@@ -126,14 +115,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if resumed {
         println!("Successfully resumed from checkpoint with expanded population!");
         let solution_set2 = oqnlp2.run()?;
-        println!(
-            "Stage 2 completed. Found {} solutions.",
-            solution_set2.len()
-        );
-        println!(
-            "Best objective: {:.8}\n",
-            solution_set2.best_solution().unwrap().objective
-        );
+        println!("Stage 2 completed. Found {} solutions.", solution_set2.len());
+        println!("Best objective: {:.8}\n", solution_set2.best_solution().unwrap().objective);
     } else {
         println!("Failed to resume from checkpoint.");
     }
@@ -164,14 +147,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if resumed2 {
         println!("Successfully resumed from checkpoint despite smaller population!");
         let solution_set3 = oqnlp3.run()?;
-        println!(
-            "Stage 3 completed. Found {} solutions.",
-            solution_set3.len()
-        );
-        println!(
-            "Best objective: {:.8}",
-            solution_set3.best_solution().unwrap().objective
-        );
+        println!("Stage 3 completed. Found {} solutions.", solution_set3.len());
+        println!("Best objective: {:.8}", solution_set3.best_solution().unwrap().objective);
     } else {
         println!("Failed to resume from checkpoint.");
     }

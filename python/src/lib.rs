@@ -1,7 +1,8 @@
 mod builders;
 
 use globalsearch::local_solver::builders::{
-    COBYLABuilder, LBFGSBuilder, NelderMeadBuilder, NewtonCGBuilder, SteepestDescentBuilder, TrustRegionBuilder,
+    COBYLABuilder, LBFGSBuilder, NelderMeadBuilder, NewtonCGBuilder, SteepestDescentBuilder,
+    TrustRegionBuilder,
 };
 use globalsearch::oqnlp::OQNLP;
 use globalsearch::problem::Problem;
@@ -9,11 +10,11 @@ use globalsearch::types::{EvaluationError, LocalSolverType, OQNLPParams};
 use ndarray::{Array1, Array2};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::cell::Cell;
 use seq_macro::seq;
+use std::cell::Cell;
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 // Global constraint registry for COBYLA constraints
 type ConstraintRegistry = Arc<Mutex<HashMap<usize, Vec<Py<pyo3::PyAny>>>>>;
@@ -42,13 +43,11 @@ fn get_current_problem_id() -> usize {
     CURRENT_PROBLEM_ID.with(|current| current.get())
 }
 
-
-
 // Helper function to evaluate all constraints for a given problem ID
 fn evaluate_constraints_for_id(problem_id: usize, x: &[f64]) -> Vec<f64> {
     let registry = get_constraint_registry();
     let registry_lock = registry.lock().unwrap();
-    
+
     if let Some(constraints) = registry_lock.get(&problem_id) {
         Python::attach(|py| {
             constraints
@@ -82,17 +81,20 @@ seq!(N in 0..1000 {
 // Helper to get constraint function pointers dynamically
 fn get_constraint_functions(num_constraints: usize) -> Vec<fn(&[f64], &mut ()) -> f64> {
     if num_constraints > MAX_CONSTRAINTS {
-        panic!("Too many constraints! Maximum supported: {}, requested: {}", MAX_CONSTRAINTS, num_constraints);
+        panic!(
+            "Too many constraints! Maximum supported: {}, requested: {}",
+            MAX_CONSTRAINTS, num_constraints
+        );
     }
-    
+
     let mut functions = Vec::new();
-    
+
     seq!(N in 0..1000 {
         if N < num_constraints {
             functions.push(constraint_fn_~N as fn(&[f64], &mut ()) -> f64);
         }
     });
-    
+
     functions
 }
 
@@ -175,7 +177,7 @@ pub struct PyOQNLPParams {
 pub struct PyLocalSolution {
     #[pyo3(get, set)]
     /// The solution coordinates as a list of float values
-    /// 
+    ///
     /// :returns: The solution coordinates as a list of float values (same as `x()` method)
     /// :rtype: list[float]
     pub point: Vec<f64>,
@@ -217,17 +219,11 @@ impl PyLocalSolution {
     }
 
     fn __repr__(&self) -> String {
-        format!(
-            "PyLocalSolution(point={:?}, objective={})",
-            self.point, self.objective
-        )
+        format!("PyLocalSolution(point={:?}, objective={})", self.point, self.objective)
     }
 
     fn __str__(&self) -> String {
-        format!(
-            "Solution(x={:?}, fun={})",
-            self.point, self.objective
-        )
+        format!("Solution(x={:?}, fun={})", self.point, self.objective)
     }
 }
 
@@ -260,7 +256,7 @@ impl PyLocalSolution {
 pub struct PySolutionSet {
     #[pyo3(get)]
     /// The list of local solutions found by the optimization algorithm.
-    /// 
+    ///
     /// :returns: The list of local solutions found by the optimization algorithm
     /// :rtype: list[PyLocalSolution]
     pub solutions: Vec<PyLocalSolution>,
@@ -294,10 +290,7 @@ impl PySolutionSet {
     /// :returns: The solution with the lowest objective function value, or None if the set is empty
     /// :rtype: PyLocalSolution or None
     fn best_solution(&self) -> Option<PyLocalSolution> {
-        self.solutions
-            .iter()
-            .min_by(|a, b| a.objective.partial_cmp(&b.objective).unwrap())
-            .cloned()
+        self.solutions.iter().min_by(|a, b| a.objective.partial_cmp(&b.objective).unwrap()).cloned()
     }
 
     /// Returns the solution at the given index.
@@ -319,10 +312,7 @@ impl PySolutionSet {
     /// :returns: An iterator over all solutions in the set
     /// :rtype: PySolutionSetIterator
     fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<PySolutionSetIterator>> {
-        let iter = PySolutionSetIterator {
-            inner: slf.solutions.clone(),
-            index: 0,
-        };
+        let iter = PySolutionSetIterator { inner: slf.solutions.clone(), index: 0 };
         Py::new(slf.py(), iter)
     }
 
@@ -334,7 +324,7 @@ impl PySolutionSet {
         let mut result = String::from("Solution Set\n");
         result.push_str(&format!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"));
         result.push_str(&format!("Total solutions: {}\n", self.solutions.len()));
-        
+
         if !self.solutions.is_empty() {
             if let Some(best) = self.best_solution() {
                 result.push_str(&format!("Best objective value: {:.8e}\n", best.objective));
@@ -351,7 +341,7 @@ impl PySolutionSet {
                 result.push_str("――――――――――――――――――――――――――――――――――――\n");
             }
         }
-        
+
         result
     }
 }
@@ -399,13 +389,7 @@ impl PyOQNLPParams {
         threshold_factor: f64,
         distance_factor: f64,
     ) -> Self {
-        PyOQNLPParams {
-            iterations,
-            population_size,
-            wait_cycle,
-            threshold_factor,
-            distance_factor,
-        }
+        PyOQNLPParams { iterations, population_size, wait_cycle, threshold_factor, distance_factor }
     }
 }
 
@@ -448,28 +432,28 @@ impl PyOQNLPParams {
 pub struct PyProblem {
     #[pyo3(get, set)]
     /// Objective function to minimize
-    /// 
+    ///
     /// :param x: Input parameters as a list or array of floats
     /// :return: Objective function value (float)
     objective: Py<pyo3::PyAny>,
 
     #[pyo3(get, set)]
     /// Function returning variable bounds
-    /// 
+    ///
     /// :returns: 2D array-like of shape (n_vars, 2) with [lower, upper] bounds for each variable
     /// :rtype: array-like
     variable_bounds: Py<pyo3::PyAny>,
 
     #[pyo3(get, set)]
     /// Function returning the gradient
-    /// 
+    ///
     /// :param x: Input parameters as a list or array of floats
     /// :return: Gradient as a list or array of floats
     /// :raises ValueError: If the gradient length does not match the number of variables
     gradient: Option<Py<pyo3::PyAny>>,
     #[pyo3(get, set)]
     /// Function returning the Hessian matrix
-    /// 
+    ///
     /// :param x: Input parameters as a list or array of floats
     /// :return: Hessian matrix as a 2D list or array of floats
     /// :raises ValueError: If the Hessian is not square or does not match the number of variables
@@ -477,14 +461,14 @@ pub struct PyProblem {
 
     #[pyo3(get, set)]
     /// List of constraint functions
-    /// 
+    ///
     /// :param x: Input parameters as a list or array of floats
     /// :return: Constraint value (float), should be >= 0 to be satisfied
     /// :raises ValueError: If any constraint function does not return a float
     constraints: Option<Py<pyo3::PyAny>>,
 
     /// Unique ID for this problem instance (used for constraint management)
-    /// 
+    ///
     /// :return: Unique problem ID (integer)
     /// :rtype: int
     problem_id: usize,
@@ -534,16 +518,16 @@ impl PyProblem {
                     .to_vec()
                     .into_pyobject(py)
                     .unwrap_or_else(|_| panic!("Failed to convert x to Python object"));
-                
+
                 // Call the Python constraints function which should return a list of constraint values
                 let result = constraints_fn
                     .call1(py, (x_py,))
                     .unwrap_or_else(|_| panic!("Failed to call Python constraints function"));
-                
+
                 // Extract the constraint values as a Vec<f64>
-                result
-                    .extract::<Vec<f64>>(py)
-                    .unwrap_or_else(|_| panic!("Python constraints function must return a list of floats"))
+                result.extract::<Vec<f64>>(py).unwrap_or_else(|_| {
+                    panic!("Python constraints function must return a list of floats")
+                })
             })
         } else {
             vec![]
@@ -562,9 +546,7 @@ impl Problem for PyProblem {
                 .objective
                 .call1(py, (x_py,))
                 .map_err(|e| EvaluationError::InvalidInput(e.to_string()))?;
-            result
-                .extract(py)
-                .map_err(|e| EvaluationError::InvalidInput(e.to_string()))
+            result.extract(py).map_err(|e| EvaluationError::InvalidInput(e.to_string()))
         })
     }
 
@@ -602,9 +584,8 @@ impl Problem for PyProblem {
                     .call1(py, (x_py,))
                     .map_err(|e| EvaluationError::InvalidInput(e.to_string()))?;
 
-                let grad_vec: Vec<f64> = result
-                    .extract(py)
-                    .map_err(|e| EvaluationError::InvalidInput(e.to_string()))?;
+                let grad_vec: Vec<f64> =
+                    result.extract(py).map_err(|e| EvaluationError::InvalidInput(e.to_string()))?;
 
                 Ok(Array1::from(grad_vec))
             })
@@ -624,9 +605,8 @@ impl Problem for PyProblem {
                     .call1(py, (x_py,))
                     .map_err(|e| EvaluationError::InvalidInput(e.to_string()))?;
 
-                let hess_vec: Vec<Vec<f64>> = result
-                    .extract(py)
-                    .map_err(|e| EvaluationError::InvalidInput(e.to_string()))?;
+                let hess_vec: Vec<Vec<f64>> =
+                    result.extract(py).map_err(|e| EvaluationError::InvalidInput(e.to_string()))?;
 
                 let size = hess_vec.len();
                 let flat_hess: Vec<f64> = hess_vec.into_iter().flatten().collect();
@@ -645,25 +625,28 @@ impl Problem for PyProblem {
             // Register Python constraints in the global registry
             let registry = get_constraint_registry();
             let mut registry_lock = registry.lock().unwrap();
-            
+
             Python::attach(|py| {
                 // Extract individual constraint functions from the Python list/tuple
-                let constraint_list: Vec<Py<pyo3::PyAny>> = if let Ok(list) = constraint_funcs.downcast_bound::<pyo3::types::PyList>(py) {
-                    list.iter().map(|item| item.unbind()).collect()
-                } else if let Ok(tuple) = constraint_funcs.downcast_bound::<pyo3::types::PyTuple>(py) {
-                    tuple.iter().map(|item| item.unbind()).collect()
-                } else {
-                    // Single constraint function
-                    vec![constraint_funcs.clone_ref(py)]
-                };
-                
+                let constraint_list: Vec<Py<pyo3::PyAny>> =
+                    if let Ok(list) = constraint_funcs.downcast_bound::<pyo3::types::PyList>(py) {
+                        list.iter().map(|item| item.unbind()).collect()
+                    } else if let Ok(tuple) =
+                        constraint_funcs.downcast_bound::<pyo3::types::PyTuple>(py)
+                    {
+                        tuple.iter().map(|item| item.unbind()).collect()
+                    } else {
+                        // Single constraint function
+                        vec![constraint_funcs.clone_ref(py)]
+                    };
+
                 let num_constraints = constraint_list.len();
                 registry_lock.insert(self.problem_id, constraint_list);
                 drop(registry_lock); // Release the lock
-                
+
                 // Set the current problem ID for constraint evaluation
                 set_current_problem_id(self.problem_id);
-                
+
                 // Return appropriate number of function pointers
                 get_constraint_functions(num_constraints)
             })
@@ -859,7 +842,7 @@ fn optimize(
         // Set parallel mode
         // Default to false unless explicitly enabled by user
         optimizer = optimizer.parallel(parallel.unwrap_or(false));
-        
+
         // Apply optional configurations
         if let Some(target) = target_objective {
             optimizer = optimizer.target_objective(target);
@@ -885,10 +868,7 @@ fn optimize(
         // Convert Rust SolutionSet to Python PySolutionSet
         let py_solutions: Vec<PyLocalSolution> = binding
             .solutions()
-            .map(|sol| PyLocalSolution {
-                point: sol.point.to_vec(),
-                objective: sol.objective,
-            })
+            .map(|sol| PyLocalSolution { point: sol.point.to_vec(), objective: sol.objective })
             .collect();
 
         Ok(PySolutionSet::new(py_solutions))

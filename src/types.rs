@@ -42,10 +42,7 @@ use std::path::PathBuf;
 // Or add it now and print a warning that it is not working as expected in some cases
 
 #[derive(Debug, Clone)]
-#[cfg_attr(
-    feature = "checkpointing",
-    derive(serde::Serialize, serde::Deserialize)
-)]
+#[cfg_attr(feature = "checkpointing", derive(serde::Serialize, serde::Deserialize))]
 /// Configuration parameters for the OQNLP (OptQuest for Nonlinear Programming) algorithm.
 ///
 /// This struct contains all the tunable parameters that control the behavior of the
@@ -125,10 +122,7 @@ impl Default for OQNLPParams {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(
-    feature = "checkpointing",
-    derive(serde::Serialize, serde::Deserialize)
-)]
+#[cfg_attr(feature = "checkpointing", derive(serde::Serialize, serde::Deserialize))]
 /// Configuration parameters for filtering mechanisms in the OQNLP algorithm.
 ///
 /// These parameters control how candidate solutions are filtered during the
@@ -175,10 +169,7 @@ pub struct FilterParams {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(
-    feature = "checkpointing",
-    derive(serde::Serialize, serde::Deserialize)
-)]
+#[cfg_attr(feature = "checkpointing", derive(serde::Serialize, serde::Deserialize))]
 /// Represents a single solution point in the optimization parameter space.
 ///
 /// A `LocalSolution` encapsulates both the parameter values (point) and the
@@ -240,10 +231,7 @@ impl LocalSolution {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(
-    feature = "checkpointing",
-    derive(serde::Serialize, serde::Deserialize)
-)]
+#[cfg_attr(feature = "checkpointing", derive(serde::Serialize, serde::Deserialize))]
 /// A collection of local solutions with utility methods for analysis and display.
 ///
 /// `SolutionSet` is the primary data structure for storing and manipulating
@@ -303,9 +291,7 @@ impl SolutionSet {
 
     /// Returns the best solution in the set based on the objective function value.
     pub fn best_solution(&self) -> Option<&LocalSolution> {
-        self.solutions
-            .iter()
-            .min_by(|a, b| a.objective.partial_cmp(&b.objective).unwrap())
+        self.solutions.iter().min_by(|a, b| a.objective.partial_cmp(&b.objective).unwrap())
     }
 
     /// Returns an iterator over the solutions in the set.
@@ -314,29 +300,29 @@ impl SolutionSet {
     }
 
     /// Display solution set with constraint violations for problems that have constraints.
-    /// 
+    ///
     /// This method formats the solution set similarly to the Display trait but includes
     /// constraint violation information when the problem has constraints defined.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `problem` - The problem that was solved, used to evaluate constraints
     /// * `constraint_descriptions` - Optional descriptions for each constraint (e.g., "x + y <= 1.5")
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A formatted string showing solutions with constraint violations
     pub fn display_with_constraints<P: Problem>(
-        &self, 
-        problem: &P, 
-        constraint_descriptions: Option<&[&str]>
+        &self,
+        problem: &P,
+        constraint_descriptions: Option<&[&str]>,
     ) -> String {
         let mut result = String::new();
         let constraints = problem.constraints();
-        
+
         result.push_str("━━━━━━━━━━━ Solution Set ━━━━━━━━━━━\n");
         result.push_str(&format!("Total solutions: {}\n", self.solutions.len()));
-        
+
         if !self.solutions.is_empty() {
             if let Some(best) = self.best_solution() {
                 result.push_str(&format!("Best objective value: {:.8e}\n", best.objective));
@@ -349,22 +335,22 @@ impl SolutionSet {
             result.push_str(&format!("  Objective: {:.8e}\n", solution.objective));
             result.push_str("  Parameters:\n");
             result.push_str(&format!("    {:.8e}\n", solution.point));
-            
+
             // Add constraint violations if constraints exist
             if !constraints.is_empty() {
                 result.push_str("  Constraint violations:\n");
                 for (j, constraint_fn) in constraints.iter().enumerate() {
                     let x_slice: Vec<f64> = solution.point.to_vec();
                     let constraint_value = constraint_fn(&x_slice, &mut ());
-                    
+
                     // Format constraint status
                     let status = if constraint_value >= 0.0 { "✓" } else { "✗" };
-                    let violation = if constraint_value < 0.0 { 
+                    let violation = if constraint_value < 0.0 {
                         format!(" (violated by {:.6})", -constraint_value)
                     } else {
                         " (satisfied)".to_string()
                     };
-                    
+
                     // Add constraint description if provided
                     let description = if let Some(descriptions) = constraint_descriptions {
                         if j < descriptions.len() {
@@ -375,9 +361,15 @@ impl SolutionSet {
                     } else {
                         String::new()
                     };
-                    
-                    result.push_str(&format!("    Constraint {}{}: {} {:.6e}{}\n", 
-                                           j + 1, description, status, constraint_value, violation));
+
+                    result.push_str(&format!(
+                        "    Constraint {}{}: {} {:.6e}{}\n",
+                        j + 1,
+                        description,
+                        status,
+                        constraint_value,
+                        violation
+                    ));
                 }
             }
 
@@ -385,21 +377,21 @@ impl SolutionSet {
                 result.push_str("――――――――――――――――――――――――――――――――――――\n");
             }
         }
-        
+
         result
     }
 
     /// Display solution set with constraint violations if the problem has constraints.
-    /// 
+    ///
     /// This is a convenience method that automatically detects if the problem has constraints
     /// and displays them if present, otherwise displays normally.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `problem` - The problem that was solved, used to evaluate constraints
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A formatted string showing solutions with or without constraint violations
     pub fn display_with_problem<P: Problem>(&self, problem: &P) -> String {
         let constraints = problem.constraints();
@@ -449,10 +441,7 @@ impl fmt::Display for SolutionSet {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(
-    feature = "checkpointing",
-    derive(serde::Serialize, serde::Deserialize)
-)]
+#[cfg_attr(feature = "checkpointing", derive(serde::Serialize, serde::Deserialize))]
 /// Local solver implementation types for the OQNLP algorithm
 ///
 /// This enum defines the types of local solvers that can be used in the OQNLP algorithm, including L-BFGS, Nelder-Mead, and Gradient Descent (argmin's implementations).
@@ -562,10 +551,7 @@ pub enum EvaluationError {
 
 #[cfg(feature = "checkpointing")]
 #[derive(Debug, Clone)]
-#[cfg_attr(
-    feature = "checkpointing",
-    derive(serde::Serialize, serde::Deserialize)
-)]
+#[cfg_attr(feature = "checkpointing", derive(serde::Serialize, serde::Deserialize))]
 /// Configuration for checkpointing behavior
 ///
 /// This struct defines the configuration for checkpointing behavior in the OQNLP algorithm.
@@ -604,10 +590,7 @@ impl Default for CheckpointConfig {
 
 #[cfg(feature = "checkpointing")]
 #[derive(Debug, Clone)]
-#[cfg_attr(
-    feature = "checkpointing",
-    derive(serde::Serialize, serde::Deserialize)
-)]
+#[cfg_attr(feature = "checkpointing", derive(serde::Serialize, serde::Deserialize))]
 /// Complete OQNLP state that can be saved and restored
 ///
 /// This struct represents the complete state of the OQNLP algorithm at a given point in time,
@@ -711,11 +694,7 @@ impl fmt::Display for OQNLPCheckpoint {
         writeln!(f, "Unchanged cycles: {}", self.unchanged_cycles)?;
         writeln!(f, "Merit threshold: {:.8e}", self.merit_threshold)?;
         writeln!(f, "Reference set size: {}", self.reference_set.len())?;
-        writeln!(
-            f,
-            "Distance filter solutions: {}",
-            self.distance_filter_solutions.len()
-        )?;
+        writeln!(f, "Distance filter solutions: {}", self.distance_filter_solutions.len())?;
         writeln!(f, "Current seed: {}", self.current_seed)?;
 
         if let Some(ref solution_set) = self.solution_set {
@@ -771,14 +750,8 @@ mod tests_types {
     /// Test the len method for the SolutionSet struct
     fn test_solution_set_len() {
         let solutions = Array1::from_vec(vec![
-            LocalSolution {
-                point: array![1.0, 2.0],
-                objective: -1.0,
-            },
-            LocalSolution {
-                point: array![3.0, 4.0],
-                objective: -2.0,
-            },
+            LocalSolution { point: array![1.0, 2.0], objective: -1.0 },
+            LocalSolution { point: array![3.0, 4.0], objective: -2.0 },
         ]);
         let solution_set: SolutionSet = SolutionSet { solutions };
         assert_eq!(solution_set.len(), 2);
@@ -791,10 +764,8 @@ mod tests_types {
         let solution_set: SolutionSet = SolutionSet { solutions };
         assert!(solution_set.is_empty());
 
-        let solutions: Array1<LocalSolution> = Array1::from_vec(vec![LocalSolution {
-            point: array![1.0],
-            objective: -1.0,
-        }]);
+        let solutions: Array1<LocalSolution> =
+            Array1::from_vec(vec![LocalSolution { point: array![1.0], objective: -1.0 }]);
         let solution_set: SolutionSet = SolutionSet { solutions };
         assert!(!solution_set.is_empty());
     }
@@ -803,14 +774,8 @@ mod tests_types {
     /// Test indexing into the SolutionSet struct
     fn test_solution_set_index() {
         let solutions: Array1<LocalSolution> = Array1::from_vec(vec![
-            LocalSolution {
-                point: array![1.0, 2.0],
-                objective: -1.0,
-            },
-            LocalSolution {
-                point: array![3.0, 4.0],
-                objective: -2.0,
-            },
+            LocalSolution { point: array![1.0, 2.0], objective: -1.0 },
+            LocalSolution { point: array![3.0, 4.0], objective: -2.0 },
         ]);
         let solution_set: SolutionSet = SolutionSet { solutions };
 
@@ -821,10 +786,8 @@ mod tests_types {
     #[test]
     /// Test the Display trait for the SolutionSet struct
     fn test_solution_set_display() {
-        let solutions: Array1<LocalSolution> = Array1::from_vec(vec![LocalSolution {
-            point: array![1.0],
-            objective: -1.0,
-        }]);
+        let solutions: Array1<LocalSolution> =
+            Array1::from_vec(vec![LocalSolution { point: array![1.0], objective: -1.0 }]);
         let solution_set: SolutionSet = SolutionSet { solutions };
 
         println!("{}", solution_set);
@@ -858,39 +821,21 @@ mod tests_types {
     #[test]
     /// Test the from_string method for the LocalSolverType enum
     fn test_local_solver_type_from_string() {
-        assert_eq!(
-            LocalSolverType::from_string("LBFGS"),
-            Ok(LocalSolverType::LBFGS)
-        );
-        assert_eq!(
-            LocalSolverType::from_string("Nelder-Mead"),
-            Ok(LocalSolverType::NelderMead)
-        );
+        assert_eq!(LocalSolverType::from_string("LBFGS"), Ok(LocalSolverType::LBFGS));
+        assert_eq!(LocalSolverType::from_string("Nelder-Mead"), Ok(LocalSolverType::NelderMead));
         assert_eq!(
             LocalSolverType::from_string("SteepestDescent"),
             Ok(LocalSolverType::SteepestDescent)
         );
-        assert_eq!(
-            LocalSolverType::from_string("TrustRegion"),
-            Ok(LocalSolverType::TrustRegion)
-        );
-        assert_eq!(
-            LocalSolverType::from_string("NewtonCG"),
-            Ok(LocalSolverType::NewtonCG)
-        );
-        assert_eq!(
-            LocalSolverType::from_string("Invalid"),
-            Err("Invalid solver type.")
-        );
+        assert_eq!(LocalSolverType::from_string("TrustRegion"), Ok(LocalSolverType::TrustRegion));
+        assert_eq!(LocalSolverType::from_string("NewtonCG"), Ok(LocalSolverType::NewtonCG));
+        assert_eq!(LocalSolverType::from_string("Invalid"), Err("Invalid solver type."));
     }
 
     #[test]
     /// Test f() and x() methods from LocalSolution
     fn test_local_solution_f_x() {
-        let local_solution = LocalSolution {
-            point: array![1.0],
-            objective: -1.0,
-        };
+        let local_solution = LocalSolution { point: array![1.0], objective: -1.0 };
 
         assert_eq!(local_solution.fun(), -1.0);
         assert_eq!(local_solution.x(), array![1.0]);
@@ -900,18 +845,9 @@ mod tests_types {
     /// Test best_solution from SolutionSet
     fn test_solution_set_best_solution() {
         let solutions: Array1<LocalSolution> = Array1::from_vec(vec![
-            LocalSolution {
-                point: array![1.0],
-                objective: -1.0,
-            },
-            LocalSolution {
-                point: array![2.0],
-                objective: -1.0,
-            },
-            LocalSolution {
-                point: array![3.0],
-                objective: -1.0,
-            },
+            LocalSolution { point: array![1.0], objective: -1.0 },
+            LocalSolution { point: array![2.0], objective: -1.0 },
+            LocalSolution { point: array![3.0], objective: -1.0 },
         ]);
         let solution_set: SolutionSet = SolutionSet { solutions };
 
@@ -925,14 +861,8 @@ mod tests_types {
     fn test_oqnlp_checkpoint_display() {
         let solution_set = SolutionSet {
             solutions: Array1::from_vec(vec![
-                LocalSolution {
-                    point: array![1.0, 2.0],
-                    objective: -1.5,
-                },
-                LocalSolution {
-                    point: array![3.0, 4.0],
-                    objective: -2.0,
-                },
+                LocalSolution { point: array![1.0, 2.0], objective: -1.5 },
+                LocalSolution { point: array![3.0, 4.0], objective: -2.0 },
             ]),
         };
 
@@ -945,7 +875,8 @@ mod tests_types {
                 distance_factor: 0.8,
                 seed: 42,
                 local_solver_type: LocalSolverType::COBYLA,
-                local_solver_config: crate::local_solver::builders::COBYLABuilder::default().build(),
+                local_solver_config: crate::local_solver::builders::COBYLABuilder::default()
+                    .build(),
             },
             current_iteration: 50,
             merit_threshold: 1.25,
@@ -986,37 +917,36 @@ mod tests_types {
     fn test_solution_set_display_with_constraints() {
         use crate::problem::Problem;
         use crate::types::EvaluationError;
-        
+
         // Create a mock problem with constraints
         #[derive(Debug, Clone)]
         struct TestProblemWithConstraints;
-        
+
         impl Problem for TestProblemWithConstraints {
             fn objective(&self, x: &Array1<f64>) -> Result<f64, EvaluationError> {
                 Ok(x[0].powi(2) + x[1].powi(2))
             }
-            
+
             fn variable_bounds(&self) -> ndarray::Array2<f64> {
                 ndarray::array![[-2.0, 2.0], [-2.0, 2.0]]
             }
-            
+
             fn constraints(&self) -> Vec<fn(&[f64], &mut ()) -> f64> {
                 vec![
                     |x: &[f64], _: &mut ()| 1.0 - x[0] - x[1], // x[0] + x[1] <= 1.0
                 ]
             }
         }
-        
-        let solutions = Array1::from_vec(vec![LocalSolution {
-            point: array![0.3, 0.3],
-            objective: 0.18,
-        }]);
+
+        let solutions =
+            Array1::from_vec(vec![LocalSolution { point: array![0.3, 0.3], objective: 0.18 }]);
         let solution_set = SolutionSet { solutions };
         let problem = TestProblemWithConstraints;
-        
+
         let constraint_descriptions = ["x[0] + x[1] <= 1.0"];
-        let display_output = solution_set.display_with_constraints(&problem, Some(&constraint_descriptions));
-        
+        let display_output =
+            solution_set.display_with_constraints(&problem, Some(&constraint_descriptions));
+
         assert!(display_output.contains("Solution Set"));
         assert!(display_output.contains("Total solutions: 1"));
         assert!(display_output.contains("Constraint violations:"));
@@ -1030,30 +960,28 @@ mod tests_types {
     fn test_solution_set_display_with_problem_no_constraints() {
         use crate::problem::Problem;
         use crate::types::EvaluationError;
-        
+
         // Create a mock problem without constraints
         #[derive(Debug, Clone)]
         struct TestProblemNoConstraints;
-        
+
         impl Problem for TestProblemNoConstraints {
             fn objective(&self, x: &Array1<f64>) -> Result<f64, EvaluationError> {
                 Ok(x[0].powi(2) + x[1].powi(2))
             }
-            
+
             fn variable_bounds(&self) -> ndarray::Array2<f64> {
                 ndarray::array![[-2.0, 2.0], [-2.0, 2.0]]
             }
         }
-        
-        let solutions = Array1::from_vec(vec![LocalSolution {
-            point: array![1.0, 1.0],
-            objective: 2.0,
-        }]);
+
+        let solutions =
+            Array1::from_vec(vec![LocalSolution { point: array![1.0, 1.0], objective: 2.0 }]);
         let solution_set = SolutionSet { solutions };
         let problem = TestProblemNoConstraints;
-        
+
         let display_output = solution_set.display_with_problem(&problem);
-        
+
         assert!(display_output.contains("Solution Set"));
         assert!(display_output.contains("Total solutions: 1"));
         assert!(!display_output.contains("Constraint violations:")); // Should not have constraints

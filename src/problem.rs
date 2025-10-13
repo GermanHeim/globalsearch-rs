@@ -31,14 +31,14 @@
 //! - **Purpose**: Defines the feasible region for optimization
 //!
 //! ### Constraints (Optional, only valid with the COBYLA local solver)
-//! - **Sign Convention**: 
+//! - **Sign Convention**:
 //!   - `g(x) ≥ 0`: Constraint satisfied
 //!   - `g(x) < 0`: Constraint violated
 //! - **Return Type**: Vector of constraint function closures
 //! - **Use Cases**: Nonlinear inequality constraints beyond simple bounds
 //!
 //! ## Example: Six-Hump Camel Function
-//! 
+//!
 //! ```rust
 //! /// References:
 //! ///
@@ -103,7 +103,7 @@ use ndarray::{Array1, Array2};
 /// The variable bounds are the lower and upper bounds for the optimization problem.
 ///
 /// Constraint functions for constrained optimization problems can also be defined using the `constraints` method.
-/// 
+///
 /// The default implementation of the gradient and hessian returns an error indicating the gradient and hessian are not implemented.
 /// Some local solvers require the gradient and hessian to be implemented, while for others it isn't needed.
 /// You should check the documentation of the local solver you are using to know if the gradient and hessian are needed.
@@ -146,30 +146,30 @@ pub trait Problem {
     ///
     /// Returns constraint functions in the format expected by optimization solvers.
     /// Function pointers that take (&[f64], &mut ()) and return f64.
-    /// 
-    /// **Sign Convention**: 
+    ///
+    /// **Sign Convention**:
     /// - **Positive or zero**: constraint satisfied  
     /// - **Negative**: constraint violated
-    /// 
+    ///
     /// The default implementation returns an empty vector (no constraints).
     ///
     /// # Examples
-    /// 
+    ///
     /// ```rust
     /// use globalsearch::problem::Problem;
     /// use globalsearch::types::EvaluationError;
     /// use ndarray::Array1;
-    /// 
+    ///
     /// struct MyProblem;
     /// impl Problem for MyProblem {
     ///     fn objective(&self, x: &Array1<f64>) -> Result<f64, EvaluationError> {
     ///         Ok(x[0].powi(2) + x[1].powi(2))
     ///     }
-    /// 
+    ///
     ///     fn variable_bounds(&self) -> ndarray::Array2<f64> {
     ///         ndarray::array![[-1.0, 1.0], [-1.0, 1.0]]
     ///     }
-    /// 
+    ///
     ///     fn constraints(&self) -> Vec<fn(&[f64], &mut ()) -> f64> {
     ///         vec![
     ///             |x: &[f64], _: &mut ()| 1.0 - x[0] - x[1], // x[0] + x[1] <= 1.0 -> 1.0 - x[0] - x[1] >= 0

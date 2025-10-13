@@ -82,7 +82,7 @@ impl PyHagerZhang {
         theta = 0.5,
         gamma = 0.66,
         eta = 0.01,
-        bounds = vec![EPSILON.sqrt(), INFINITY], 
+        bounds = vec![EPSILON.sqrt(), INFINITY],
     ))]
     fn new(
         delta: f64,
@@ -93,15 +93,7 @@ impl PyHagerZhang {
         eta: f64,
         bounds: Vec<f64>,
     ) -> Self {
-        PyHagerZhang {
-            delta,
-            sigma,
-            epsilon,
-            theta,
-            gamma,
-            eta,
-            bounds,
-        }
+        PyHagerZhang { delta, sigma, epsilon, theta, gamma, eta, bounds }
     }
 }
 
@@ -132,15 +124,7 @@ fn hagerzhang(
     eta: f64,
     bounds: Vec<f64>,
 ) -> PyHagerZhang {
-    PyHagerZhang {
-        delta,
-        sigma,
-        epsilon,
-        theta,
-        gamma,
-        eta,
-        bounds,
-    }
+    PyHagerZhang { delta, sigma, epsilon, theta, gamma, eta, bounds }
 }
 
 #[pyclass]
@@ -170,35 +154,20 @@ impl PyMoreThuente {
         bounds = vec![EPSILON.sqrt(), INFINITY],
     ))]
     fn new(c1: f64, c2: f64, width_tolerance: f64, bounds: Vec<f64>) -> Self {
-        PyMoreThuente {
-            c1,
-            c2,
-            width_tolerance,
-            bounds,
-        }
+        PyMoreThuente { c1, c2, width_tolerance, bounds }
     }
 }
 
 impl PyMoreThuente {
     pub fn to_builder(&self) -> MoreThuenteBuilder {
-        MoreThuenteBuilder::new(
-            self.c1,
-            self.c2,
-            self.width_tolerance,
-            self.bounds.clone().into(),
-        )
+        MoreThuenteBuilder::new(self.c1, self.c2, self.width_tolerance, self.bounds.clone().into())
     }
 }
 
 #[pyfunction]
 #[pyo3(text_signature = "(c1: f64, c2: f64, width_tolerance: f64, bounds: List[float])")]
 fn morethuente(c1: f64, c2: f64, width_tolerance: f64, bounds: Vec<f64>) -> PyMoreThuente {
-    PyMoreThuente {
-        c1,
-        c2,
-        width_tolerance,
-        bounds,
-    }
+    PyMoreThuente { c1, c2, width_tolerance, bounds }
 }
 
 #[derive(Debug, Clone)]
@@ -225,34 +194,26 @@ impl PyLineSearchParams {
         }
 
         if let Ok(hager_zhang) = method.extract::<PyHagerZhang>(py) {
-            return Ok(PyLineSearchParams {
-                method: PyLineSearchMethod::HagerZhang(hager_zhang),
-            });
+            return Ok(PyLineSearchParams { method: PyLineSearchMethod::HagerZhang(hager_zhang) });
         }
 
-        Err(PyTypeError::new_err(
-            "Expected PyMoreThuente or PyHagerZhang",
-        ))
+        Err(PyTypeError::new_err("Expected PyMoreThuente or PyHagerZhang"))
     }
 
     #[staticmethod]
     /// More-Thuente line search configuration
-    /// 
+    ///
     /// :param params: More-Thuente line search parameters
     fn morethuente(params: PyMoreThuente) -> Self {
-        PyLineSearchParams {
-            method: PyLineSearchMethod::MoreThuente(params),
-        }
+        PyLineSearchParams { method: PyLineSearchMethod::MoreThuente(params) }
     }
 
     #[staticmethod]
     /// Hager-Zhang line search configuration
-    /// 
+    ///
     /// :param params: Hager-Zhang line search parameters
     fn hagerzhang(params: PyHagerZhang) -> Self {
-        PyLineSearchParams {
-            method: PyLineSearchMethod::HagerZhang(params),
-        }
+        PyLineSearchParams { method: PyLineSearchMethod::HagerZhang(params) }
     }
 }
 
@@ -327,36 +288,36 @@ impl PyLineSearchParams {
 pub struct PyLBFGS {
     #[pyo3(get, set)]
     /// Maximum number of iterations
-    /// 
+    ///
     /// :type: int
     pub max_iter: u64,
 
     #[pyo3(get, set)]
     /// Gradient norm tolerance for convergence
-    /// 
+    ///
     /// :type: float
     pub tolerance_grad: f64,
-    
+
     #[pyo3(get, set)]
     /// Relative function change tolerance
-    /// 
+    ///
     /// :type: float
     pub tolerance_cost: f64,
 
     #[pyo3(get, set)]
     /// Number of previous steps to store
-    /// 
+    ///
     /// :type: int
     pub history_size: usize,
     #[pyo3(get, set)]
     /// L1 regularization coefficient for sparsity
-    /// 
+    ///
     /// :type: float, optional
     pub l1_coefficient: Option<f64>,
 
     #[pyo3(get, set)]
     /// Line search method configuration
-    /// 
+    ///
     /// :type: PyLineSearchParams
     pub line_search_params: PyLineSearchParams,
 }
@@ -454,13 +415,9 @@ fn lbfgs(
         if let Ok(params) = line_search_params.extract::<PyLineSearchParams>(py) {
             params
         } else if let Ok(more_thuente) = line_search_params.extract::<PyMoreThuente>(py) {
-            PyLineSearchParams {
-                method: PyLineSearchMethod::MoreThuente(more_thuente),
-            }
+            PyLineSearchParams { method: PyLineSearchMethod::MoreThuente(more_thuente) }
         } else if let Ok(hager_zhang) = line_search_params.extract::<PyHagerZhang>(py) {
-            PyLineSearchParams {
-                method: PyLineSearchMethod::HagerZhang(hager_zhang),
-            }
+            PyLineSearchParams { method: PyLineSearchMethod::HagerZhang(hager_zhang) }
         } else {
             return Err(PyTypeError::new_err(
                 "Expected PyLineSearchParams, PyMoreThuente, or PyHagerZhang",
@@ -482,39 +439,39 @@ fn lbfgs(
 pub struct PyNelderMead {
     #[pyo3(get, set)]
     /// Simplex delta configuration
-    /// 
+    ///
     /// :type: float
     pub simplex_delta: f64,
 
     #[pyo3(get, set)]
     /// Standard deviation tolerance for convergence
-    /// 
+    ///
     /// :type: float
     pub sd_tolerance: f64,
     #[pyo3(get, set)]
     /// Maximum number of iterations
-    /// 
+    ///
     /// :type: int
     pub max_iter: u64,
 
     #[pyo3(get, set)]
     /// Step size for the simplex algorithm
-    /// 
+    ///
     /// :type: float
     pub alpha: f64,
     #[pyo3(get, set)]
     /// Reflection coefficient
-    /// 
+    ///
     /// :type: float
     pub gamma: f64,
     #[pyo3(get, set)]
     /// Contraction coefficient
-    /// 
+    ///
     /// :type: float
     pub rho: f64,
     #[pyo3(get, set)]
     /// Expansion coefficient
-    /// 
+    ///
     /// :type: float
     pub sigma: f64,
 }
@@ -540,15 +497,7 @@ impl PyNelderMead {
         rho: f64,
         sigma: f64,
     ) -> Self {
-        PyNelderMead {
-            simplex_delta,
-            sd_tolerance,
-            max_iter,
-            alpha,
-            gamma,
-            rho,
-            sigma,
-        }
+        PyNelderMead { simplex_delta, sd_tolerance, max_iter, alpha, gamma, rho, sigma }
     }
 }
 
@@ -579,15 +528,7 @@ fn neldermead(
     rho: f64,
     sigma: f64,
 ) -> PyNelderMead {
-    PyNelderMead {
-        simplex_delta,
-        sd_tolerance,
-        max_iter,
-        alpha,
-        gamma,
-        rho,
-        sigma,
-    }
+    PyNelderMead { simplex_delta, sd_tolerance, max_iter, alpha, gamma, rho, sigma }
 }
 
 #[pyclass]
@@ -595,13 +536,13 @@ fn neldermead(
 pub struct PySteepestDescent {
     #[pyo3(get, set)]
     /// Maximum number of iterations
-    /// 
+    ///
     /// :type: int
     pub max_iter: u64,
 
     #[pyo3(get, set)]
     /// Line search method configuration
-    /// 
+    ///
     /// :type: PyLineSearchParams
     pub line_search_params: PyLineSearchParams,
 }
@@ -620,14 +561,8 @@ impl PySteepestDescent {
             }),
         },
     ))]
-    fn new(
-        max_iter: u64,
-        line_search_params: PyLineSearchParams,
-    ) -> Self {
-        PySteepestDescent {
-            max_iter,
-            line_search_params,
-        }
+    fn new(max_iter: u64, line_search_params: PyLineSearchParams) -> Self {
+        PySteepestDescent { max_iter, line_search_params }
     }
 }
 
@@ -651,17 +586,12 @@ impl PySteepestDescent {
                 .build(),
         };
 
-        SteepestDescentBuilder::new(
-            self.max_iter,
-            line_search_params,
-        )
+        SteepestDescentBuilder::new(self.max_iter, line_search_params)
     }
 }
 
 #[pyfunction]
-#[pyo3(
-    text_signature = "(max_iter: u64, line_search_params: Union[PyMoreThuente, PyHagerZhang])"
-)]
+#[pyo3(text_signature = "(max_iter: u64, line_search_params: Union[PyMoreThuente, PyHagerZhang])")]
 fn steepestdescent(
     max_iter: u64,
     line_search_params: Py<pyo3::PyAny>,
@@ -671,23 +601,16 @@ fn steepestdescent(
         if let Ok(params) = line_search_params.extract::<PyLineSearchParams>(py) {
             params
         } else if let Ok(more_thuente) = line_search_params.extract::<PyMoreThuente>(py) {
-            PyLineSearchParams {
-                method: PyLineSearchMethod::MoreThuente(more_thuente),
-            }
+            PyLineSearchParams { method: PyLineSearchMethod::MoreThuente(more_thuente) }
         } else if let Ok(hager_zhang) = line_search_params.extract::<PyHagerZhang>(py) {
-            PyLineSearchParams {
-                method: PyLineSearchMethod::HagerZhang(hager_zhang),
-            }
+            PyLineSearchParams { method: PyLineSearchMethod::HagerZhang(hager_zhang) }
         } else {
             return Err(PyTypeError::new_err(
                 "Expected PyLineSearchParams, PyMoreThuente, or PyHagerZhang",
             ));
         };
 
-    Ok(PySteepestDescent {
-        max_iter,
-        line_search_params,
-    })
+    Ok(PySteepestDescent { max_iter, line_search_params })
 }
 
 #[pyclass]
@@ -695,7 +618,7 @@ fn steepestdescent(
 pub struct PyNewtonCG {
     #[pyo3(get, set)]
     /// Maximum number of iterations
-    /// 
+    ///
     /// :type: int
     pub max_iter: u64,
 
@@ -713,7 +636,7 @@ pub struct PyNewtonCG {
 
     #[pyo3(get, set)]
     /// Line search method configuration
-    /// 
+    ///
     /// :type: PyLineSearchParams
     pub line_search_params: PyLineSearchParams,
 }
@@ -740,12 +663,7 @@ impl PyNewtonCG {
         tolerance: f64,
         line_search_params: PyLineSearchParams,
     ) -> Self {
-        PyNewtonCG {
-            max_iter,
-            curvature_threshold,
-            tolerance,
-            line_search_params,
-        }
+        PyNewtonCG { max_iter, curvature_threshold, tolerance, line_search_params }
     }
 }
 
@@ -787,29 +705,20 @@ fn newtoncg(
     line_search_params: Py<pyo3::PyAny>,
     py: Python,
 ) -> PyResult<PyNewtonCG> {
-let line_search_params =
+    let line_search_params =
         if let Ok(params) = line_search_params.extract::<PyLineSearchParams>(py) {
             params
         } else if let Ok(more_thuente) = line_search_params.extract::<PyMoreThuente>(py) {
-            PyLineSearchParams {
-                method: PyLineSearchMethod::MoreThuente(more_thuente),
-            }
+            PyLineSearchParams { method: PyLineSearchMethod::MoreThuente(more_thuente) }
         } else if let Ok(hager_zhang) = line_search_params.extract::<PyHagerZhang>(py) {
-            PyLineSearchParams {
-                method: PyLineSearchMethod::HagerZhang(hager_zhang),
-            }
+            PyLineSearchParams { method: PyLineSearchMethod::HagerZhang(hager_zhang) }
         } else {
             return Err(PyTypeError::new_err(
                 "Expected PyLineSearchParams, PyMoreThuente, or PyHagerZhang",
             ));
         };
 
-    Ok(PyNewtonCG {
-        max_iter,
-        curvature_threshold,
-        tolerance,
-        line_search_params,
-    })
+    Ok(PyNewtonCG { max_iter, curvature_threshold, tolerance, line_search_params })
 }
 
 #[pyclass(eq, eq_int)]
@@ -852,25 +761,25 @@ pub struct PyTrustRegion {
 
     #[pyo3(get, set)]
     /// Maximum number of iterations
-    /// 
+    ///
     /// :type: int
     pub max_iter: u64,
 
     #[pyo3(get, set)]
     /// Trust region radius
-    /// 
+    ///
     /// :type: float
     pub radius: f64,
 
     #[pyo3(get, set)]
     /// Maximum trust region radius
-    /// 
+    ///
     /// :type: float
     pub max_radius: f64,
 
     #[pyo3(get, set)]
     /// Trust region expansion factor
-    /// 
+    ///
     /// :type: float
     pub eta: f64,
 }
@@ -892,13 +801,7 @@ impl PyTrustRegion {
         max_radius: f64,
         eta: f64,
     ) -> Self {
-        PyTrustRegion {
-            trust_region_radius_method,
-            max_iter,
-            radius,
-            max_radius,
-            eta,
-        }
+        PyTrustRegion { trust_region_radius_method, max_iter, radius, max_radius, eta }
     }
 }
 
@@ -925,13 +828,7 @@ fn trustregion(
     max_radius: f64,
     eta: f64,
 ) -> PyTrustRegion {
-    PyTrustRegion {
-        trust_region_radius_method,
-        max_iter,
-        radius,
-        max_radius,
-        eta,
-    }
+    PyTrustRegion { trust_region_radius_method, max_iter, radius, max_radius, eta }
 }
 
 #[pyclass]
@@ -1025,7 +922,7 @@ pub struct PyCOBYLA {
 
     #[pyo3(get, set)]
     /// Relative tolerance for parameter convergence
-    /// 
+    ///
     /// :type: float, optional
     pub xtol_rel: Option<f64>,
 
@@ -1055,40 +952,30 @@ impl PyCOBYLA {
         xtol_rel: Option<f64>,
         xtol_abs: Option<Vec<f64>>,
     ) -> Self {
-        PyCOBYLA {
-            max_iter,
-            step_size,
-            ftol_rel,
-            ftol_abs,
-            xtol_rel,
-            xtol_abs,
-        }
+        PyCOBYLA { max_iter, step_size, ftol_rel, ftol_abs, xtol_rel, xtol_abs }
     }
 }
 
 impl PyCOBYLA {
     pub fn to_builder(&self) -> COBYLABuilder {
-        let mut builder = COBYLABuilder::new(
-            self.max_iter,
-            self.step_size,
-        );
-        
+        let mut builder = COBYLABuilder::new(self.max_iter, self.step_size);
+
         if let Some(ftol_rel) = self.ftol_rel {
             builder = builder.ftol_rel(ftol_rel);
         }
-        
+
         if let Some(ftol_abs) = self.ftol_abs {
             builder = builder.ftol_abs(ftol_abs);
         }
-        
+
         if let Some(xtol_rel) = self.xtol_rel {
             builder = builder.xtol_rel(xtol_rel);
         }
-        
+
         if let Some(xtol_abs) = &self.xtol_abs {
             builder = builder.xtol_abs(xtol_abs.clone());
         }
-        
+
         builder
     }
 }
@@ -1158,14 +1045,7 @@ fn cobyla(
     xtol_rel: Option<f64>,
     xtol_abs: Option<Vec<f64>>,
 ) -> PyCOBYLA {
-    PyCOBYLA {
-        max_iter,
-        step_size,
-        ftol_rel,
-        ftol_abs,
-        xtol_rel,
-        xtol_abs,
-    }
+    PyCOBYLA { max_iter, step_size, ftol_rel, ftol_abs, xtol_rel, xtol_abs }
 }
 
 /// Initialize the builders module

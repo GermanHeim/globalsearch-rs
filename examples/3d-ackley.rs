@@ -41,11 +41,9 @@ impl Problem for ThreeDAckley {
         let norm = (x[0].powi(2) + x[1].powi(2) + x[2].powi(2)) / 3.0;
         let cos_sum = (x[0] * self.c).cos() + (x[1] * self.c).cos() + (x[2] * self.c).cos();
 
-        Ok(
-            -self.a * (-self.b * norm.sqrt()).exp() - (cos_sum / 3.0).exp()
-                + self.a
-                + std::f64::consts::E,
-        )
+        Ok(-self.a * (-self.b * norm.sqrt()).exp() - (cos_sum / 3.0).exp()
+            + self.a
+            + std::f64::consts::E)
     }
 
     // Calculated analytically, reference didn't provide gradient

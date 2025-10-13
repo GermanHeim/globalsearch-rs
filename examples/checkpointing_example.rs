@@ -26,11 +26,9 @@ pub struct SixHumpCamel;
 
 impl Problem for SixHumpCamel {
     fn objective(&self, x: &Array1<f64>) -> Result<f64, EvaluationError> {
-        Ok(
-            (4.0 - 2.1 * x[0].powi(2) + x[0].powi(4) / 3.0) * x[0].powi(2)
-                + x[0] * x[1]
-                + (-4.0 + 4.0 * x[1].powi(2)) * x[1].powi(2),
-        )
+        Ok((4.0 - 2.1 * x[0].powi(2) + x[0].powi(4) / 3.0) * x[0].powi(2)
+            + x[0] * x[1]
+            + (-4.0 + 4.0 * x[1].powi(2)) * x[1].powi(2))
     }
 
     fn gradient(&self, x: &Array1<f64>) -> Result<Array1<f64>, EvaluationError> {
@@ -84,22 +82,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     println!("Checkpoint configuration:");
-    println!(
-        "  Directory: {}",
-        checkpoint_config.checkpoint_dir.display()
-    );
-    println!(
-        "  Save frequency: every {} iterations",
-        checkpoint_config.save_frequency
-    );
+    println!("  Directory: {}", checkpoint_config.checkpoint_dir.display());
+    println!("  Save frequency: every {} iterations", checkpoint_config.save_frequency);
     println!("  Auto-resume: {}", checkpoint_config.auto_resume);
     println!();
 
     // First run: optimize with initial parameters
-    println!(
-        "Starting initial optimization with {} iterations...",
-        params.iterations
-    );
+    println!("Starting initial optimization with {} iterations...", params.iterations);
     let mut oqnlp = OQNLP::new(problem.clone(), params.clone())?
         .with_checkpointing(checkpoint_config)?
         .verbose();

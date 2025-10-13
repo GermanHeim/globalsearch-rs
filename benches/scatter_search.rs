@@ -47,11 +47,9 @@ struct SixHumpCamel;
 
 impl Problem for SixHumpCamel {
     fn objective(&self, x: &Array1<f64>) -> Result<f64, EvaluationError> {
-        Ok(
-            (4.0 - 2.1 * x[0].powi(2) + x[0].powi(4) / 3.0) * x[0].powi(2)
-                + x[0] * x[1]
-                + (-4.0 + 4.0 * x[1].powi(2)) * x[1].powi(2),
-        )
+        Ok((4.0 - 2.1 * x[0].powi(2) + x[0].powi(4) / 3.0) * x[0].powi(2)
+            + x[0] * x[1]
+            + (-4.0 + 4.0 * x[1].powi(2)) * x[1].powi(2))
     }
 
     fn variable_bounds(&self) -> Array2<f64> {
@@ -71,22 +69,15 @@ fn run_scatter_search_population(c: &mut Criterion) {
     use criterion::BenchmarkId;
     let sizes: [usize; 3] = [1000, 10000, 17500];
     for &size in &sizes {
-        c.bench_with_input(
-            BenchmarkId::new("scatter_search", size),
-            &size,
-            |b, &size| {
-                b.iter(|| {
-                    let problem = SixHumpCamel;
-                    let params = OQNLPParams {
-                        population_size: size,
-                        ..OQNLPParams::default()
-                    };
-                    let ss = ScatterSearch::new(problem, params).unwrap();
-                    let (ref_set, best) = ss.run().unwrap();
-                    black_box((ref_set, best));
-                })
-            },
-        );
+        c.bench_with_input(BenchmarkId::new("scatter_search", size), &size, |b, &size| {
+            b.iter(|| {
+                let problem = SixHumpCamel;
+                let params = OQNLPParams { population_size: size, ..OQNLPParams::default() };
+                let ss = ScatterSearch::new(problem, params).unwrap();
+                let (ref_set, best) = ss.run().unwrap();
+                black_box((ref_set, best));
+            })
+        });
     }
 }
 

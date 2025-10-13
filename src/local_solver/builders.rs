@@ -37,10 +37,7 @@
 use ndarray::{array, Array1};
 
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(
-    feature = "checkpointing",
-    derive(serde::Serialize, serde::Deserialize)
-)]
+#[cfg_attr(feature = "checkpointing", derive(serde::Serialize, serde::Deserialize))]
 /// Trust region subproblem solution methods.
 ///
 /// This enum specifies the algorithm used to solve the trust region subproblem,
@@ -69,10 +66,7 @@ pub enum TrustRegionRadiusMethod {
     Steihaug,
 }
 
-#[cfg_attr(
-    feature = "checkpointing",
-    derive(serde::Serialize, serde::Deserialize)
-)]
+#[cfg_attr(feature = "checkpointing", derive(serde::Serialize, serde::Deserialize))]
 /// Local solver configuration for the OQNLP algorithm
 ///
 /// This enum defines the configuration options for the local solver used in the optimizer, depending on the method used.
@@ -191,20 +185,34 @@ impl std::fmt::Debug for LocalSolverConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             LocalSolverConfig::LBFGS { .. } => f.debug_struct("LBFGS").finish_non_exhaustive(),
-            LocalSolverConfig::NelderMead { .. } => f.debug_struct("NelderMead").finish_non_exhaustive(),
-            LocalSolverConfig::SteepestDescent { .. } => f.debug_struct("SteepestDescent").finish_non_exhaustive(),
-            LocalSolverConfig::TrustRegion { .. } => f.debug_struct("TrustRegion").finish_non_exhaustive(),
-            LocalSolverConfig::NewtonCG { .. } => f.debug_struct("NewtonCG").finish_non_exhaustive(),
-            LocalSolverConfig::COBYLA { max_iter, initial_step_size, ftol_rel, ftol_abs, xtol_rel, xtol_abs } => {
-                f.debug_struct("COBYLA")
-                    .field("max_iter", max_iter)
-                    .field("initial_step_size", initial_step_size)
-                    .field("ftol_rel", ftol_rel)
-                    .field("ftol_abs", ftol_abs)
-                    .field("xtol_rel", xtol_rel)
-                    .field("xtol_abs", xtol_abs)
-                    .finish()
+            LocalSolverConfig::NelderMead { .. } => {
+                f.debug_struct("NelderMead").finish_non_exhaustive()
             }
+            LocalSolverConfig::SteepestDescent { .. } => {
+                f.debug_struct("SteepestDescent").finish_non_exhaustive()
+            }
+            LocalSolverConfig::TrustRegion { .. } => {
+                f.debug_struct("TrustRegion").finish_non_exhaustive()
+            }
+            LocalSolverConfig::NewtonCG { .. } => {
+                f.debug_struct("NewtonCG").finish_non_exhaustive()
+            }
+            LocalSolverConfig::COBYLA {
+                max_iter,
+                initial_step_size,
+                ftol_rel,
+                ftol_abs,
+                xtol_rel,
+                xtol_abs,
+            } => f
+                .debug_struct("COBYLA")
+                .field("max_iter", max_iter)
+                .field("initial_step_size", initial_step_size)
+                .field("ftol_rel", ftol_rel)
+                .field("ftol_abs", ftol_abs)
+                .field("xtol_rel", xtol_rel)
+                .field("xtol_abs", xtol_abs)
+                .finish(),
         }
     }
 }
@@ -212,60 +220,83 @@ impl std::fmt::Debug for LocalSolverConfig {
 impl Clone for LocalSolverConfig {
     fn clone(&self) -> Self {
         match self {
-            LocalSolverConfig::LBFGS { max_iter, tolerance_grad, tolerance_cost, history_size, l1_coefficient, line_search_params } => {
-                LocalSolverConfig::LBFGS {
-                    max_iter: *max_iter,
-                    tolerance_grad: *tolerance_grad,
-                    tolerance_cost: *tolerance_cost,
-                    history_size: *history_size,
-                    l1_coefficient: *l1_coefficient,
-                    line_search_params: line_search_params.clone(),
-                }
-            }
-            LocalSolverConfig::NelderMead { simplex_delta, sd_tolerance, max_iter, alpha, gamma, rho, sigma } => {
-                LocalSolverConfig::NelderMead {
-                    simplex_delta: *simplex_delta,
-                    sd_tolerance: *sd_tolerance,
-                    max_iter: *max_iter,
-                    alpha: *alpha,
-                    gamma: *gamma,
-                    rho: *rho,
-                    sigma: *sigma,
-                }
-            }
+            LocalSolverConfig::LBFGS {
+                max_iter,
+                tolerance_grad,
+                tolerance_cost,
+                history_size,
+                l1_coefficient,
+                line_search_params,
+            } => LocalSolverConfig::LBFGS {
+                max_iter: *max_iter,
+                tolerance_grad: *tolerance_grad,
+                tolerance_cost: *tolerance_cost,
+                history_size: *history_size,
+                l1_coefficient: *l1_coefficient,
+                line_search_params: line_search_params.clone(),
+            },
+            LocalSolverConfig::NelderMead {
+                simplex_delta,
+                sd_tolerance,
+                max_iter,
+                alpha,
+                gamma,
+                rho,
+                sigma,
+            } => LocalSolverConfig::NelderMead {
+                simplex_delta: *simplex_delta,
+                sd_tolerance: *sd_tolerance,
+                max_iter: *max_iter,
+                alpha: *alpha,
+                gamma: *gamma,
+                rho: *rho,
+                sigma: *sigma,
+            },
             LocalSolverConfig::SteepestDescent { max_iter, line_search_params } => {
                 LocalSolverConfig::SteepestDescent {
                     max_iter: *max_iter,
                     line_search_params: line_search_params.clone(),
                 }
             }
-            LocalSolverConfig::TrustRegion { trust_region_radius_method, max_iter, radius, max_radius, eta } => {
-                LocalSolverConfig::TrustRegion {
-                    trust_region_radius_method: trust_region_radius_method.clone(),
-                    max_iter: *max_iter,
-                    radius: *radius,
-                    max_radius: *max_radius,
-                    eta: *eta,
-                }
-            }
-            LocalSolverConfig::NewtonCG { max_iter, curvature_threshold, tolerance, line_search_params } => {
-                LocalSolverConfig::NewtonCG {
-                    max_iter: *max_iter,
-                    curvature_threshold: *curvature_threshold,
-                    tolerance: *tolerance,
-                    line_search_params: line_search_params.clone(),
-                }
-            }
-            LocalSolverConfig::COBYLA { max_iter, initial_step_size, ftol_rel, ftol_abs, xtol_rel, xtol_abs } => {
-                LocalSolverConfig::COBYLA {
-                    max_iter: *max_iter,
-                    initial_step_size: *initial_step_size,
-                    ftol_rel: *ftol_rel,
-                    ftol_abs: *ftol_abs,
-                    xtol_rel: *xtol_rel,
-                    xtol_abs: xtol_abs.clone(),
-                }
-            }
+            LocalSolverConfig::TrustRegion {
+                trust_region_radius_method,
+                max_iter,
+                radius,
+                max_radius,
+                eta,
+            } => LocalSolverConfig::TrustRegion {
+                trust_region_radius_method: trust_region_radius_method.clone(),
+                max_iter: *max_iter,
+                radius: *radius,
+                max_radius: *max_radius,
+                eta: *eta,
+            },
+            LocalSolverConfig::NewtonCG {
+                max_iter,
+                curvature_threshold,
+                tolerance,
+                line_search_params,
+            } => LocalSolverConfig::NewtonCG {
+                max_iter: *max_iter,
+                curvature_threshold: *curvature_threshold,
+                tolerance: *tolerance,
+                line_search_params: line_search_params.clone(),
+            },
+            LocalSolverConfig::COBYLA {
+                max_iter,
+                initial_step_size,
+                ftol_rel,
+                ftol_abs,
+                xtol_rel,
+                xtol_abs,
+            } => LocalSolverConfig::COBYLA {
+                max_iter: *max_iter,
+                initial_step_size: *initial_step_size,
+                ftol_rel: *ftol_rel,
+                ftol_abs: *ftol_abs,
+                xtol_rel: *xtol_rel,
+                xtol_abs: xtol_abs.clone(),
+            },
         }
     }
 }
@@ -541,15 +572,7 @@ impl NelderMeadBuilder {
         rho: f64,
         sigma: f64,
     ) -> Self {
-        NelderMeadBuilder {
-            simplex_delta,
-            sd_tolerance,
-            max_iter,
-            alpha,
-            gamma,
-            rho,
-            sigma,
-        }
+        NelderMeadBuilder { simplex_delta, sd_tolerance, max_iter, alpha, gamma, rho, sigma }
     }
 
     /// Build the Nelder-Mead local solver configuration
@@ -672,10 +695,7 @@ pub struct SteepestDescentBuilder {
 impl SteepestDescentBuilder {
     /// Create a new Steepest Descent builder
     pub fn new(max_iter: u64, line_search_params: LineSearchParams) -> Self {
-        SteepestDescentBuilder {
-            max_iter,
-            line_search_params,
-        }
+        SteepestDescentBuilder { max_iter, line_search_params }
     }
 
     /// Build the Steepest Descent local solver configuration
@@ -707,10 +727,7 @@ impl SteepestDescentBuilder {
 /// - `line_search_params`: Default LineSearchParams
 impl Default for SteepestDescentBuilder {
     fn default() -> Self {
-        SteepestDescentBuilder {
-            max_iter: 300,
-            line_search_params: LineSearchParams::default(),
-        }
+        SteepestDescentBuilder { max_iter: 300, line_search_params: LineSearchParams::default() }
     }
 }
 
@@ -773,13 +790,7 @@ impl TrustRegionBuilder {
         max_radius: f64,
         eta: f64,
     ) -> Self {
-        TrustRegionBuilder {
-            trust_region_radius_method,
-            max_iter,
-            radius,
-            max_radius,
-            eta,
-        }
+        TrustRegionBuilder { trust_region_radius_method, max_iter, radius, max_radius, eta }
     }
 
     /// Build the Trust Region local solver configuration
@@ -907,12 +918,7 @@ impl NewtonCGBuilder {
         tolerance: f64,
         line_search_params: LineSearchParams,
     ) -> Self {
-        NewtonCGBuilder {
-            max_iter,
-            curvature_threshold,
-            tolerance,
-            line_search_params,
-        }
+        NewtonCGBuilder { max_iter, curvature_threshold, tolerance, line_search_params }
     }
 
     /// Build the Newton-CG method local solver configuration
@@ -1028,10 +1034,7 @@ pub struct COBYLABuilder {
 /// ```
 impl COBYLABuilder {
     /// Create a new COBYLA builder
-    pub fn new(
-        max_iter: u64,
-        initial_step_size: f64,
-    ) -> Self {
+    pub fn new(max_iter: u64, initial_step_size: f64) -> Self {
         COBYLABuilder {
             max_iter,
             initial_step_size,
@@ -1049,8 +1052,8 @@ impl COBYLABuilder {
             initial_step_size: self.initial_step_size,
             ftol_rel: self.ftol_rel.unwrap_or(1e-6),
             ftol_abs: self.ftol_abs.unwrap_or(1e-8),
-            xtol_rel: self.xtol_rel.unwrap_or(0.0),    // No default for x tolerances
-            xtol_abs: self.xtol_abs.unwrap_or_default(),  // Empty vector means no tolerance
+            xtol_rel: self.xtol_rel.unwrap_or(0.0), // No default for x tolerances
+            xtol_abs: self.xtol_abs.unwrap_or_default(), // Empty vector means no tolerance
         }
     }
 
@@ -1067,7 +1070,7 @@ impl COBYLABuilder {
     }
 
     /// Set the relative function tolerance for the COBYLA local solver
-    /// 
+    ///
     /// The local solver stops when the objective function changes by less than `ftol_rel * |f(x)|`
     pub fn ftol_rel(mut self, ftol_rel: f64) -> Self {
         self.ftol_rel = Some(ftol_rel);
@@ -1075,7 +1078,7 @@ impl COBYLABuilder {
     }
 
     /// Set the absolute function tolerance for the COBYLA local solver
-    /// 
+    ///
     /// The local solver stops when the objective function changes by less than `ftol_abs`
     pub fn ftol_abs(mut self, ftol_abs: f64) -> Self {
         self.ftol_abs = Some(ftol_abs);
@@ -1083,7 +1086,7 @@ impl COBYLABuilder {
     }
 
     /// Set the relative parameter tolerance for the COBYLA local solver
-    /// 
+    ///
     /// The local solver stops when all `x[i]` changes by less than `xtol_rel * x[i]`
     pub fn xtol_rel(mut self, xtol_rel: f64) -> Self {
         self.xtol_rel = Some(xtol_rel);
@@ -1091,7 +1094,7 @@ impl COBYLABuilder {
     }
 
     /// Set the absolute parameter tolerance for the COBYLA local solver
-    /// 
+    ///
     /// The local solver stops when all `x\[i\]` changes by less than `xtol_abs\[i\]`.
     /// Each element in the vector corresponds to the tolerance for that variable.
     /// If the vector is shorter than the number of variables, the last value is used
@@ -1124,10 +1127,7 @@ impl Default for COBYLABuilder {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(
-    feature = "checkpointing",
-    derive(serde::Serialize, serde::Deserialize)
-)]
+#[cfg_attr(feature = "checkpointing", derive(serde::Serialize, serde::Deserialize))]
 /// Line search methods for the local solver
 ///
 /// This enum defines the types of line search methods that can be used in some of the local solver, including MoreThuente, HagerZhang, and Backtracking.
@@ -1150,10 +1150,7 @@ pub enum LineSearchMethod {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(
-    feature = "checkpointing",
-    derive(serde::Serialize, serde::Deserialize)
-)]
+#[cfg_attr(feature = "checkpointing", derive(serde::Serialize, serde::Deserialize))]
 /// Line search parameters for the local solver
 ///
 /// This struct defines the parameters for the line search algorithm used in the local solver. It is only needed for the optimizers that use line search methods.
@@ -1249,12 +1246,7 @@ pub struct MoreThuenteBuilder {
 impl MoreThuenteBuilder {
     /// Create a new More-Thuente builder
     pub fn new(c1: f64, c2: f64, width_tolerance: f64, bounds: Array1<f64>) -> Self {
-        MoreThuenteBuilder {
-            c1,
-            c2,
-            width_tolerance,
-            bounds,
-        }
+        MoreThuenteBuilder { c1, c2, width_tolerance, bounds }
     }
 
     /// Build the More-Thuente line search parameters
@@ -1383,15 +1375,7 @@ impl HagerZhangBuilder {
         eta: f64,
         bounds: Array1<f64>,
     ) -> Self {
-        HagerZhangBuilder {
-            delta,
-            sigma,
-            epsilon,
-            theta,
-            gamma,
-            eta,
-            bounds,
-        }
+        HagerZhangBuilder { delta, sigma, epsilon, theta, gamma, eta, bounds }
     }
 
     /// Build the Hager-Zhang line search parameters
@@ -1507,12 +1491,7 @@ mod tests_builders {
                 assert_eq!(history_size, 10);
                 assert_eq!(l1_coefficient, None);
                 match line_search_params.method {
-                    LineSearchMethod::MoreThuente {
-                        c1,
-                        c2,
-                        width_tolerance,
-                        bounds,
-                    } => {
+                    LineSearchMethod::MoreThuente { c1, c2, width_tolerance, bounds } => {
                         assert_eq!(c1, 1e-4);
                         assert_eq!(c2, 0.9);
                         assert_eq!(width_tolerance, 1e-10);
@@ -1569,18 +1548,10 @@ mod tests_builders {
     fn test_default_steepestdescent() {
         let steepestdescent: LocalSolverConfig = SteepestDescentBuilder::default().build();
         match steepestdescent {
-            LocalSolverConfig::SteepestDescent {
-                max_iter,
-                line_search_params,
-            } => {
+            LocalSolverConfig::SteepestDescent { max_iter, line_search_params } => {
                 assert_eq!(max_iter, 300);
                 match line_search_params.method {
-                    LineSearchMethod::MoreThuente {
-                        c1,
-                        c2,
-                        width_tolerance,
-                        bounds,
-                    } => {
+                    LineSearchMethod::MoreThuente { c1, c2, width_tolerance, bounds } => {
                         assert_eq!(c1, 1e-4);
                         assert_eq!(c2, 0.9);
                         assert_eq!(width_tolerance, 1e-10);
@@ -1642,12 +1613,7 @@ mod tests_builders {
                 assert_eq!(curvature_threshold, 0.0);
                 assert_eq!(tolerance, f64::EPSILON);
                 match line_search_params.method {
-                    LineSearchMethod::MoreThuente {
-                        c1,
-                        c2,
-                        width_tolerance,
-                        bounds,
-                    } => {
+                    LineSearchMethod::MoreThuente { c1, c2, width_tolerance, bounds } => {
                         assert_eq!(c1, 1e-4);
                         assert_eq!(c2, 0.9);
                         assert_eq!(width_tolerance, 1e-10);
@@ -1671,12 +1637,7 @@ mod tests_builders {
     fn test_default_morethuente() {
         let morethuente: LineSearchParams = MoreThuenteBuilder::default().build();
         match morethuente.method {
-            LineSearchMethod::MoreThuente {
-                c1,
-                c2,
-                width_tolerance,
-                bounds,
-            } => {
+            LineSearchMethod::MoreThuente { c1, c2, width_tolerance, bounds } => {
                 assert_eq!(c1, 1e-4);
                 assert_eq!(c2, 0.9);
                 assert_eq!(width_tolerance, 1e-10);
@@ -1700,15 +1661,7 @@ mod tests_builders {
     fn test_default_hagerzhang() {
         let hagerzhang: LineSearchParams = HagerZhangBuilder::default().build();
         match hagerzhang.method {
-            LineSearchMethod::HagerZhang {
-                delta,
-                sigma,
-                epsilon,
-                theta,
-                gamma,
-                eta,
-                bounds,
-            } => {
+            LineSearchMethod::HagerZhang { delta, sigma, epsilon, theta, gamma, eta, bounds } => {
                 assert_eq!(delta, 0.1);
                 assert_eq!(sigma, 0.9);
                 assert_eq!(epsilon, 1e-6);
@@ -1747,12 +1700,7 @@ mod tests_builders {
                 assert_eq!(history_size, 5);
                 assert_eq!(l1_coefficient, None);
                 match line_search_params.method {
-                    LineSearchMethod::MoreThuente {
-                        c1,
-                        c2,
-                        width_tolerance,
-                        bounds,
-                    } => {
+                    LineSearchMethod::MoreThuente { c1, c2, width_tolerance, bounds } => {
                         assert_eq!(c1, 1e-5);
                         assert_eq!(c2, 0.8);
                         assert_eq!(width_tolerance, 1e-10);
@@ -1803,23 +1751,13 @@ mod tests_builders {
     /// Test changing the parameters of Steepest Descent builder
     fn change_params_steepestdescent() {
         let linesearch: LineSearchParams = MoreThuenteBuilder::default().c1(1e-5).c2(0.8).build();
-        let steepestdescent: LocalSolverConfig = SteepestDescentBuilder::default()
-            .max_iter(500)
-            .line_search_params(linesearch)
-            .build();
+        let steepestdescent: LocalSolverConfig =
+            SteepestDescentBuilder::default().max_iter(500).line_search_params(linesearch).build();
         match steepestdescent {
-            LocalSolverConfig::SteepestDescent {
-                max_iter,
-                line_search_params,
-            } => {
+            LocalSolverConfig::SteepestDescent { max_iter, line_search_params } => {
                 assert_eq!(max_iter, 500);
                 match line_search_params.method {
-                    LineSearchMethod::MoreThuente {
-                        c1,
-                        c2,
-                        width_tolerance,
-                        bounds,
-                    } => {
+                    LineSearchMethod::MoreThuente { c1, c2, width_tolerance, bounds } => {
                         assert_eq!(c1, 1e-5);
                         assert_eq!(c2, 0.8);
                         assert_eq!(width_tolerance, 1e-10);
@@ -1850,10 +1788,7 @@ mod tests_builders {
                 max_radius,
                 eta,
             } => {
-                assert_eq!(
-                    trust_region_radius_method,
-                    TrustRegionRadiusMethod::Steihaug
-                );
+                assert_eq!(trust_region_radius_method, TrustRegionRadiusMethod::Steihaug);
                 assert_eq!(max_iter, 500);
                 assert_eq!(radius, 2.0);
                 assert_eq!(max_radius, 200.0);
@@ -1884,12 +1819,7 @@ mod tests_builders {
                 assert_eq!(curvature_threshold, 0.1);
                 assert_eq!(tolerance, 1e-7);
                 match line_search_params.method {
-                    LineSearchMethod::MoreThuente {
-                        c1,
-                        c2,
-                        width_tolerance,
-                        bounds,
-                    } => {
+                    LineSearchMethod::MoreThuente { c1, c2, width_tolerance, bounds } => {
                         assert_eq!(c1, 1e-5);
                         assert_eq!(c2, 0.8);
                         assert_eq!(width_tolerance, 1e-10);
@@ -1912,12 +1842,7 @@ mod tests_builders {
             .bounds(array![1e-5, 1e5])
             .build();
         match morethuente.method {
-            LineSearchMethod::MoreThuente {
-                c1,
-                c2,
-                width_tolerance,
-                bounds,
-            } => {
+            LineSearchMethod::MoreThuente { c1, c2, width_tolerance, bounds } => {
                 assert_eq!(c1, 1e-5);
                 assert_eq!(c2, 0.8);
                 assert_eq!(width_tolerance, 1e-8);
@@ -1941,15 +1866,7 @@ mod tests_builders {
             .build();
 
         match hagerzhang.method {
-            LineSearchMethod::HagerZhang {
-                delta,
-                sigma,
-                epsilon,
-                theta,
-                gamma,
-                eta,
-                bounds,
-            } => {
+            LineSearchMethod::HagerZhang { delta, sigma, epsilon, theta, gamma, eta, bounds } => {
                 assert_eq!(delta, 0.2);
                 assert_eq!(sigma, 0.8);
                 assert_eq!(epsilon, 1e-7);
@@ -1982,12 +1899,7 @@ mod tests_builders {
                 assert_eq!(history_size, 5);
                 assert_eq!(l1_coefficient, None);
                 match line_search_params.method {
-                    LineSearchMethod::MoreThuente {
-                        c1,
-                        c2,
-                        width_tolerance,
-                        bounds,
-                    } => {
+                    LineSearchMethod::MoreThuente { c1, c2, width_tolerance, bounds } => {
                         assert_eq!(c1, 1e-5);
                         assert_eq!(c2, 0.8);
                         assert_eq!(width_tolerance, 1e-10);
@@ -2032,18 +1944,10 @@ mod tests_builders {
         let ls = LineSearchParams::morethuente().c1(1e-5).c2(0.8).build();
         let sd = SteepestDescentBuilder::new(500, ls).build();
         match sd {
-            LocalSolverConfig::SteepestDescent {
-                max_iter,
-                line_search_params,
-            } => {
+            LocalSolverConfig::SteepestDescent { max_iter, line_search_params } => {
                 assert_eq!(max_iter, 500);
                 match line_search_params.method {
-                    LineSearchMethod::MoreThuente {
-                        c1,
-                        c2,
-                        width_tolerance,
-                        bounds,
-                    } => {
+                    LineSearchMethod::MoreThuente { c1, c2, width_tolerance, bounds } => {
                         assert_eq!(c1, 1e-5);
                         assert_eq!(c2, 0.8);
                         assert_eq!(width_tolerance, 1e-10);
@@ -2069,10 +1973,7 @@ mod tests_builders {
                 max_radius,
                 eta,
             } => {
-                assert_eq!(
-                    trust_region_radius_method,
-                    TrustRegionRadiusMethod::Steihaug
-                );
+                assert_eq!(trust_region_radius_method, TrustRegionRadiusMethod::Steihaug);
                 assert_eq!(max_iter, 500);
                 assert_eq!(radius, 2.0);
                 assert_eq!(max_radius, 200.0);
@@ -2098,12 +1999,7 @@ mod tests_builders {
                 assert_eq!(curvature_threshold, 0.1);
                 assert_eq!(tolerance, 1e-7);
                 match line_search_params.method {
-                    LineSearchMethod::MoreThuente {
-                        c1,
-                        c2,
-                        width_tolerance,
-                        bounds,
-                    } => {
+                    LineSearchMethod::MoreThuente { c1, c2, width_tolerance, bounds } => {
                         assert_eq!(c1, 1e-5);
                         assert_eq!(c2, 0.8);
                         assert_eq!(width_tolerance, 1e-10);
@@ -2121,12 +2017,7 @@ mod tests_builders {
     fn test_morethuente_new() {
         let mt = MoreThuenteBuilder::new(1e-5, 0.8, 1e-8, array![1e-5, 1e5]).build();
         match mt.method {
-            LineSearchMethod::MoreThuente {
-                c1,
-                c2,
-                width_tolerance,
-                bounds,
-            } => {
+            LineSearchMethod::MoreThuente { c1, c2, width_tolerance, bounds } => {
                 assert_eq!(c1, 1e-5);
                 assert_eq!(c2, 0.8);
                 assert_eq!(width_tolerance, 1e-8);
@@ -2141,15 +2032,7 @@ mod tests_builders {
     fn test_hagerzhang_new() {
         let hz = HagerZhangBuilder::new(0.2, 0.8, 1e-7, 0.6, 0.7, 0.05, array![1e-6, 1e6]).build();
         match hz.method {
-            LineSearchMethod::HagerZhang {
-                delta,
-                sigma,
-                epsilon,
-                theta,
-                gamma,
-                eta,
-                bounds,
-            } => {
+            LineSearchMethod::HagerZhang { delta, sigma, epsilon, theta, gamma, eta, bounds } => {
                 assert_eq!(delta, 0.2);
                 assert_eq!(sigma, 0.8);
                 assert_eq!(epsilon, 1e-7);
@@ -2183,10 +2066,10 @@ mod tests_builders {
             } => {
                 assert_eq!(max_iter, 300);
                 assert_eq!(initial_step_size, 0.5);
-                assert_eq!(ftol_rel, 1e-6);  // REL_TOL default
-                assert_eq!(ftol_abs, 1e-8);  // ABS_TOL default
-                assert_eq!(xtol_rel, 0.0);   // No default
-                assert_eq!(xtol_abs, Vec::<f64>::new());   // No default (empty vector)
+                assert_eq!(ftol_rel, 1e-6); // REL_TOL default
+                assert_eq!(ftol_abs, 1e-8); // ABS_TOL default
+                assert_eq!(xtol_rel, 0.0); // No default
+                assert_eq!(xtol_abs, Vec::<f64>::new()); // No default (empty vector)
             }
             _ => panic!("Expected COBYLA local solver"),
         }
@@ -2195,11 +2078,8 @@ mod tests_builders {
     #[test]
     /// Test changing the parameters of COBYLA builder
     fn change_params_cobyla() {
-        let cobyla: LocalSolverConfig = COBYLABuilder::default()
-            .max_iter(500)
-            .initial_step_size(0.1)
-            .ftol_rel(1e-10)
-            .build();
+        let cobyla: LocalSolverConfig =
+            COBYLABuilder::default().max_iter(500).initial_step_size(0.1).ftol_rel(1e-10).build();
         match cobyla {
             LocalSolverConfig::COBYLA {
                 max_iter,
@@ -2254,7 +2134,7 @@ mod tests_builders {
             .ftol_rel(1e-8)
             .xtol_abs(xtol_vec.clone())
             .build();
-        
+
         match cobyla {
             LocalSolverConfig::COBYLA {
                 max_iter,
