@@ -33,11 +33,11 @@ jobs:
         with:
           components: clippy
       - name: Clippy
-        run: cargo clippy --verbose
+        run: cargo clippy --verbose -- -D warnings
       - name: Clippy with rayon
-        run: cargo clippy --features "rayon" --verbose
+        run: cargo clippy --features "rayon" --verbose -- -D warnings
       - name: Clippy with checkpointing
-        run: cargo clippy --features "checkpointing" --verbose
+        run: cargo clippy --features "checkpointing" --verbose -- -D warnings
 
   fmt:
     runs-on: ubuntu-latest
