@@ -1,5 +1,5 @@
 ---
-title: 'GlobalSearch-rs: A global optimization library written in Rust'
+title: 'GlobalSearch-rs: A multistart framework for global optimization written in Rust'
 
 tags:
   - Rust
@@ -26,7 +26,7 @@ bibliography: paper.bib
 
 # Summary
 
-`GlobalSearch-rs` is an open-source global optimization library implemented in Rust. It is based on the `OptQuest/NLP (OQNLP)` algorithm, combining scatter search metaheuristics with local nonlinear programming (NLP) solvers. The software is designed to solve nonlinear global optimization problems by leveraging efficient parallel computing and Rust's memory safety guarantees. Additionally, `GlobalSearch-rs` provides Python bindings, allowing seamless integration with Python-based workflows, making it a versatile tool for working in scientific computing and data-driven optimization tasks. This library provides an alternative to proprietary solutions like MATLAB's `GlobalSearch`, offering a high-performance, open-source alternative accessible to the scientific and engineering communities.
+`GlobalSearch-rs` is an open-source global optimization library written in Rust that implements a multistart optimization strategy. It is based on the `OptQuest/NLP (OQNLP)` algorithm, combining scatter search metaheuristics with local nonlinear programming (NLP) solvers. The software is designed to solve nonlinear global optimization problems by leveraging efficient parallel computing and Rust's memory safety guarantees. Additionally, `GlobalSearch-rs` provides Python bindings, allowing seamless integration with Python-based workflows, making it a versatile tool for working in scientific computing and data-driven optimization tasks. This library provides an alternative to proprietary solutions like MATLAB's `GlobalSearch`, offering a high-performance, open-source alternative accessible to the scientific and engineering communities.
 
 # Statement of need
 
