@@ -34,6 +34,8 @@ Global optimization is a fundamental problem in engineering, physics, and applie
 
 Building on these algorithmic advances, practical software implementations have become essential for researchers and engineers. MATLAB’s `GlobalSearch`, for example, has been widely adopted, with applications ranging from airfoil design optimization [@airfoil] to kinetic mechanism analysis of polyurethane decomposition [@kinetics]. However, despite its popularity, to the best of our knowledge, no actively maintained open-source alternative currently exists. The only open-source implementation, `MEIGO` [@meigo], is still written in MATLAB, a proprietary language, limiting accessibility.
 
+Several high-quality open-source optimization libraries are available, such as `NLopt` [@nlopt] and `pagmo2` [@Biscani2020], both of which provide Rust and Python bindings. These libraries offer a broad collection of local and global optimization algorithms. However, neither of them provides an implementation of the `OQNLP` algorithm specifically.
+
 `GlobalSearch-rs` addresses this gap and extends its functionality with additional features designed to improve practical usability. It offers a modern, high-performance implementation for bound-constrained nonlinear programming (NLP) problems:
 
 $$
