@@ -75,9 +75,12 @@ pub struct OQNLPParams {
     /// threshold criteria (Stage 2) and the reference set (Stage 1).
     pub wait_cycle: usize,
 
-    /// Threshold factor multiplier
+    /// Threshold factor multiplier for merit filter adjustment
     ///
-    /// The new threshold is calculated as `threshold = threshold + threshold_factor * (1 + abs(threshold))`
+    /// Controls how aggressively the merit filter relaxes acceptance criteria when no
+    /// improvements are found during optimization. Must be positive (> 0.0).
+    ///
+    /// The new threshold is calculated as: `threshold = threshold + threshold_factor * (1 + abs(threshold))`
     pub threshold_factor: f64,
 
     /// Factor that influences the minimum required distance between candidate solutions
@@ -164,7 +167,13 @@ pub struct FilterParams {
     pub distance_factor: f64,
     /// Number of iterations to wait before updating the threshold criteria
     pub wait_cycle: usize,
-    /// Threshold factor
+    /// Threshold factor multiplier for merit filter adjustment
+    ///
+    /// The threshold factor controls how aggressively the merit filter relaxes acceptance
+    /// criteria when no improvements are found. A higher value makes the algorithm more
+    /// permissive in accepting new solutions.
+    ///
+    /// The new threshold is calculated as: `threshold = threshold + threshold_factor * (1 + abs(threshold))`
     pub threshold_factor: f64,
 }
 

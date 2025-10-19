@@ -188,6 +188,12 @@ pub enum OQNLPError {
     #[error("OQNLP Error: Failed to create distance filter: {0}")]
     DistanceFilterError(#[from] crate::filters::FiltersErrors),
 
+    /// Error when the threshold factor is invalid
+    ///
+    /// Threshold factor should be positive (greater than 0.0).
+    #[error("OQNLP Error: Threshold factor must be positive, got {0}.")]
+    InvalidThresholdFactor(f64),
+
     /// Error related to checkpointing operations
     #[cfg(feature = "checkpointing")]
     #[error("OQNLP Error: Checkpointing error: {0}")]
@@ -403,6 +409,10 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
 
         if params.iterations > params.population_size {
             return Err(OQNLPError::InvalidIterations(params.iterations, params.population_size));
+        }
+
+        if params.threshold_factor <= 0.0 {
+            return Err(OQNLPError::InvalidThresholdFactor(params.threshold_factor));
         }
 
         if params.wait_cycle >= params.iterations {
@@ -1698,6 +1708,32 @@ mod tests_oqnlp {
 
         let oqnlp = OQNLP::new(problem, params);
         assert!(matches!(oqnlp, Err(OQNLPError::InvalidPopulationSize(1))));
+    }
+
+    #[test]
+    /// Test the invalid threshold factor for the OQNLP algorithm
+    fn test_oqnlp_params_invalid_threshold_factor_zero() {
+        let problem: DummyProblem = DummyProblem {};
+        let params: OQNLPParams = OQNLPParams {
+            threshold_factor: 0.0, // Threshold factor must be positive
+            ..OQNLPParams::default()
+        };
+
+        let oqnlp = OQNLP::new(problem, params);
+        assert!(matches!(oqnlp, Err(OQNLPError::InvalidThresholdFactor(0.0))));
+    }
+
+    #[test]
+    /// Test the invalid threshold factor (negative) for the OQNLP algorithm
+    fn test_oqnlp_params_invalid_threshold_factor_negative() {
+        let problem: DummyProblem = DummyProblem {};
+        let params: OQNLPParams = OQNLPParams {
+            threshold_factor: -0.5, // Threshold factor must be positive
+            ..OQNLPParams::default()
+        };
+
+        let oqnlp = OQNLP::new(problem, params);
+        assert!(matches!(oqnlp, Err(OQNLPError::InvalidThresholdFactor(_))));
     }
 
     #[test]
