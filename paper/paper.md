@@ -72,7 +72,9 @@ f(x) = \left(4 - 2.1 x_1^2 + \frac{x_1^4}{4} \right)x_1^2 + x_1 x_2 + (-4 +4 x_2
 The function is evaluated in the domain (bounds) $x_1 \in [-3, 3]$ and $x_2 \in [-2, 2]$. It has
 two global minima at approximately $\mathbf{x}^* = (0.0898, -0.7126)$ and $\mathbf{x}^* = (-0.0898, 0.7126)$ with a function value of $f(\mathbf{x}^*) \approx -1.0316$.
 
-To solve this optimization problem using `GlobalSearch-rs`, the algorithm first generates an initial population of candidate solutions within the prescribed bounds, forming the reference set. \autoref{fig:ex-reference-set} presents the contour plot of the Six-Hump Camel function alongside the initial distribution of candidate solutions.
+The GlobalSearch-rs algorithm solves this problem in two stages. In the first stage, it explores the search space by generating an initial population of candidate solutions within the prescribed bounds, forming a reference set. In the second stage, it performs local optimization from a subset of promising points in this reference set to refine the search and converge toward local (and potentially global) optima.
+
+\autoref{fig:ex-reference-set} presents the contour plot of the Six-Hump Camel function alongside the initial distribution of candidate solutions generated in stage one.
 
 ![Contour plot of the Six-Hump Camel function with initial population.\label{fig:ex-reference-set}](./figures/sixhumpcamel_contour_with_initial_population.svg)
 
