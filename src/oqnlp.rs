@@ -748,10 +748,19 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
             existing.solutions.clone()
         } else {
             // First solution, initialize solution set
+            if self.verbose {
+                println!(
+                    "New solution added to solution set: objective = {:.8}, point = {}",
+                    solution.objective, solution.point
+                );
+                println!("Solution set size: 1");
+            }
+
             self.solution_set =
                 Some(SolutionSet { solutions: Array1::from(vec![solution.clone()]) });
             self.merit_filter.update_threshold(solution.objective);
             self.distance_filter.add_solution(solution);
+
             return Ok(true);
         };
 
@@ -767,12 +776,29 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
             self.solution_set =
                 Some(SolutionSet { solutions: Array1::from(vec![solution.clone()]) });
             self.merit_filter.update_threshold(solution.objective);
+
+            if self.verbose {
+                println!(
+                    "New best solution found (replacing solution set): objective = {:.8}, point = {}",
+                    solution.objective, solution.point
+                );
+                println!("Solution set size: 1");
+            }
+
             false
         } else if obj_diff <= tol && !self.is_duplicate_in_set(&solution, &solutions) {
             // Similar objective value and not duplicate, add to set
             let mut new_solutions: Vec<LocalSolution> = solutions.to_vec();
             new_solutions.push(solution.clone());
             self.solution_set = Some(SolutionSet { solutions: Array1::from(new_solutions) });
+
+            if self.verbose {
+                println!(
+                    "New solution added to solution set: objective = {:.8}, point = {}",
+                    solution.objective, solution.point
+                );
+                println!("Solution set size: {}", self.solution_set.as_ref().unwrap().len());
+            }
 
             true
         } else {
