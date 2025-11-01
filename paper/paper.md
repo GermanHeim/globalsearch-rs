@@ -45,9 +45,9 @@ $$
 $$
 
 Developed in Rust—a free and open-source programming language—it combines accessibility with performance, ensuring that researchers are not limited by proprietary ecosystems.
-Rust’s ownership model and concurrency features enable safe and efficient execution, making the library suitable for high-performance computing applications, a suitability further supported by recent work demonstrating Rust’s advantages in high-performance computing [@eth-rust].
+Rust's ownership model and concurrency features enable safe and efficient execution, making the library suitable for high-performance computing applications, a suitability further supported by recent work demonstrating Rust's advantages in high-performance computing [@eth-rust].
 
-![`GlobalSearch-rs` logo.\label{fig:logo-globalsearch-rs}](./figures/logo-rs.png){width=75%}
+![`GlobalSearch-rs` (right) and `PyGlobalSearch` (left) logos.\label{fig:logos}](./figures/logos.png)
 
 # Library features
 
@@ -58,8 +58,6 @@ The library integrates with both the `cobyla` [@cobyla] and `argmin` [@argmin] c
 Parallel execution is a core feature of `GlobalSearch-rs`, utilizing the `Rayon` library to distribute computation across multiple threads. This has the potential to enhance computational efficiency, enabling users to tackle large-scale optimization problems with improved performance compared to single-threaded alternatives. To further support long-running tasks, the library provides checkpointing capabilities, allowing users to save and resume optimization states without restarting from scratch.
 
 As an open-source and cross-platform library, `GlobalSearch-rs` is designed to be accessible to researchers and engineers from various fields. The Python bindings, created using `PyO3` and `maturin`, enable users to leverage its capabilities within Python-based numerical and data science environments (e.g., `NumPy` [@numpy], `JAX` [@jax]), making it a practical choice for interdisciplinary research and engineering applications.
-
-![`PyGlobalSearch` logo.\label{fig:logo-pyglobalsearch}](./figures/logo-py.png){width=75%}
 
 The software is distributed under the permissive MIT license, encouraging use, modification, and contribution from the community. To ensure reliability and maintain quality, continuous integration testing is performed via GitHub Actions, providing automated validation of builds and functionality across supported platforms.
 
