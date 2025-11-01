@@ -78,7 +78,7 @@ The GlobalSearch-rs algorithm solves this problem in two stages. In the first st
 
 ![Contour plot of the Six-Hump Camel function with initial population.\label{fig:ex-reference-set}](./figures/sixhumpcamel_contour_with_initial_population.svg)
 
-The red star marks the best candidate in the initial population, used as the starting point for the first local optimization.
+The orange diamond marks the best candidate in the initial population, used as the starting point for the first local optimization.
 
 The algorithm then enters the stage two, where it performs local optimization on the selected reference set points that have been identified as promising (i.e. those within the merit and distance thresholds). \autoref{fig:ex-stage-two} shows the contour plot and surface of the function colored by the stage two iteration number.
 
