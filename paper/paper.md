@@ -70,9 +70,9 @@ f(x) = \left(4 - 2.1 x_1^2 + \frac{x_1^4}{4} \right)x_1^2 + x_1 x_2 + (-4 +4 x_2
 \end{equation}
 
 The function is evaluated in the domain (bounds) $x_1 \in [-3, 3]$ and $x_2 \in [-2, 2]$. It has
-two global minima at approximately $\mathbf{x}^* = (0.0898, -0.7126)$ and $\mathbf{x}^* = (-0.0898, 0.7126)$ with a function value of $f(\mathbf{x}^*) \approx -1.0316$.
+two global minima at approximately $\mathbf{x}^*_{\pm} \approx (\pm 0.0898, \mp 0.7126)$ with a function value of $f(\mathbf{x}^*) \approx -1.0316$.
 
-The GlobalSearch-rs algorithm solves this problem in two stages. In the first stage, it explores the search space by generating an initial population of candidate solutions within the prescribed bounds, forming a reference set. In the second stage, it performs local optimization from a subset of promising points in this reference set to refine the search and converge toward local (and potentially global) optima.
+The `GlobalSearch-rs` algorithm solves this problem in two stages. In the first stage, it explores the search space by generating an initial population of candidate solutions within the prescribed bounds, forming a reference set. In the second stage, it performs local optimization from a subset of promising points in this reference set to refine the search and converge toward local (and potentially global) optima.
 
 \autoref{fig:ex-reference-set} presents the contour plot of the Six-Hump Camel function alongside the initial distribution of candidate solutions generated in stage one.
 
@@ -88,6 +88,6 @@ The algorithm successfully finds both global minima of the Six-Hump Camel functi
 
 # Conclusion
 
-GlobalSearch-rs provides a robust and accessible open-source framework for nonlinear global optimization. By combining parallelization, flexible local solvers, and Python integration, it offers a compelling alternative to proprietary tools. The Rust implementation ensures efficiency and reliability, supporting transparent and reproducible optimization workflows across scientific and engineering domains. This tool advances the state of open-source global optimization by delivering a modern and extensible solution for complex problems.
+`GlobalSearch-rs` provides a robust and accessible open-source framework for nonlinear global optimization. By combining parallelization, flexible local solvers, and Python integration, it offers a compelling alternative to proprietary tools. The Rust implementation ensures efficiency and reliability, supporting transparent and reproducible optimization workflows across scientific and engineering domains. This tool advances the state of open-source global optimization by delivering a modern and extensible solution for complex problems.
 
 # References
