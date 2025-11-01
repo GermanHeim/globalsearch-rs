@@ -70,7 +70,7 @@ f(x) = \left(4 - 2.1 x_1^2 + \frac{x_1^4}{4} \right)x_1^2 + x_1 x_2 + (-4 +4 x_2
 \end{equation}
 
 The function is evaluated in the domain (bounds) $x_1 \in [-3, 3]$ and $x_2 \in [-2, 2]$. It has
-two global minima at approximately $\mathbf{x}^*_{\pm} \approx (\pm 0.0898, \mp 0.7126)$ with a function value of $f(\mathbf{x}^*) \approx -1.0316$.
+two global minima at approximately $\mathbf{x}^*_{\pm} \approx (\pm 0.0898, \mp 0.7126)$ with a function value of $f(\mathbf{x}^*_{\pm}) \approx -1.0316$.
 
 The `GlobalSearch-rs` algorithm solves this problem in two stages. In the first stage, it explores the search space by generating an initial population of candidate solutions within the prescribed bounds, forming a reference set. In the second stage, it performs local optimization from a subset of promising points in this reference set to refine the search and converge toward local (and potentially global) optima.
 
