@@ -34,7 +34,7 @@ Global optimization is a fundamental problem in engineering, physics, and applie
 
 Building on these algorithmic advances, practical software implementations have become essential for researchers and engineers. MATLAB’s `GlobalSearch`, for example, has been widely adopted, with applications ranging from airfoil design optimization [@airfoil] to kinetic mechanism analysis of polyurethane decomposition [@kinetics]. However, despite its popularity, to the best of our knowledge, no actively maintained open-source alternative that implements the `OQNLP` algorithm currently exists. The only open-source implementation, `MEIGO` [@meigo], is still written in MATLAB, a proprietary language, limiting accessibility.
 
-Several high-quality open-source optimization libraries are available, such as `NLopt` [@nlopt] and `pagmo2` [@Biscani2020], both of which provide Rust and Python bindings. These libraries offer a broad collection of local and global optimization algorithms. However, neither of them provides an implementation of the `OQNLP` algorithm specifically.
+Several high-quality open-source optimization libraries are available, such as `NLopt` [@nlopt], which provides both Rust and Python bindings. This library offers a broad collection of local and global optimization algorithms. However, it does not provide an implementation of the `OQNLP` algorithm specifically.
 
 `GlobalSearch-rs` addresses this gap and extends its functionality with additional features designed to improve practical usability. It offers a modern, high-performance implementation for bound-constrained nonlinear programming (NLP) problems:
 
@@ -46,6 +46,8 @@ $$
 
 Developed in Rust—a free and open-source programming language—it combines accessibility with performance, ensuring that researchers are not limited by proprietary ecosystems.
 Rust's ownership model and concurrency features enable safe and efficient execution, making the library suitable for high-performance computing applications, a claim further supported by recent work demonstrating Rust's advantages in high-performance computing [@eth-rust].
+
+\autoref{fig:logos} shows the logos of the two packages introduced in this work.
 
 ![`GlobalSearch-rs` (right) and `PyGlobalSearch` (left) logos.\label{fig:logos}](./figures/logos.png)
 
