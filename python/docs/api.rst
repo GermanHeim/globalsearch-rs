@@ -46,3 +46,11 @@ pyglobalsearch.builders
    :members:
    :undoc-members:
    :show-inheritance:
+
+pyglobalsearch.observers
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: pyglobalsearch.observers
+   :members:
+   :undoc-members:
+   :show-inheritance:
