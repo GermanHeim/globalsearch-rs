@@ -1,0 +1,28 @@
+cff-version: "1.2.0"
+authors:
+- family-names: Heim
+  given-names: Germán Martín
+  orcid: "https://orcid.org/0009-0007-9834-7924"
+doi: 10.5281/zenodo.17533965
+message: If you use this software, please cite our article in the
+  Journal of Open Source Software.
+preferred-citation:
+  authors:
+  - family-names: Heim
+    given-names: Germán Martín
+    orcid: "https://orcid.org/0009-0007-9834-7924"
+  date-published: 2025-11-05
+  doi: 10.21105/joss.09234
+  issn: 2475-9066
+  issue: 115
+  journal: Journal of Open Source Software
+  publisher:
+    name: Open Journals
+  start: 9234
+  title: "GlobalSearch-rs: A multistart framework for global
+    optimization written in Rust"
+  type: article
+  url: "https://joss.theoj.org/papers/10.21105/joss.09234"
+  volume: 10
+title: "GlobalSearch-rs: A multistart framework for global optimization
+  written in Rust"

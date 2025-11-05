@@ -268,6 +268,27 @@ python/ # Python bindings
 
 Distributed under the MIT License. See [`LICENSE.txt`](https://github.com/GermanHeim/globalsearch-rs/blob/main/LICENSE.txt) for more information.
 
+## Citing Globalsearch-rs
+
+[![DOI](https://joss.theoj.org/papers/10.21105/joss.09234/status.svg)](https://doi.org/10.21105/joss.09234)
+
+If `GlobalSearch-rs` has been significant in your research, and you would like to acknowledge the project in your academic publication, we suggest citing the following paper:
+
+```bibtex
+@article{Heim2025,
+  author    = {Heim, Germán Martín},
+  doi       = {10.21105/joss.09234},
+  journal   = {Journal of Open Source Software},
+  number    = {115},
+  pages     = {9234},
+  publisher = {The Open Journal},
+  title     = {GlobalSearch-rs: A multistart framework for global optimization written in Rust},
+  url       = {https://doi.org/10.21105/joss.09234},
+  volume    = {10},
+  year      = {2025}
+}
+```
+
 ## References
 
 \[1\] Zsolt Ugray, Leon Lasdon, John Plummer, Fred Glover, James Kelly, Rafael Martí, (2007) Scatter Search and Local NLP Solvers: A Multistart Framework for Global Optimization. INFORMS Journal on Computing 19(3):328-340. <http://dx.doi.org/10.1287/ijoc.1060.0175>
