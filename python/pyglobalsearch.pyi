@@ -1608,6 +1608,7 @@ def optimize(
     exclude_out_of_bounds: Optional[bool] = False,
     parallel: Optional[bool] = False,
     observer: Optional[PyObserver] = None,
+    with_points: Optional[Union[List[List[float]], NDArray[np.float64]]] = None,
 ) -> PySolutionSet:
     """
     Perform global optimization on the given problem.
@@ -1648,6 +1649,12 @@ def optimize(
         ...                     max_time=60.0,             # Max 60 seconds
         ...                     verbose=True)              # Show progress
 
+    With custom starting points::
+
+        >>> import numpy as np
+        >>> custom_points = np.array([[1.0, 2.0], [3.0, 4.0]])
+        >>> result = gs.optimize(problem, params, with_points=custom_points)
+
     :param problem: The optimization problem to solve (objective, bounds, constraints, etc.)
     :type problem: PyProblem
     :param params: Parameters controlling the optimization algorithm behavior
@@ -1671,6 +1678,10 @@ def optimize(
     :type parallel: bool
     :param observer: Observer for monitoring optimization progress and metrics (None by default = no observation)
     :type observer: Optional[PyObserver]
+    :param with_points: Custom starting points to include in the reference set (None by default).
+                        Can be a 2D numpy array of shape (n_points, n_dimensions) or a list of lists.
+                        Points must be within the variable bounds.
+    :type with_points: Optional[Union[List[List[float]], NDArray[np.float64]]]
     :return: A set of local solutions found during optimization
     :rtype: PySolutionSet
     :raises ValueError: If solver configuration doesn't match the specified solver type,
