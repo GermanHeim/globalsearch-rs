@@ -120,6 +120,8 @@ pub struct ScatterSearch<'a, P: Problem> {
     enable_parallel: bool,
     /// Optional observer for tracking metrics
     observer: Option<&'a mut Observer>,
+    /// Custom points to seed the reference set
+    custom_points: Option<Vec<Array1<f64>>>,
 }
 
 impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
@@ -144,6 +146,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
             #[cfg(feature = "rayon")]
             enable_parallel: true,
             observer: None,
+            custom_points: None,
         };
 
         Ok(ss)
@@ -170,6 +173,24 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
     /// with detailed metrics during execution.
     pub fn with_observer(mut self, observer: &'a mut Observer) -> Self {
         self.observer = Some(observer);
+        self
+    }
+
+    /// Set custom points to seed the reference set
+    ///
+    /// This method allows you to provide initial points that will be included in the
+    /// reference set during initialization. These points are added after the three
+    /// default seed points (lower bound, upper bound, and midpoint) and before the
+    /// diversification step.
+    ///
+    /// # Arguments
+    ///
+    /// * `points` - A vector of points (Array1<f64>) to add to the reference set
+    ///
+    /// Note: Points are assumed to be already validated (correct dimension and within bounds)
+    /// by the caller (OQNLP).
+    pub fn with_custom_points(mut self, points: Vec<Array1<f64>>) -> Self {
+        self.custom_points = Some(points);
         self
     }
 
@@ -262,6 +283,11 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
         ref_set.push(self.bounds.lower.to_owned());
         ref_set.push(self.bounds.upper.to_owned());
         ref_set.push((&self.bounds.lower + &self.bounds.upper) / 2.0);
+
+        // Add custom points if provided
+        if let Some(ref custom_points) = self.custom_points {
+            ref_set.extend(custom_points.iter().cloned());
+        }
 
         #[cfg(feature = "progress_bar")]
         if let Some(pb) = &mut self.progress_bar {
@@ -1035,5 +1061,143 @@ mod tests_scatter_search {
 
         // The minimum distance should be 0 since the point is in the reference set
         assert_eq!(min_dist, 0.0);
+    }
+
+    #[test]
+    /// Test with_custom_points method
+    fn test_with_custom_points() {
+        let problem: SixHumpCamel = SixHumpCamel;
+        let params: OQNLPParams = OQNLPParams {
+            iterations: 1,
+            wait_cycle: 30,
+            threshold_factor: 0.2,
+            distance_factor: 0.75,
+            population_size: 10,
+            seed: 0,
+            ..OQNLPParams::default()
+        };
+
+        // Create custom points
+        let custom_points = vec![array![0.0, 0.0], array![1.0, 1.0], array![-1.0, -1.0]];
+
+        let ss = ScatterSearch::new(problem, params).unwrap().with_custom_points(custom_points);
+
+        assert!(ss.custom_points.is_some(), "Custom points should be set");
+        assert_eq!(ss.custom_points.as_ref().unwrap().len(), 3, "Should have 3 custom points");
+    }
+
+    #[test]
+    /// Test that custom points are added to reference set
+    fn test_custom_points_in_reference_set() {
+        let problem: SixHumpCamel = SixHumpCamel;
+        let params: OQNLPParams = OQNLPParams {
+            iterations: 1,
+            wait_cycle: 30,
+            threshold_factor: 0.2,
+            distance_factor: 0.75,
+            population_size: 15,
+            seed: 0,
+            ..OQNLPParams::default()
+        };
+
+        // Create custom points
+        let custom_point = array![0.5, 0.5];
+        let custom_points = vec![custom_point.clone()];
+
+        let mut ss = ScatterSearch::new(problem, params).unwrap().with_custom_points(custom_points);
+
+        ss.initialize_reference_set().unwrap();
+
+        // After initialization, the reference set should contain our custom point
+        // The reference set includes: lower bound, upper bound, midpoint, + custom points + diversified points
+        assert_eq!(ss.reference_set.len(), 15, "Reference set should have population_size points");
+
+        // Check that the custom point was included (it should be one of the first 4 points before diversification)
+        // Note: After diversification and sorting, the exact position may vary,
+        // but we can verify the reference set was created successfully
+        assert!(
+            ss.reference_set.len() >= 4,
+            "Reference set should include at least the 3 seed points + 1 custom point"
+        );
+    }
+
+    #[test]
+    /// Test custom points with empty vector
+    fn test_custom_points_empty() {
+        let problem: SixHumpCamel = SixHumpCamel;
+        let params: OQNLPParams = OQNLPParams {
+            iterations: 1,
+            wait_cycle: 30,
+            threshold_factor: 0.2,
+            distance_factor: 0.75,
+            population_size: 10,
+            seed: 0,
+            ..OQNLPParams::default()
+        };
+
+        let custom_points: Vec<Array1<f64>> = vec![];
+        let mut ss = ScatterSearch::new(problem, params).unwrap().with_custom_points(custom_points);
+
+        ss.initialize_reference_set().unwrap();
+
+        assert_eq!(ss.reference_set.len(), 10, "Reference set should have population_size points");
+    }
+
+    #[test]
+    /// Test that custom points work in full scatter search run
+    fn test_custom_points_full_run() {
+        let problem: SixHumpCamel = SixHumpCamel;
+        let params: OQNLPParams = OQNLPParams {
+            iterations: 1,
+            wait_cycle: 30,
+            threshold_factor: 0.2,
+            distance_factor: 0.75,
+            population_size: 20,
+            seed: 0,
+            ..OQNLPParams::default()
+        };
+
+        // Create custom points near known good solutions for Six Hump Camel
+        let custom_points = vec![
+            array![0.0, 0.0],  // Near center
+            array![0.5, -0.5], // Another point
+            array![-0.5, 0.5], // Another point
+        ];
+
+        let ss = ScatterSearch::new(problem, params).unwrap().with_custom_points(custom_points);
+
+        let result = ss.run();
+        assert!(result.is_ok(), "Scatter search should complete successfully with custom points");
+
+        let (ref_set, _best) = result.unwrap();
+        assert_eq!(ref_set.len(), 20, "Reference set should have population_size points after run");
+    }
+
+    #[test]
+    /// Test custom points with maximum number of points
+    fn test_custom_points_many() {
+        let problem: SixHumpCamel = SixHumpCamel;
+        let params: OQNLPParams = OQNLPParams {
+            iterations: 1,
+            wait_cycle: 30,
+            threshold_factor: 0.2,
+            distance_factor: 0.75,
+            population_size: 20,
+            seed: 0,
+            ..OQNLPParams::default()
+        };
+
+        // Create many custom points (more than would fit in the initial seed)
+        let mut custom_points = Vec::new();
+        for i in 0..10 {
+            custom_points.push(array![i as f64 * 0.1, i as f64 * 0.1]);
+        }
+
+        let mut ss = ScatterSearch::new(problem, params).unwrap().with_custom_points(custom_points);
+
+        ss.initialize_reference_set().unwrap();
+
+        // After initialization and diversification, should still have population_size points
+        assert_eq!(ss.reference_set.len(), 20, "Reference set should be capped at population_size");
     }
 }

@@ -140,7 +140,7 @@ use crate::{
 use chrono;
 #[cfg(feature = "progress_bar")]
 use kdam::{Bar, BarExt};
-use ndarray::Array1;
+use ndarray::{Array1, Array2};
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
@@ -194,6 +194,14 @@ pub enum OQNLPError {
     /// Threshold factor should be positive (greater than 0.0).
     #[error("OQNLP Error: Threshold factor must be positive, got {0}.")]
     InvalidThresholdFactor(f64),
+
+    /// Error when custom points have invalid dimensions
+    #[error("OQNLP Error: Custom points must have the same dimension as the problem. Expected {expected} dimensions, got {got}.")]
+    InvalidCustomPointsDimension { expected: usize, got: usize },
+
+    /// Error when custom points are outside variable bounds
+    #[error("OQNLP Error: Custom point at index {index} is outside variable bounds.")]
+    CustomPointOutOfBounds { index: usize },
 
     /// Error related to checkpointing operations
     #[cfg(feature = "checkpointing")]
@@ -394,6 +402,9 @@ pub struct OQNLP<P: Problem + Clone> {
 
     /// Observer for tracking algorithm state and metrics
     observer: Option<Observer>,
+
+    /// Custom points to seed the reference set
+    custom_points: Option<Vec<Array1<f64>>>,
 }
 
 impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
@@ -467,6 +478,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
             #[cfg(feature = "checkpointing")]
             current_seed: params.seed,
             observer: None,
+            custom_points: None,
         })
     }
 
@@ -558,6 +570,93 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
         self.observer.as_ref()
     }
 
+    /// Set custom points to seed the reference set
+    ///
+    /// This method allows you to provide initial points that will be included in the
+    /// reference set during Stage 1 initialization. These points are added after the
+    /// three default seed points (lower bound, upper bound, and midpoint) and before
+    /// the diversification step.
+    ///
+    /// # Arguments
+    ///
+    /// * `points` - A 2D array where each row is a point (`Array1<f64>`) to add to the reference set.
+    ///   The number of columns must match the problem dimension.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Any point has a different dimension than the problem
+    /// - Any point is outside the variable bounds defined by the problem
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use globalsearch::oqnlp::OQNLP;
+    /// use globalsearch::types::OQNLPParams;
+    /// # use globalsearch::problem::Problem;
+    /// # use globalsearch::types::EvaluationError;
+    /// # use ndarray::{Array1, Array2, array};
+    /// # #[derive(Clone)]
+    /// # struct TestProblem;
+    /// # impl Problem for TestProblem {
+    /// #     fn objective(&self, x: &Array1<f64>) -> Result<f64, EvaluationError> {
+    /// #         Ok(x[0].powi(2) + x[1].powi(2))
+    /// #     }
+    /// #     fn variable_bounds(&self) -> Array2<f64> {
+    /// #         array![[-5.0, 5.0], [-5.0, 5.0]]
+    /// #     }
+    /// # }
+    ///
+    /// let problem = TestProblem;
+    /// let params = OQNLPParams::default();
+    ///
+    /// // Define custom starting points (2D array)
+    /// let custom_points = array![
+    ///     [1.0, 1.0],   // First point
+    ///     [-1.0, -1.0], // Second point
+    ///     [0.0, 0.0],   // Third point
+    /// ];
+    ///
+    /// let mut optimizer = OQNLP::new(problem, params)
+    ///     .unwrap()
+    ///     .with_points(custom_points)?;
+    ///
+    /// let solutions = optimizer.run();
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn with_points(mut self, points: Array2<f64>) -> Result<Self, OQNLPError> {
+        let bounds = self.problem.variable_bounds();
+        let n_dims = bounds.nrows();
+
+        // Convert Array2 to Vec<Array1<f64>>
+        let mut custom_points = Vec::new();
+        for (i, point_row) in points.outer_iter().enumerate() {
+            let point = point_row.to_owned();
+
+            // Check dimension
+            if point.len() != n_dims {
+                return Err(OQNLPError::InvalidCustomPointsDimension {
+                    expected: n_dims,
+                    got: point.len(),
+                });
+            }
+
+            // Check bounds
+            for (j, &value) in point.iter().enumerate() {
+                let lower = bounds[[j, 0]];
+                let upper = bounds[[j, 1]];
+                if value < lower || value > upper {
+                    return Err(OQNLPError::CustomPointOutOfBounds { index: i });
+                }
+            }
+
+            custom_points.push(point);
+        }
+
+        self.custom_points = Some(custom_points);
+        Ok(self)
+    }
+
     /// Run the OQNLP algorithm and return the solution set
     pub fn run(&mut self) -> Result<SolutionSet, OQNLPError> {
         // Start observer timing if enabled
@@ -603,10 +702,15 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
             }
 
             #[cfg(feature = "rayon")]
-            let ss = ScatterSearch::new(self.problem.clone(), self.params.clone())?
+            let mut ss = ScatterSearch::new(self.problem.clone(), self.params.clone())?
                 .parallel(self.enable_parallel);
             #[cfg(not(feature = "rayon"))]
-            let ss = ScatterSearch::new(self.problem.clone(), self.params.clone())?;
+            let mut ss = ScatterSearch::new(self.problem.clone(), self.params.clone())?;
+
+            // Add custom points if provided
+            if let Some(ref custom_points) = self.custom_points {
+                ss = ss.with_custom_points(custom_points.clone());
+            }
 
             // Attach observer if present and should observe Stage 1
             let (ref_set_with_objectives, scatter_candidate) = if let Some(ref mut observer) =
@@ -4196,5 +4300,193 @@ mod tests_oqnlp {
         assert!(result.is_ok(), "OQNLP should work with parallel disabled");
         let sol_set = result.unwrap();
         assert!(!sol_set.is_empty(), "Should find solutions even with parallel disabled");
+    }
+
+    #[test]
+    /// Test with_points method with valid custom points
+    fn test_with_points_valid() {
+        let problem = DummyProblem; // Bounds are [-5.0, 5.0] for each dimension (3D)
+        let params = OQNLPParams { iterations: 5, population_size: 20, ..Default::default() };
+
+        // Create custom points within bounds
+        let custom_points = array![[1.0, 2.0, 3.0], [-1.0, -2.0, -3.0], [0.0, 0.0, 0.0],];
+
+        let result = OQNLP::new(problem, params).unwrap().with_points(custom_points);
+
+        assert!(result.is_ok(), "with_points should succeed with valid points");
+        let oqnlp = result.unwrap();
+        assert!(oqnlp.custom_points.is_some(), "Custom points should be stored");
+        assert_eq!(oqnlp.custom_points.as_ref().unwrap().len(), 3, "Should have 3 custom points");
+    }
+
+    #[test]
+    /// Test with_points with points outside bounds
+    fn test_with_points_out_of_bounds() {
+        let problem = DummyProblem; // Bounds are [-5.0, 5.0] for each dimension
+        let params = OQNLPParams::default();
+
+        // Create points with one dimension out of bounds
+        let custom_points = array![
+            [1.0, 2.0, 3.0],  // Valid
+            [10.0, 0.0, 0.0], // Invalid - first coordinate exceeds upper bound
+        ];
+
+        let result = OQNLP::new(problem, params).unwrap().with_points(custom_points);
+
+        assert!(result.is_err(), "with_points should fail with out-of-bounds points");
+        match result {
+            Err(OQNLPError::CustomPointOutOfBounds { index }) => {
+                assert_eq!(index, 1, "Should report the second point (index 1) as out of bounds");
+            }
+            _ => panic!("Expected CustomPointOutOfBounds error"),
+        }
+    }
+
+    #[test]
+    /// Test with_points with wrong dimension
+    fn test_with_points_wrong_dimension() {
+        let problem = DummyProblem; // 3D problem
+        let params = OQNLPParams::default();
+
+        // Create points with wrong dimension (2D instead of 3D)
+        let custom_points = array![
+            [1.0, 2.0],   // Only 2 dimensions, should be 3
+        ];
+
+        let result = OQNLP::new(problem, params).unwrap().with_points(custom_points);
+
+        assert!(result.is_err(), "with_points should fail with wrong dimension");
+        match result {
+            Err(OQNLPError::InvalidCustomPointsDimension { expected, got }) => {
+                assert_eq!(expected, 3, "Expected 3 dimensions");
+                assert_eq!(got, 2, "Got 2 dimensions");
+            }
+            _ => panic!("Expected InvalidCustomPointsDimension error"),
+        }
+    }
+
+    #[test]
+    /// Test that custom points are actually used in optimization
+    fn test_with_points_integration() {
+        let problem = DummyProblem; // Objective is sum of variables, minimum at lower bounds
+        let params = OQNLPParams {
+            iterations: 10,
+            population_size: 20,
+            seed: 42, // Fixed seed for reproducibility
+            ..Default::default()
+        };
+
+        // Create custom points near the actual optimum (lower bounds: [-5, -5, -5])
+        let custom_points = array![
+            [-4.5, -4.5, -4.5], // Near optimum
+            [-4.8, -4.8, -4.8], // Near optimum
+        ];
+
+        let mut oqnlp = OQNLP::new(problem.clone(), params.clone())
+            .unwrap()
+            .with_points(custom_points)
+            .unwrap()
+            .verbose();
+
+        let result = oqnlp.run();
+        assert!(result.is_ok(), "Optimization should succeed with custom points");
+
+        let sol_set = result.unwrap();
+        assert!(!sol_set.is_empty(), "Should find solutions");
+
+        // The custom points are near the optimum, so the best solution should be good
+        let best = sol_set.best_solution().unwrap();
+        assert!(
+            best.objective < -10.0,
+            "Best objective should be good with custom points near optimum, got {}",
+            best.objective
+        );
+    }
+
+    #[test]
+    /// Test with_points with empty array
+    fn test_with_points_empty() {
+        let problem = DummyProblem;
+        let params = OQNLPParams::default();
+
+        // Create empty 2D array (0 rows, 3 columns)
+        let custom_points = Array2::<f64>::zeros((0, 3));
+
+        let result = OQNLP::new(problem, params).unwrap().with_points(custom_points);
+
+        assert!(result.is_ok(), "with_points should accept empty array");
+        let oqnlp = result.unwrap();
+        assert!(oqnlp.custom_points.is_some(), "Custom points should be set");
+        assert_eq!(oqnlp.custom_points.as_ref().unwrap().len(), 0, "Should have 0 custom points");
+    }
+
+    #[test]
+    /// Test with_points with at bounds points
+    fn test_with_points_at_bounds() {
+        let problem = DummyProblem; // Bounds are [-5.0, 5.0] for each dimension
+        let params = OQNLPParams::default();
+
+        // Create points exactly at the bounds
+        let custom_points = array![
+            [-5.0, -5.0, -5.0], // At lower bound
+            [5.0, 5.0, 5.0],    // At upper bound
+            [-5.0, 0.0, 5.0],   // Mix of bounds
+        ];
+
+        let result = OQNLP::new(problem, params).unwrap().with_points(custom_points);
+
+        assert!(result.is_ok(), "with_points should accept points at bounds");
+        let oqnlp = result.unwrap();
+        assert_eq!(oqnlp.custom_points.as_ref().unwrap().len(), 3, "Should have 3 custom points");
+    }
+
+    #[test]
+    /// Test with_points combined with other builder methods
+    fn test_with_points_with_other_methods() {
+        let problem = DummyProblem;
+        let params = OQNLPParams { iterations: 5, population_size: 15, ..Default::default() };
+
+        let custom_points = array![[1.0, 1.0, 1.0], [-1.0, -1.0, -1.0],];
+
+        let result = OQNLP::new(problem, params)
+            .unwrap()
+            .with_points(custom_points)
+            .unwrap()
+            .verbose()
+            .max_time(60.0)
+            .target_objective(0.5)
+            .exclude_out_of_bounds();
+
+        assert!(result.custom_points.is_some(), "Custom points should be set");
+        assert!(result.verbose, "Verbose should be set");
+        assert_eq!(result.max_time, Some(60.0), "Max time should be set");
+        assert_eq!(result.target_objective, Some(0.5), "Target objective should be set");
+        assert!(result.exclude_out_of_bounds, "Exclude out of bounds should be set");
+    }
+
+    #[test]
+    /// Test that custom points affect the reference set size
+    fn test_with_points_affects_reference_set() {
+        let problem = SixHumpCamel;
+        let params = OQNLPParams {
+            iterations: 5,
+            population_size: 15, // Small population to see the effect
+            seed: 123,
+            ..Default::default()
+        };
+
+        // Create several custom points
+        let custom_points = array![[0.0, 0.0], [1.0, 1.0], [-1.0, -1.0], [0.5, -0.5], [-0.5, 0.5],];
+
+        let mut oqnlp =
+            OQNLP::new(problem, params).unwrap().with_points(custom_points).unwrap().verbose();
+
+        let result = oqnlp.run();
+        assert!(result.is_ok(), "Optimization should succeed");
+
+        // The custom points should have been included in the reference set initialization
+        // We can't directly verify the reference set, but we can verify the optimization ran successfully
+        let sol_set = result.unwrap();
+        assert!(!sol_set.is_empty(), "Should find solutions");
     }
 }

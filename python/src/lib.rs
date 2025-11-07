@@ -703,6 +703,8 @@ impl Problem for PyProblem {
 /// :type exclude_out_of_bounds: bool, optional
 /// :param parallel: Enable parallel processing using rayon (default: False)
 /// :type parallel: bool, optional
+/// :param with_points: Custom starting points to seed the reference set (2D array-like of shape (n_points, n_vars))
+/// :type with_points: array-like, optional
 /// :returns: A set of local solutions found during optimization
 /// :rtype: PySolutionSet
 /// :raises ValueError: If solver configuration doesn't match the specified solver type, or if the problem is not properly defined
@@ -736,6 +738,12 @@ impl Problem for PyProblem {
 /// Enable parallel processing:
 ///
 /// >>> result = gs.optimize(problem, params, parallel=True)
+///
+/// With custom starting points:
+///
+/// >>> import numpy as np
+/// >>> custom_points = np.array([[1.0, 2.0], [-1.0, -1.0]])
+/// >>> result = gs.optimize(problem, params, with_points=custom_points)
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 #[pyo3(signature = (
@@ -750,6 +758,7 @@ impl Problem for PyProblem {
     verbose = None,
     exclude_out_of_bounds = None,
     parallel = None,
+    with_points = None,
 ))]
 fn optimize(
     problem: PyProblem,
@@ -763,6 +772,7 @@ fn optimize(
     verbose: Option<bool>,
     exclude_out_of_bounds: Option<bool>,
     parallel: Option<bool>,
+    with_points: Option<Vec<Vec<f64>>>,
 ) -> PyResult<PySolutionSet> {
     Python::attach(|py| {
         // Convert local_solver string to enum
@@ -859,8 +869,20 @@ fn optimize(
             local_solver_config,
         };
 
-        let optimizer =
+        let mut optimizer =
             OQNLP::new(problem, params).map_err(|e| PyValueError::new_err(e.to_string()))?;
+
+        // Add custom points if provided
+        if let Some(points) = with_points {
+            let rows = points.len();
+            let cols = if rows > 0 { points[0].len() } else { 0 };
+            let flat_points: Vec<f64> = points.into_iter().flatten().collect();
+            let points_array = Array2::from_shape_vec((rows, cols), flat_points)
+                .map_err(|e| PyValueError::new_err(format!("Invalid points array shape: {}", e)))?;
+            optimizer = optimizer
+                .with_points(points_array)
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        }
 
         let parallel_enabled = parallel.unwrap_or(false);
 
