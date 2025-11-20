@@ -405,6 +405,12 @@ pub struct OQNLP<P: Problem + Clone> {
 
     /// Custom points to seed the reference set
     custom_points: Option<Vec<Array1<f64>>>,
+
+    /// Absolute tolerance for comparing objective function values
+    abs_tol: f64,
+
+    /// Relative tolerance for comparing objective function values
+    rel_tol: f64,
 }
 
 impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
@@ -479,6 +485,8 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
             current_seed: params.seed,
             observer: None,
             custom_points: None,
+            abs_tol: 1e-8,
+            rel_tol: 1e-6,
         })
     }
 
@@ -1051,8 +1059,8 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
 
     /// Process a local solution, updating the best solution and filters
     fn process_local_solution(&mut self, solution: LocalSolution) -> Result<bool, OQNLPError> {
-        const ABS_TOL: f64 = 1e-8;
-        const REL_TOL: f64 = 1e-6;
+        let abs_tol = self.abs_tol;
+        let rel_tol = self.rel_tol;
 
         // If exclude_out_of_bounds is enabled, check if the solution is within bounds
         if self.exclude_out_of_bounds && !self.is_within_bounds(&solution.point) {
@@ -1092,7 +1100,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
         let obj2 = current_best.objective;
 
         let obj_diff = (obj1 - obj2).abs();
-        let tol = ABS_TOL.max(REL_TOL * obj1.abs().max(obj2.abs()));
+        let tol = abs_tol.max(rel_tol * obj1.abs().max(obj2.abs()));
 
         let added: bool = if obj1 < obj2 - tol {
             // Found new best solution
@@ -1280,6 +1288,43 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
     /// before adding them to the solution set.
     pub fn set_exclude_out_of_bounds(mut self, enable: bool) -> Self {
         self.exclude_out_of_bounds = enable;
+        self
+    }
+
+    /// Set custom tolerances for comparing objective function values
+    ///
+    /// These tolerances are used when comparing solutions to determine if they represent
+    /// the same optimal point or different local optima. Two solutions with objective values
+    /// within the tolerance are considered equivalent.
+    ///
+    /// The tolerance is calculated as: `max(abs_tol, rel_tol * max(|obj1|, |obj2|))`
+    ///
+    /// # Arguments
+    ///
+    /// * `abs_tol` - Absolute tolerance (default: 1e-8)
+    /// * `rel_tol` - Relative tolerance (default: 1e-6)
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use globalsearch::oqnlp::OQNLP;
+    /// # use globalsearch::types::OQNLPParams;
+    /// # use globalsearch::problem::Problem;
+    /// # use globalsearch::types::EvaluationError;
+    /// # use ndarray::{Array1, Array2, array};
+    /// # #[derive(Clone)]
+    /// # struct TestProblem;
+    /// # impl Problem for TestProblem {
+    /// #     fn objective(&self, x: &Array1<f64>) -> Result<f64, EvaluationError> { Ok(x.sum().powi(2)) }
+    /// #     fn variable_bounds(&self) -> Array2<f64> { array![[-1.0, 1.0]] }
+    /// # }
+    /// let mut oqnlp = OQNLP::new(TestProblem, OQNLPParams::default())
+    ///     .unwrap()
+    ///     .with_tolerance(1e-10, 1e-8);  // Use tighter tolerances
+    /// ```
+    pub fn with_tolerance(mut self, abs_tol: f64, rel_tol: f64) -> Self {
+        self.abs_tol = abs_tol;
+        self.rel_tol = rel_tol;
         self
     }
 
@@ -1479,6 +1524,10 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
             self.enable_parallel = checkpoint.enable_parallel;
         }
 
+        // Restore tolerances
+        self.abs_tol = checkpoint.abs_tol;
+        self.rel_tol = checkpoint.rel_tol;
+
         // Restore distance filter solutions
         self.distance_filter.set_solutions(checkpoint.distance_filter_solutions);
 
@@ -1514,6 +1563,8 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
             batch_iterations: self.batch_iterations,
             #[cfg(feature = "rayon")]
             enable_parallel: self.enable_parallel,
+            abs_tol: self.abs_tol,
+            rel_tol: self.rel_tol,
             timestamp: chrono::Utc::now().to_rfc3339(),
         }
     }
@@ -3153,6 +3204,8 @@ mod tests_oqnlp {
             batch_iterations: Some(2),
             #[cfg(feature = "rayon")]
             enable_parallel: false,
+            abs_tol: 1e-8,
+            rel_tol: 1e-6,
             timestamp: chrono::Utc::now().to_rfc3339(),
         };
 
@@ -3268,6 +3321,8 @@ mod tests_oqnlp {
             batch_iterations: None,
             #[cfg(feature = "rayon")]
             enable_parallel: true,
+            abs_tol: 1e-8,
+            rel_tol: 1e-6,
             timestamp: chrono::Utc::now().to_rfc3339(),
         };
 
@@ -3334,6 +3389,8 @@ mod tests_oqnlp {
             batch_iterations: Some(6),
             #[cfg(feature = "rayon")]
             enable_parallel: false,
+            abs_tol: 1e-8,
+            rel_tol: 1e-6,
             timestamp: chrono::Utc::now().to_rfc3339(),
         };
 
@@ -3364,6 +3421,8 @@ mod tests_oqnlp {
             batch_iterations: None,
             #[cfg(feature = "rayon")]
             enable_parallel: true,
+            abs_tol: 1e-8,
+            rel_tol: 1e-6,
             timestamp: chrono::Utc::now().to_rfc3339(),
         };
 
@@ -3419,6 +3478,8 @@ mod tests_oqnlp {
             batch_iterations: None,
             #[cfg(feature = "rayon")]
             enable_parallel: false,
+            abs_tol: 1e-8,
+            rel_tol: 1e-6,
             timestamp: chrono::Utc::now().to_rfc3339(),
         };
 
@@ -3444,6 +3505,8 @@ mod tests_oqnlp {
             batch_iterations: Some(8),
             #[cfg(feature = "rayon")]
             enable_parallel: false,
+            abs_tol: 1e-8,
+            rel_tol: 1e-6,
             timestamp: chrono::Utc::now().to_rfc3339(),
         };
 
@@ -3469,6 +3532,8 @@ mod tests_oqnlp {
             batch_iterations: Some(1),
             #[cfg(feature = "rayon")]
             enable_parallel: true,
+            abs_tol: 1e-8,
+            rel_tol: 1e-6,
             timestamp: chrono::Utc::now().to_rfc3339(),
         };
 
