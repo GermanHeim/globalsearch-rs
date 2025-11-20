@@ -413,7 +413,15 @@ impl PyOQNLPParams {
         abs_tol: f64,
         rel_tol: f64,
     ) -> Self {
-        PyOQNLPParams { iterations, population_size, wait_cycle, threshold_factor, distance_factor, abs_tol, rel_tol }
+        PyOQNLPParams {
+            iterations,
+            population_size,
+            wait_cycle,
+            threshold_factor,
+            distance_factor,
+            abs_tol,
+            rel_tol,
+        }
     }
 }
 
