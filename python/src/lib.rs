@@ -126,6 +126,10 @@ fn get_constraint_functions(num_constraints: usize) -> Vec<fn(&[f64], &mut ()) -
 /// :type threshold_factor: float
 /// :param distance_factor: Controls minimum distance between solutions
 /// :type distance_factor: float
+/// :param abs_tol: Absolute tolerance for comparing objective values (default: 1e-8)
+/// :type abs_tol: float
+/// :param rel_tol: Relative tolerance for comparing objective values (default: 1e-6)
+/// :type rel_tol: float
 ///
 /// Examples
 /// --------
@@ -158,6 +162,12 @@ pub struct PyOQNLPParams {
     #[pyo3(get, set)]
     /// Controls minimum distance between solutions
     pub distance_factor: f64,
+    #[pyo3(get, set)]
+    /// Absolute tolerance for comparing objective values (default: 1e-8)
+    pub abs_tol: f64,
+    #[pyo3(get, set)]
+    /// Relative tolerance for comparing objective values (default: 1e-6)
+    pub rel_tol: f64,
 }
 
 #[pyclass]
@@ -388,9 +398,11 @@ impl PyOQNLPParams {
         wait_cycle = 15,
         threshold_factor = 0.2,
         distance_factor = 0.75,
+        abs_tol = 1e-8,
+        rel_tol = 1e-6,
     ))]
     #[pyo3(
-        text_signature = "(iterations=300, population_size=1000, wait_cycle=15, threshold_factor=0.2, distance_factor=0.75)"
+        text_signature = "(iterations=300, population_size=1000, wait_cycle=15, threshold_factor=0.2, distance_factor=0.75, abs_tol=1e-8, rel_tol=1e-6)"
     )]
     fn new(
         iterations: usize,
@@ -398,8 +410,10 @@ impl PyOQNLPParams {
         wait_cycle: usize,
         threshold_factor: f64,
         distance_factor: f64,
+        abs_tol: f64,
+        rel_tol: f64,
     ) -> Self {
-        PyOQNLPParams { iterations, population_size, wait_cycle, threshold_factor, distance_factor }
+        PyOQNLPParams { iterations, population_size, wait_cycle, threshold_factor, distance_factor, abs_tol, rel_tol }
     }
 }
 
@@ -858,7 +872,7 @@ fn optimize(
             }
         };
 
-        let params: OQNLPParams = OQNLPParams {
+        let oqnlp_params: OQNLPParams = OQNLPParams {
             iterations: params.iterations,
             population_size: params.population_size,
             wait_cycle: params.wait_cycle,
@@ -870,7 +884,7 @@ fn optimize(
         };
 
         let mut optimizer =
-            OQNLP::new(problem, params).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            OQNLP::new(problem, oqnlp_params).map_err(|e| PyValueError::new_err(e.to_string()))?;
 
         // Add custom points if provided
         if let Some(points) = with_points {
@@ -914,11 +928,13 @@ fn optimize(
 
         let optimizer = if verbose.unwrap_or(false) { optimizer.verbose() } else { optimizer };
 
-        let mut optimizer = if exclude_out_of_bounds.unwrap_or(false) {
+        let optimizer = if exclude_out_of_bounds.unwrap_or(false) {
             optimizer.exclude_out_of_bounds()
         } else {
             optimizer
         };
+
+        let mut optimizer = optimizer.with_tolerance(params.abs_tol, params.rel_tol);
 
         // For parallel execution, we need to allow threads to run without the GIL
         // but ensure Python calls are properly synchronized

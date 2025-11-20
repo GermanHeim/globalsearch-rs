@@ -273,6 +273,11 @@ class PyOQNLPParams:
     :param threshold_factor: Factor controlling the threshold for local searches (default 0.2)
     :type threshold_factor: float
     :param distance_factor: Factor controlling the minimum distance between solutions (default 0.75)
+    :type distance_factor: float
+    :param abs_tol: Absolute tolerance for comparing objective values (default 1e-8)
+    :type abs_tol: float
+    :param rel_tol: Relative tolerance for comparing objective values (default 1e-6)
+    :type rel_tol: float
     """
 
     iterations: int
@@ -280,6 +285,8 @@ class PyOQNLPParams:
     wait_cycle: int
     threshold_factor: float
     distance_factor: float
+    abs_tol: float
+    rel_tol: float
     def __init__(
         self,
         iterations: int = 300,
@@ -287,6 +294,8 @@ class PyOQNLPParams:
         wait_cycle: int = 15,
         threshold_factor: float = 0.2,
         distance_factor: float = 0.75,
+        abs_tol: float = 1e-8,
+        rel_tol: float = 1e-6,
     ) -> None:
         """
         Initialize optimization parameters.
@@ -301,6 +310,10 @@ class PyOQNLPParams:
         :type threshold_factor: float
         :param distance_factor: Factor controlling the minimum distance between solutions (default 0.75)
         :type distance_factor: float
+        :param abs_tol: Absolute tolerance for comparing objective values (default 1e-8)
+        :type abs_tol: float
+        :param rel_tol: Relative tolerance for comparing objective values (default 1e-6)
+        :type rel_tol: float
         """
         ...
 
