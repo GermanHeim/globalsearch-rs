@@ -657,6 +657,12 @@ pub struct OQNLPCheckpoint {
     #[cfg(feature = "rayon")]
     pub enable_parallel: bool,
 
+    /// Absolute tolerance for comparing objective function values
+    pub abs_tol: f64,
+
+    /// Relative tolerance for comparing objective function values
+    pub rel_tol: f64,
+
     /// Timestamp of the checkpoint
     pub timestamp: String,
 }
@@ -731,6 +737,8 @@ impl fmt::Display for OQNLPCheckpoint {
         }
 
         writeln!(f, "  Exclude out of bounds: {}", self.exclude_out_of_bounds)?;
+        writeln!(f, "  Absolute tolerance: {:.2e}", self.abs_tol)?;
+        writeln!(f, "  Relative tolerance: {:.2e}", self.rel_tol)?;
 
         writeln!(f, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")?;
 
@@ -901,6 +909,8 @@ mod tests_types {
             batch_iterations: Some(4),
             #[cfg(feature = "rayon")]
             enable_parallel: true,
+            abs_tol: 1e-8,
+            rel_tol: 1e-6,
             timestamp: "2025-07-27T12:00:00Z".to_string(),
         };
 
@@ -1016,6 +1026,8 @@ mod tests_types {
             batch_iterations: None,
             #[cfg(feature = "rayon")]
             enable_parallel: false,
+            abs_tol: 1e-8,
+            rel_tol: 1e-6,
             timestamp: "2025-07-27T10:00:00Z".to_string(),
         };
 
