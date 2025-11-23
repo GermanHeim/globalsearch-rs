@@ -56,3 +56,19 @@ harness = false
 [[bench]]
 name = "parallel_performance"
 harness = false
+
+[[example]]
+name = "1d-griewank"
+required-features = ["argmin"]
+
+[[example]]
+name = "3d-ackley"
+required-features = ["argmin"]
+
+[[example]]
+name = "cross_in_tray"
+required-features = ["argmin"]
+
+[[example]]
+name = "sixhumpcamel"
+required-features = ["argmin"]

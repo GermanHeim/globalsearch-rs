@@ -45,7 +45,7 @@
 //!
 //! ## Configuration Example
 //!
-//! ```rust
+//! ```ignore
 //! use globalsearch::local_solver::builders::{
 //!     LBFGSBuilder, HagerZhangBuilder, TrustRegionBuilder, TrustRegionRadiusMethod
 //! };
