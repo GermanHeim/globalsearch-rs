@@ -19,6 +19,8 @@ jobs:
         run: cargo build --verbose
       - name: Run tests
         run: cargo test --verbose
+      - name: Run tests without default features (no argmin)
+        run: cargo test --no-default-features --verbose
       - name: Run tests with rayon
         run: cargo test --features rayon --verbose
       - name: Run tests with checkpointing
@@ -34,6 +36,8 @@ jobs:
           components: clippy
       - name: Clippy
         run: cargo clippy --verbose -- -D warnings
+      - name: Clippy without default features (no argmin)
+        run: cargo clippy --no-default-features --verbose -- -D warnings
       - name: Clippy with rayon
         run: cargo clippy --features "rayon" --verbose -- -D warnings
       - name: Clippy with checkpointing
