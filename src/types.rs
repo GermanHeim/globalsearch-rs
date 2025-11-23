@@ -458,26 +458,31 @@ pub enum LocalSolverType {
     /// L-BFGS local solver
     ///
     /// Requires `CostFunction` and `Gradient`
+    #[cfg(feature = "argmin")]
     LBFGS,
 
     /// Nelder-Mead local solver
     ///
     /// Requires `CostFunction`
+    #[cfg(feature = "argmin")]
     NelderMead,
 
     /// Steepest Descent local solver
     ///
     /// Requires `CostFunction` and `Gradient`
+    #[cfg(feature = "argmin")]
     SteepestDescent,
 
     /// Trust Region local solver
     ///
     /// Requires `CostFunction`, `Gradient` and `Hessian`
+    #[cfg(feature = "argmin")]
     TrustRegion,
 
     /// Newton-Conjugate-Gradient method local solver
     ///
     /// Requires `CostFunction`, `Gradient` and `Hessian`
+    #[cfg(feature = "argmin")]
     NewtonCG,
 
     /// COBYLA (Constrained Optimization BY Linear Approximations) local solver
@@ -493,12 +498,19 @@ impl LocalSolverType {
     /// It is used to set the local solver type for the Python bindings.
     pub fn from_string(s: &str) -> Result<Self, &'static str> {
         match s.to_lowercase().as_str() {
+            #[cfg(feature = "argmin")]
             "lbfgs" => Ok(Self::LBFGS),
+            #[cfg(feature = "argmin")]
             "nelder-mead" => Ok(Self::NelderMead),
+            #[cfg(feature = "argmin")]
             "neldermead" => Ok(Self::NelderMead),
+            #[cfg(feature = "argmin")]
             "steepestdescent" => Ok(Self::SteepestDescent),
+            #[cfg(feature = "argmin")]
             "trustregion" => Ok(Self::TrustRegion),
+            #[cfg(feature = "argmin")]
             "newton-cg" => Ok(Self::NewtonCG),
+            #[cfg(feature = "argmin")]
             "newtoncg" => Ok(Self::NewtonCG),
             "cobyla" => Ok(Self::COBYLA),
             _ => Err("Invalid solver type."),
@@ -835,6 +847,7 @@ mod tests_types {
         let _should_panic: LocalSolution = solution_set[0].clone();
     }
 
+    #[cfg(feature = "argmin")]
     #[test]
     /// Test the from_string method for the LocalSolverType enum
     fn test_local_solver_type_from_string() {

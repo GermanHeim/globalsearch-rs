@@ -18,7 +18,7 @@ name = "pyglobalsearch"
 crate-type = ["cdylib"]
 
 [dependencies]
-globalsearch = { version = "0.4.0", path = "..", features = ["rayon"] }
+globalsearch = { version = "0.4.0", path = "..", features = ["rayon", "argmin"] }
 pyo3 = { version = "0.27.1", features = ["extension-module"] }
 ndarray = "0.16.1"
 seq-macro = "0.3"
