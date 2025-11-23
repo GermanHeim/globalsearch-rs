@@ -55,7 +55,7 @@
 //!
 //! ## Example: Six-Hump Camel Function
 //!
-//! ```rust
+//! ```ignore
 //! // Molga, M., & Smutnicki, C. Test functions for optimization needs (April 3, 2005), pp. 27-28. Retrieved January 2025, from https://robertmarks.org/Classes/ENGR5358/Papers/functions.pdf
 //! use globalsearch::local_solver::builders::{TrustRegionBuilder, TrustRegionRadiusMethod};
 //! use globalsearch::problem::Problem;

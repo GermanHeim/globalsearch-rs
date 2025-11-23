@@ -990,9 +990,11 @@ mod tests_local_solvers {
         }
     }
 
+    #[cfg(feature = "argmin")]
     #[derive(Debug, Clone)]
     pub struct NoHessianSixHumpCamel;
 
+    #[cfg(feature = "argmin")]
     impl Problem for NoHessianSixHumpCamel {
         fn objective(&self, x: &Array1<f64>) -> Result<f64, EvaluationError> {
             Ok((4.0 - 2.1 * x[0].powi(2) + x[0].powi(4) / 3.0) * x[0].powi(2)

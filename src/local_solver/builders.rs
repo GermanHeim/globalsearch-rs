@@ -2157,6 +2157,7 @@ mod tests_builders {
                 assert_eq!(xtol_rel, 0.0); // No default
                 assert_eq!(xtol_abs, Vec::<f64>::new()); // No default (empty vector)
             }
+            #[cfg_attr(not(feature = "argmin"), allow(unreachable_patterns))]
             _ => panic!("Expected COBYLA local solver"),
         }
     }
@@ -2182,6 +2183,7 @@ mod tests_builders {
                 assert_eq!(xtol_rel, 0.0);
                 assert_eq!(xtol_abs, Vec::<f64>::new());
             }
+            #[cfg_attr(not(feature = "argmin"), allow(unreachable_patterns))]
             _ => panic!("Expected COBYLA local solver"),
         }
     }
@@ -2206,6 +2208,7 @@ mod tests_builders {
                 assert_eq!(xtol_rel, 0.0); // default (no x tolerance)
                 assert_eq!(xtol_abs, Vec::<f64>::new()); // default (no x tolerance)
             }
+            #[cfg_attr(not(feature = "argmin"), allow(unreachable_patterns))]
             _ => panic!("Expected COBYLA local solver"),
         }
     }
@@ -2237,6 +2240,7 @@ mod tests_builders {
                 assert_eq!(xtol_rel, 0.0); // default
                 assert_eq!(xtol_abs, xtol_vec); // per-variable tolerances
             }
+            #[cfg_attr(not(feature = "argmin"), allow(unreachable_patterns))]
             _ => panic!("Expected COBYLA local solver"),
         }
     }
