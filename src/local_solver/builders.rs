@@ -34,6 +34,8 @@
 //! ## Line Search Algorithms
 //! - [`HagerZhangBuilder`] - Hager-Zhang line search (recommended)
 //! - [`MoreThuenteBuilder`] - Moré-Thuente line search (robust)
+
+#[cfg(feature = "argmin")]
 use ndarray::{array, Array1};
 
 #[cfg(feature = "argmin")]
