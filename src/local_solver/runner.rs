@@ -79,7 +79,9 @@ use argmin::solver::{
     quasinewton::LBFGS,
     trustregion::{CauchyPoint, Steihaug, TrustRegion},
 };
-use ndarray::{Array1, Array2};
+use ndarray::Array1;
+#[cfg(feature = "argmin")]
+use ndarray::Array2;
 use thiserror::Error;
 
 // TODO: Do not repeat code in the linesearch branch, use helper function?
@@ -864,6 +866,7 @@ impl<P: Problem> LocalSolver<P> {
             Arc,
         };
 
+        #[cfg_attr(not(feature = "argmin"), allow(irrefutable_let_patterns))]
         if let LocalSolverConfig::COBYLA {
             max_iter,
             initial_step_size,
