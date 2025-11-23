@@ -63,10 +63,14 @@
 //! 1. **Reference set refinement** in Stage 1
 //! 2. **Candidate solution polishing** in Stage 2
 
-use crate::local_solver::builders::{LineSearchMethod, LocalSolverConfig, TrustRegionRadiusMethod};
+use crate::local_solver::builders::LocalSolverConfig;
+#[cfg(feature = "argmin")]
+use crate::local_solver::builders::{LineSearchMethod, TrustRegionRadiusMethod};
 use crate::problem::Problem;
 use crate::types::{LocalSolution, LocalSolverType};
+#[cfg(feature = "argmin")]
 use argmin::core::{CostFunction, Error, Executor, Gradient, Hessian};
+#[cfg(feature = "argmin")]
 use argmin::solver::{
     gradientdescent::SteepestDescent,
     linesearch::{HagerZhangLineSearch, MoreThuenteLineSearch},
@@ -83,18 +87,23 @@ use thiserror::Error;
 #[derive(Error, Debug, PartialEq)]
 /// Local solver error enum
 pub enum LocalSolverError {
+    #[cfg(feature = "argmin")]
     #[error("Local Solver Error: Invalid LocalSolverConfig for L-BFGS solver. {0}")]
     InvalidLBFGSConfig(String),
 
+    #[cfg(feature = "argmin")]
     #[error("Local Solver Error: Invalid LocalSolverConfig for Nelder-Mead solver. {0}")]
     InvalidNelderMeadConfig(String),
 
+    #[cfg(feature = "argmin")]
     #[error("Local Solver Error: Invalid LocalSolverConfig for Steepest Descent solver. {0}")]
     InvalidSteepestDescentConfig(String),
 
+    #[cfg(feature = "argmin")]
     #[error("Local Solver Error: Invalid LocalSolverConfig for Trust Region solver. {0}")]
     InvalidTrustRegionConfig(String),
 
+    #[cfg(feature = "argmin")]
     #[error("Local Solver Error: Invalid LocalSolverConfig for Newton-CG method solver. {0}")]
     InvalidNewtonCG(String),
 
@@ -149,20 +158,25 @@ impl<P: Problem> LocalSolver<P> {
         track_evaluations: bool,
     ) -> Result<(LocalSolution, u64), LocalSolverError> {
         match self.local_solver_type {
+            #[cfg(feature = "argmin")]
             LocalSolverType::LBFGS => {
                 self.solve_lbfgs(initial_point, &self.local_solver_config, track_evaluations)
             }
+            #[cfg(feature = "argmin")]
             LocalSolverType::NelderMead => {
                 self.solve_nelder_mead(initial_point, &self.local_solver_config, track_evaluations)
             }
+            #[cfg(feature = "argmin")]
             LocalSolverType::SteepestDescent => self.solve_steepestdescent(
                 initial_point,
                 &self.local_solver_config,
                 track_evaluations,
             ),
+            #[cfg(feature = "argmin")]
             LocalSolverType::TrustRegion => {
                 self.solve_trust_region(initial_point, &self.local_solver_config, track_evaluations)
             }
+            #[cfg(feature = "argmin")]
             LocalSolverType::NewtonCG => {
                 self.solve_newton_cg(initial_point, &self.local_solver_config, track_evaluations)
             }
@@ -173,6 +187,7 @@ impl<P: Problem> LocalSolver<P> {
     }
 
     /// Solve the optimization problem using the L-BFGS local solver
+    #[cfg(feature = "argmin")]
     fn solve_lbfgs(
         &self,
         initial_point: Array1<f64>,
@@ -323,6 +338,7 @@ impl<P: Problem> LocalSolver<P> {
     }
 
     /// Solve the optimization problem using the Nelder-Mead local solver
+    #[cfg(feature = "argmin")]
     fn solve_nelder_mead(
         &self,
         initial_point: Array1<f64>,
@@ -403,6 +419,7 @@ impl<P: Problem> LocalSolver<P> {
     }
 
     /// Solve the optimization problem using the Steepest Descent local solver
+    #[cfg(feature = "argmin")]
     fn solve_steepestdescent(
         &self,
         initial_point: Array1<f64>,
@@ -545,6 +562,7 @@ impl<P: Problem> LocalSolver<P> {
     }
 
     /// Solve the optimization problem using the Trust Region local solver
+    #[cfg(feature = "argmin")]
     fn solve_trust_region(
         &self,
         initial_point: Array1<f64>,
@@ -677,6 +695,7 @@ impl<P: Problem> LocalSolver<P> {
         }
     }
 
+    #[cfg(feature = "argmin")]
     fn solve_newton_cg(
         &self,
         initial_point: Array1<f64>,
@@ -926,6 +945,7 @@ impl<P: Problem> LocalSolver<P> {
 #[cfg(test)]
 mod tests_local_solvers {
     use super::*;
+    #[cfg(feature = "argmin")]
     use crate::local_solver::builders::{
         HagerZhangBuilder, LBFGSBuilder, MoreThuenteBuilder, SteepestDescentBuilder,
     };
@@ -990,6 +1010,9 @@ mod tests_local_solvers {
         }
     }
 
+    // Tests for argmin-based solvers
+
+    #[cfg(feature = "argmin")]
     #[test]
     /// Test the Nelder-Mead local solver with a problem that doesn't
     /// have a gradient. Since Nelder-Mead doesn't require a gradient,
@@ -1016,6 +1039,7 @@ mod tests_local_solvers {
         assert_eq!(res.objective, -1.0316278623977673);
     }
 
+    #[cfg(feature = "argmin")]
     #[test]
     /// Test the Steepest Descent local solver with a problem that doesn't
     /// have a gradient. Since Steepest Descent requires a gradient,
@@ -1039,6 +1063,7 @@ mod tests_local_solvers {
         );
     }
 
+    #[cfg(feature = "argmin")]
     #[test]
     /// Test the L-BFGS local solver with a problem that doesn't
     /// have a gradient. Since L-BFGS requires a gradient,
@@ -1059,6 +1084,7 @@ mod tests_local_solvers {
         );
     }
 
+    #[cfg(feature = "argmin")]
     #[test]
     /// Test the Newton CG local solver with a problem that doesn't
     /// have a gradient. Since Newton CG requires a gradient and a hessian,
@@ -1109,6 +1135,7 @@ mod tests_local_solvers {
         );
     }
 
+    #[cfg(feature = "argmin")]
     #[test]
     /// Test creating a HagerZhangLineSearch instance with an invalid configurations
     fn invalid_hagerzhang() {
@@ -1292,6 +1319,7 @@ mod tests_local_solvers {
         );
     }
 
+    #[cfg(feature = "argmin")]
     #[test]
     /// Test creating a MoreThuenteLineSearch instance with an invalid configurations
     fn invalid_morethuente() {
@@ -1375,6 +1403,7 @@ mod tests_local_solvers {
         );
     }
 
+    #[cfg(feature = "argmin")]
     #[test]
     /// Test creating a Trust Region solver using an invalid eta value
     /// In this case, eta must be in [0, 1/4) and we set it to 1.0
@@ -1403,6 +1432,8 @@ mod tests_local_solvers {
             )
         );
     }
+
+    // COBYLA tests (always available)
 
     #[test]
     /// Test the COBYLA local solver with a problem that doesn't
