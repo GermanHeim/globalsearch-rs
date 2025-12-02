@@ -185,7 +185,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
     ///
     /// # Arguments
     ///
-    /// * `points` - A vector of points (Array1<f64>) to add to the reference set
+    /// * `points` - A vector of points (`Array1<f64>`) to add to the reference set
     ///
     /// Note: Points are assumed to be already validated (correct dimension and within bounds)
     /// by the caller (OQNLP).
