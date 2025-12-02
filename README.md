@@ -252,9 +252,9 @@ python/ # Python bindings
 
 ## Dependencies
 
-- [argmin](https://github.com/argmin-rs/argmin)
-- [COBYLA](https://github.com/relf/cobyla)
 - [ndarray](https://github.com/rust-ndarray/ndarray)
+- [COBYLA](https://github.com/relf/cobyla)
+- [argmin](https://github.com/argmin-rs/argmin) [feature: `argmin`]
 - [rayon](https://github.com/rayon-rs/rayon) [feature: `rayon`]
 - [kdam](https://github.com/clitic/kdam) [feature: `progress_bar`]
 - [rand](https://github.com/rust-random/rand)
