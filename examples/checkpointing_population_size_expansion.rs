@@ -4,7 +4,7 @@
 /// 1. Expanding the reference set when population_size is increased
 /// 2. Warning when population_size is decreased but continuing with original set
 #[cfg(feature = "checkpointing")]
-use ndarray::{array, Array1, Array2};
+use ndarray::{Array1, Array2, array};
 
 #[cfg(feature = "checkpointing")]
 use globalsearch::{

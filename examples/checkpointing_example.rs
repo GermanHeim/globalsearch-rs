@@ -5,7 +5,7 @@
 /// 2. Resume optimization from a saved checkpoint
 /// 3. Modify parameters during resumption
 /// 4. Handle long-running optimizations with periodic saves
-use ndarray::{array, Array1, Array2};
+use ndarray::{Array1, Array2, array};
 
 #[cfg(feature = "checkpointing")]
 use globalsearch::{

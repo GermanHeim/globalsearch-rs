@@ -29,7 +29,7 @@ use globalsearch::observers::Observer;
 use globalsearch::oqnlp::OQNLP;
 use globalsearch::problem::Problem;
 use globalsearch::types::{EvaluationError, LocalSolverType, OQNLPParams};
-use ndarray::{array, Array1, Array2};
+use ndarray::{Array1, Array2, array};
 
 /// Shubert function implementation
 ///

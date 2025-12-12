@@ -15,13 +15,13 @@
 //! ```bash
 //! cargo bench --features rayon --bench batch_iterations
 //! ```
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use globalsearch::{
     oqnlp::OQNLP,
     problem::Problem,
     types::{EvaluationError, OQNLPParams},
 };
-use ndarray::{array, Array1, Array2};
+use ndarray::{Array1, Array2, array};
 use std::hint::black_box;
 
 #[cfg(not(feature = "rayon"))]

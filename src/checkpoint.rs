@@ -366,7 +366,7 @@ mod tests_checkpointing {
         CheckpointConfig, CheckpointError, CheckpointManager, OQNLPCheckpoint,
     };
     use crate::types::{LocalSolution, OQNLPParams, SolutionSet};
-    use ndarray::{array, Array1};
+    use ndarray::{Array1, array};
     use std::env;
     use std::fs;
 

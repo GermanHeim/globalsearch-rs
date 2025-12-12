@@ -25,7 +25,7 @@ use globalsearch::{
     oqnlp::OQNLP,
     types::{EvaluationError, LocalSolverType, OQNLPParams, SolutionSet},
 };
-use ndarray::{array, Array1, Array2};
+use ndarray::{Array1, Array2, array};
 
 /// The Rosenbrock function
 #[derive(Debug, Clone)]

@@ -10,14 +10,14 @@
 /// References:
 ///
 /// Molga, M., & Smutnicki, C. Test functions for optimization needs (April 3, 2005), pp. 27-28. Retrieved January 2025, from https://robertmarks.org/Classes/ENGR5358/Papers/functions.pdf
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use globalsearch::local_solver::builders::SteepestDescentBuilder;
 use globalsearch::problem::Problem;
 use globalsearch::{
     oqnlp::OQNLP,
     types::{EvaluationError, LocalSolverType, OQNLPParams, SolutionSet},
 };
-use ndarray::{array, Array1, Array2};
+use ndarray::{Array1, Array2, array};
 use std::hint::black_box;
 
 #[derive(Debug, Clone)]

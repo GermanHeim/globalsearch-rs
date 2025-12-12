@@ -651,11 +651,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
 
             // Filter 2: Objective evaluation (expensive operation)
             let obj = self.problem.objective(point).ok()?;
-            if obj < worst_obj {
-                Some((point.clone(), obj))
-            } else {
-                None
-            }
+            if obj < worst_obj { Some((point.clone(), obj)) } else { None }
         };
 
         #[cfg(feature = "rayon")]
@@ -759,7 +755,7 @@ mod tests_scatter_search {
     use super::*;
     use crate::types::EvaluationError;
     use crate::types::OQNLPParams;
-    use ndarray::{array, Array2};
+    use ndarray::{Array2, array};
 
     #[derive(Debug, Clone)]
     pub struct SixHumpCamel;

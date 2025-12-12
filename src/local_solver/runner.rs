@@ -197,8 +197,8 @@ impl<P: Problem> LocalSolver<P> {
         track_evaluations: bool,
     ) -> Result<(LocalSolution, u64), LocalSolverError> {
         use std::sync::{
-            atomic::{AtomicU64, Ordering},
             Arc,
+            atomic::{AtomicU64, Ordering},
         };
 
         struct ProblemCost<'a, P: Problem> {
@@ -348,8 +348,8 @@ impl<P: Problem> LocalSolver<P> {
         track_evaluations: bool,
     ) -> Result<(LocalSolution, u64), LocalSolverError> {
         use std::sync::{
-            atomic::{AtomicU64, Ordering},
             Arc,
+            atomic::{AtomicU64, Ordering},
         };
 
         struct ProblemCost<'a, P: Problem> {
@@ -429,8 +429,8 @@ impl<P: Problem> LocalSolver<P> {
         track_evaluations: bool,
     ) -> Result<(LocalSolution, u64), LocalSolverError> {
         use std::sync::{
-            atomic::{AtomicU64, Ordering},
             Arc,
+            atomic::{AtomicU64, Ordering},
         };
 
         struct ProblemCost<'a, P: Problem> {
@@ -572,8 +572,8 @@ impl<P: Problem> LocalSolver<P> {
         track_evaluations: bool,
     ) -> Result<(LocalSolution, u64), LocalSolverError> {
         use std::sync::{
-            atomic::{AtomicU64, Ordering},
             Arc,
+            atomic::{AtomicU64, Ordering},
         };
 
         struct ProblemCost<'a, P: Problem> {
@@ -705,8 +705,8 @@ impl<P: Problem> LocalSolver<P> {
         track_evaluations: bool,
     ) -> Result<(LocalSolution, u64), LocalSolverError> {
         use std::sync::{
-            atomic::{AtomicU64, Ordering},
             Arc,
+            atomic::{AtomicU64, Ordering},
         };
 
         struct ProblemCost<'a, P: Problem> {
@@ -862,8 +862,8 @@ impl<P: Problem> LocalSolver<P> {
         track_evaluations: bool,
     ) -> Result<(LocalSolution, u64), LocalSolverError> {
         use std::sync::{
-            atomic::{AtomicU64, Ordering},
             Arc,
+            atomic::{AtomicU64, Ordering},
         };
 
         #[cfg_attr(not(feature = "argmin"), allow(irrefutable_let_patterns))]
@@ -901,10 +901,12 @@ impl<P: Problem> LocalSolver<P> {
             let problem_bounds = self.problem.variable_bounds();
 
             if problem_bounds.nrows() != x0.len() {
-                return Err(LocalSolverError::InvalidCOBYLAConfig(
-                    format!("Problem bounds dimension mismatch: expected {} bounds for {} variables, got {} bounds", 
-                           x0.len(), x0.len(), problem_bounds.nrows())
-                ));
+                return Err(LocalSolverError::InvalidCOBYLAConfig(format!(
+                    "Problem bounds dimension mismatch: expected {} bounds for {} variables, got {} bounds",
+                    x0.len(),
+                    x0.len(),
+                    problem_bounds.nrows()
+                )));
             }
 
             let bounds: Vec<(f64, f64)> =
@@ -953,7 +955,7 @@ mod tests_local_solvers {
         HagerZhangBuilder, LBFGSBuilder, MoreThuenteBuilder, SteepestDescentBuilder,
     };
     use crate::types::{EvaluationError, LocalSolverType};
-    use ndarray::{array, Array2};
+    use ndarray::{Array2, array};
 
     #[derive(Debug, Clone)]
     pub struct NoGradientSixHumpCamel;

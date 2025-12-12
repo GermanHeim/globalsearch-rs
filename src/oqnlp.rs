@@ -141,9 +141,9 @@ use chrono;
 #[cfg(feature = "progress_bar")]
 use kdam::{Bar, BarExt};
 use ndarray::{Array1, Array2};
+use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
-use rand::SeedableRng;
 use thiserror::Error;
 
 #[cfg(feature = "rayon")]
@@ -176,13 +176,17 @@ pub enum OQNLPError {
     ///
     /// Population size should be at least 3, since the reference set
     /// pushes the bounds and the midpoint.
-    #[error("OQNLP Error: Population size should be at least 3, got {0}. Reference Set size should be at least 3, since it pushes the bounds and the midpoint.")]
+    #[error(
+        "OQNLP Error: Population size should be at least 3, got {0}. Reference Set size should be at least 3, since it pushes the bounds and the midpoint."
+    )]
     InvalidPopulationSize(usize),
 
     /// Error when the iterations are invalid
     ///
     /// Iterations should be less than or equal to the population size.
-    #[error("OQNLP Error: Iterations should be less than or equal to population size. OQNLP received `iterations`: {0}, `population size`: {1}.")]
+    #[error(
+        "OQNLP Error: Iterations should be less than or equal to population size. OQNLP received `iterations`: {0}, `population size`: {1}."
+    )]
     InvalidIterations(usize, usize),
 
     /// Error when creating the distance filter
@@ -196,7 +200,9 @@ pub enum OQNLPError {
     InvalidThresholdFactor(f64),
 
     /// Error when custom points have invalid dimensions
-    #[error("OQNLP Error: Custom points must have the same dimension as the problem. Expected {expected} dimensions, got {got}.")]
+    #[error(
+        "OQNLP Error: Custom points must have the same dimension as the problem. Expected {expected} dimensions, got {got}."
+    )]
     InvalidCustomPointsDimension { expected: usize, got: usize },
 
     /// Error when custom points are outside variable bounds
@@ -2098,7 +2104,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
 mod tests_oqnlp {
     use super::*;
     use crate::types::EvaluationError;
-    use ndarray::{array, Array1, Array2};
+    use ndarray::{Array1, Array2, array};
 
     // Dummy problem for testing, sum of variables with bounds from -5 to 5
     #[derive(Clone)]
@@ -2324,7 +2330,7 @@ mod tests_oqnlp {
     /// Test the progress bar functionality
     fn test_progress_bar() {
         use kdam::term;
-        use std::io::{stderr, IsTerminal};
+        use std::io::{IsTerminal, stderr};
 
         // Initialize terminal
         term::init(stderr().is_terminal());
@@ -3083,11 +3089,7 @@ mod tests_oqnlp {
             .filter_map(|entry| {
                 let entry = entry.ok()?;
                 let path = entry.path();
-                if path.extension()? == "bin" {
-                    Some(path)
-                } else {
-                    None
-                }
+                if path.extension()? == "bin" { Some(path) } else { None }
             })
             .collect();
 
@@ -4415,7 +4417,7 @@ mod tests_oqnlp {
 
         // Create points with wrong dimension (2D instead of 3D)
         let custom_points = array![
-            [1.0, 2.0],   // Only 2 dimensions, should be 3
+            [1.0, 2.0], // Only 2 dimensions, should be 3
         ];
 
         let result = OQNLP::new(problem, params).unwrap().with_points(custom_points);

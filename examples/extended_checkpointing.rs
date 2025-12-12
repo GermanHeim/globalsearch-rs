@@ -4,7 +4,7 @@
 /// 1. Run optimization with checkpointing enabled
 /// 2. Resume from checkpoint with increased iteration count
 /// 3. Handle multiple checkpoint continuation cycles
-use ndarray::{array, Array1, Array2};
+use ndarray::{Array1, Array2, array};
 
 #[cfg(feature = "checkpointing")]
 use globalsearch::{
