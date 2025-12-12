@@ -891,10 +891,7 @@ impl<P: Problem> LocalSolver<P> {
                 }
                 let point = Array1::from_vec(x.to_vec());
 
-                match self.problem.objective(&point) {
-                    Ok(value) => value,
-                    Err(_) => f64::INFINITY,
-                }
+                self.problem.objective(&point).unwrap_or(f64::INFINITY)
             };
 
             let constraint_funcs = self.problem.constraints();
