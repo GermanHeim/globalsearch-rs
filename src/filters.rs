@@ -233,7 +233,8 @@ impl DistanceFilter {
 
 /// Euclidean distance squared
 fn euclidean_distance_squared(a: &Array1<f64>, b: &Array1<f64>) -> f64 {
-    a.iter().zip(b.iter()).map(|(x, y)| (x - y).powi(2)).sum::<f64>()
+    let diff = a - b;
+    diff.dot(&diff)
 }
 
 #[cfg(test)]

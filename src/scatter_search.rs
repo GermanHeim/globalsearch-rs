@@ -734,7 +734,8 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
 ///
 /// Use this function for performance since we don't use the square root
 fn euclidean_distance_squared(a: &Array1<f64>, b: &Array1<f64>) -> f64 {
-    (a - b).mapv(|x| x * x).sum()
+    let diff = a - b;
+    diff.dot(&diff)
 }
 
 // The following code allows to compute the Euclidean distance between two points
