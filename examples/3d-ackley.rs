@@ -17,7 +17,7 @@ use globalsearch::{
     oqnlp::OQNLP,
     types::{EvaluationError, LocalSolverType, OQNLPParams, SolutionSet},
 };
-use ndarray::{array, Array1, Array2};
+use ndarray::{Array1, Array2, array};
 
 /// IMPORTANT: For some reason, this example doesn't work using steepest descent or LBFGS.
 /// The local solver gets stuck trying to minimize in the stage 1 if I don't pass HagerZhangBuilder (default is MoreThuente).

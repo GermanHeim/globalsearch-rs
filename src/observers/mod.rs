@@ -737,7 +737,7 @@ impl Observer {
                         let prev_state = obs.previous_stage2_state.as_ref().map(|cell| cell.read().unwrap().clone());
 
                         // Check if state changed
-                        let has_changed = prev_state.as_ref().map_or(true, |prev| prev.has_changed(stage2));
+                        let has_changed = prev_state.as_ref().is_none_or(|prev| prev.has_changed(stage2));
 
                         // Update the previous state for next comparison
                         let current_state = PreviousStage2State::from_stage2(stage2);
@@ -958,11 +958,7 @@ impl Observer {
     /// ```
     pub fn stage1(&self) -> Option<&Stage1State> {
         // Don't return Stage 1 state after it's completed to prevent repeated logging
-        if self.stage1_completed {
-            None
-        } else {
-            self.stage1.as_ref()
-        }
+        if self.stage1_completed { None } else { self.stage1.as_ref() }
     }
 
     /// Get Stage 1 state reference even after completion (for final statistics)
@@ -1047,11 +1043,7 @@ impl Observer {
     /// ```
     pub fn stage2(&self) -> Option<&Stage2State> {
         // Don't return Stage 2 state until it has started to prevent premature logging
-        if self.stage2_started {
-            self.stage2.as_ref()
-        } else {
-            None
-        }
+        if self.stage2_started { self.stage2.as_ref() } else { None }
     }
 
     /// Get mutable Stage 2 state reference

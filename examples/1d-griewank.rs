@@ -16,7 +16,7 @@ use globalsearch::{
     oqnlp::OQNLP,
     types::{EvaluationError, LocalSolverType, OQNLPParams, SolutionSet},
 };
-use ndarray::{array, Array1, Array2};
+use ndarray::{Array1, Array2, array};
 
 #[derive(Debug, Clone)]
 pub struct OneDGriewank;

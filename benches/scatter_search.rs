@@ -35,11 +35,11 @@
 //! ```bash
 //! cargo bench scatter_search -- --output-format html
 //! ```
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use globalsearch::problem::Problem;
 use globalsearch::scatter_search::ScatterSearch;
 use globalsearch::types::{EvaluationError, OQNLPParams};
-use ndarray::{array, Array1, Array2};
+use ndarray::{Array1, Array2, array};
 use std::hint::black_box;
 
 #[derive(Debug, Clone)]

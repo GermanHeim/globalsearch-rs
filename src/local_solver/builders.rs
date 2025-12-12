@@ -36,7 +36,7 @@
 //! - [`MoreThuenteBuilder`] - Moré-Thuente line search (robust)
 
 #[cfg(feature = "argmin")]
-use ndarray::{array, Array1};
+use ndarray::{Array1, array};
 
 #[cfg(feature = "argmin")]
 #[derive(Debug, Clone, PartialEq)]
