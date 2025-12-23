@@ -116,19 +116,7 @@ Or use `cargo add globalsearch` in your project directory.
    }
    ```
 
-   Where the `Problem` trait is defined as:
-
-   ```rust
-   pub trait Problem {
-       fn objective(&self, x: &Array1<f64>) -> Result<f64, EvaluationError>;
-       fn gradient(&self, x: &Array1<f64>) -> Result<Array1<f64>, EvaluationError>;
-       fn hessian(&self, x: &Array1<f64>) -> Result<Array2<f64>, EvaluationError>;
-       fn variable_bounds(&self) -> Array2<f64>;
-       fn constraints(&self) -> Vec<fn(&[f64], &mut ()) -> f64>;
-   }
-   ```
-
-   The `constraints` method allows you to define constraint functions for constrained optimization problems. Constraints should follow the sign convention:
+   The `constraints` method (only available with the COBYLA local solver) allows you to define constraint functions for constrained optimization problems. Constraints should follow the sign convention:
    - **Positive or zero**: constraint satisfied  
    - **Negative**: constraint violated
 
