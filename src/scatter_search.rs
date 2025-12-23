@@ -354,6 +354,21 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
         self.diversify_reference_set(&mut ref_set, &constraints)?;
 
         // Evaluate objectives for the initial reference set
+        // Parallelize when we have many points (>= 20) as objective evaluations can be expensive
+        #[cfg(feature = "rayon")]
+        let objectives: Vec<f64> = if self.enable_parallel && ref_set.len() >= 20 {
+            ref_set
+                .par_iter()
+                .map(|point| self.problem.objective(point))
+                .collect::<Result<Vec<f64>, _>>()?
+        } else {
+            ref_set
+                .iter()
+                .map(|point| self.problem.objective(point))
+                .collect::<Result<Vec<f64>, _>>()?
+        };
+
+        #[cfg(not(feature = "rayon"))]
         let objectives: Vec<f64> = ref_set
             .iter()
             .map(|point| self.problem.objective(point))
@@ -552,18 +567,35 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
                     .map(|p| euclidean_distance_squared(point, p))
                     .reduce(|| f64::INFINITY, f64::min)
             } else {
-                ref_set
-                    .iter()
-                    .map(|p| euclidean_distance_squared(point, p))
-                    .fold(f64::INFINITY, f64::min)
+                // Sequential with early termination for near-zero distances
+                let mut min_dist = f64::INFINITY;
+                for p in ref_set {
+                    let dist = euclidean_distance_squared(point, p);
+                    if dist < min_dist {
+                        min_dist = dist;
+                        // Early termination if points are essentially identical
+                        if dist < 1e-14 {
+                            return 0.0;
+                        }
+                    }
+                }
+                min_dist
             }
         }
         #[cfg(not(feature = "rayon"))]
         {
-            ref_set
-                .iter()
-                .map(|p| euclidean_distance_squared(point, p))
-                .fold(f64::INFINITY, f64::min)
+            let mut min_dist = f64::INFINITY;
+            for p in ref_set {
+                let dist = euclidean_distance_squared(point, p);
+                if dist < min_dist {
+                    min_dist = dist;
+                    // Early termination if points are essentially identical
+                    if dist < 1e-14 {
+                        return 0.0;
+                    }
+                }
+            }
+            min_dist
         }
     }
 
@@ -662,14 +694,6 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
         // so we can directly use the cached objectives without re-sorting
         let worst_obj = self.reference_set_objectives.last().copied().unwrap_or(f64::INFINITY);
 
-        // Prepare reference set for later merging with evaluated trials
-        let ref_evaluated: Vec<(Array1<f64>, f64)> = self
-            .reference_set
-            .iter()
-            .zip(self.reference_set_objectives.iter())
-            .map(|(point, &obj)| (point.clone(), obj))
-            .collect();
-
         // Compute a minimum distance threshold (once) based on reference set diversity
         let min_dist_threshold = {
             let ref_set = &self.reference_set;
@@ -750,6 +774,17 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
         let trial_evaluated: Vec<(Array1<f64>, f64)> =
             trials.iter().filter_map(evaluate_trial).collect();
 
+        // If no trials passed filtering, keep current reference set unchanged
+        if trial_evaluated.is_empty() {
+            return;
+        }
+
+        // Prepare reference set for merging - avoid cloning by using mem::take
+        let ref_evaluated: Vec<(Array1<f64>, f64)> = std::mem::take(&mut self.reference_set)
+            .into_iter()
+            .zip(std::mem::take(&mut self.reference_set_objectives))
+            .collect();
+
         // Combine and sort all points
         let mut all_points = ref_evaluated;
         all_points.extend(trial_evaluated);
@@ -818,6 +853,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
 /// Compute the squared Euclidean distance between two points
 ///
 /// Use this function for performance since we don't use the square root
+#[inline]
 fn euclidean_distance_squared(a: &Array1<f64>, b: &Array1<f64>) -> f64 {
     let diff = a - b;
     diff.dot(&diff)
@@ -835,6 +871,7 @@ fn euclidean_distance_squared(a: &Array1<f64>, b: &Array1<f64>) -> f64 {
 /// # Returns
 /// * `true` if all constraints are satisfied or if there are no constraints
 /// * `false` if any constraint is violated
+#[inline]
 fn is_feasible(point: &Array1<f64>, constraints: &[fn(&[f64], &mut ()) -> f64]) -> bool {
     if constraints.is_empty() {
         return true;
@@ -842,24 +879,15 @@ fn is_feasible(point: &Array1<f64>, constraints: &[fn(&[f64], &mut ()) -> f64]) 
 
     let x_slice = point.as_slice().expect("Failed to convert point to slice");
 
-    constraints.iter().all(|constraint_fn| {
+    // Early exit on first violation for performance
+    for constraint_fn in constraints {
         let value = constraint_fn(x_slice, &mut ());
-        value >= 0.0
-    })
+        if value < 0.0 {
+            return false;
+        }
+    }
+    true
 }
-
-// The following code allows to compute the Euclidean distance between two points
-// but it is not used in the current implementation
-// Could there be some cases where we need to compute the Euclidean distance?
-// due to overflow or numerical stability?
-//
-// /// Compute the Euclidean distance between two points.
-// ///
-// /// Use euclidean_distance_squared when only comparing distances for better performance
-// /// given that if a < b, then a² < b²
-// fn euclidean_distance(a: &Array1<f64>, b: &Array1<f64>) -> f64 {
-//     euclidean_distance_squared(a, b).sqrt()
-// }
 
 #[cfg(test)]
 mod tests_scatter_search {
