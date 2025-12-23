@@ -1461,8 +1461,11 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
         #[cfg(not(feature = "rayon"))]
         let mut scatter_search = ScatterSearch::new(self.problem.clone(), temp_params)?;
 
+        // Get constraints for diversification
+        let constraints = self.problem.constraints();
+
         // ScatterSearch's diversify_reference_set method to expand our existing set
-        scatter_search.diversify_reference_set(ref_set)?;
+        scatter_search.diversify_reference_set(ref_set, &constraints)?;
 
         Ok(())
     }
