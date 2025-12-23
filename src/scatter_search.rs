@@ -351,7 +351,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
             pb.update(1).expect("Failed to update progress bar");
         }
 
-        self.diversify_reference_set(&mut ref_set)?;
+        self.diversify_reference_set(&mut ref_set, &constraints)?;
 
         // Evaluate objectives for the initial reference set
         let objectives: Vec<f64> = ref_set
@@ -382,24 +382,21 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
     pub fn diversify_reference_set(
         &mut self,
         ref_set: &mut Vec<Array1<f64>>,
+        constraints: &[fn(&[f64], &mut ()) -> f64],
     ) -> Result<(), ScatterSearchError> {
-        // Get constraint functions for feasibility checking
-        let constraints = self.problem.constraints();
         let mut candidates = self.generate_stratified_samples(self.params.population_size)?;
 
         // Filter out constraint-violating candidates before diversification
         if !constraints.is_empty() {
-            candidates.retain(|point| is_feasible(point, &constraints));
+            candidates.retain(|point| is_feasible(point, constraints));
 
             // If we don't have enough feasible candidates after filtering, generate more
             let mut attempts = 0;
             while candidates.len() < self.params.population_size && attempts < 10 {
                 let new_batch =
                     self.generate_stratified_samples(self.params.population_size * 2)?;
-                let feasible_batch: Vec<Array1<f64>> = new_batch
-                    .into_iter()
-                    .filter(|point| is_feasible(point, &constraints))
-                    .collect();
+                let feasible_batch: Vec<Array1<f64>> =
+                    new_batch.into_iter().filter(|point| is_feasible(point, constraints)).collect();
                 candidates.extend(feasible_batch);
                 attempts += 1;
             }
@@ -453,10 +450,6 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
             let farthest = candidates.swap_remove(max_idx);
             min_dists.swap_remove(max_idx);
             ref_set.push(farthest);
-
-            if ref_set.len() >= self.params.population_size {
-                break;
-            }
 
             #[cfg(feature = "rayon")]
             {
@@ -721,7 +714,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
             }
         };
 
-        // Get constraint functions for feasibility checking
+        // Get constraint functions for feasibility checking (cached for closure)
         let constraints = self.problem.constraints();
 
         // Evaluate trial points with three-level filtering:
