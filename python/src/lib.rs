@@ -951,11 +951,7 @@ fn optimize(
             py.detach(|| optimizer.run())
         } else {
             // For serial execution, detach GIL as before
-            if should_detach_gil {
-                py.detach(|| optimizer.run())
-            } else {
-                optimizer.run()
-            }
+            if should_detach_gil { py.detach(|| optimizer.run()) } else { optimizer.run() }
         };
 
         let binding = solution_set.map_err(|e| PyValueError::new_err(e.to_string()))?;
