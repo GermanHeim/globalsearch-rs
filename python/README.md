@@ -32,7 +32,7 @@
 
 `pyglobalsearch`: Python interface for the Rust crate `globalsearch`. The Rust crate implements a modified version of the _OQNLP_ (_OptQuest/NLP_) algorithm with the core ideas from "Scatter Search and Local NLP Solvers: A Multistart Framework for Global Optimization" by Ugray et al. (2007). It combines scatter search metaheuristics with local minimization for global optimization of nonlinear problems.
 
-Similar to MATLAB's `GlobalSearch` \[2\]. The bindings are built using [pyo3](https://github.com/PyO3/pyo3) and [Maturin](https://github.com/PyO3/maturin).
+Similar to MATLAB's `GlobalSearch` \[2\]. The bindings are built using [PyO3](https://github.com/PyO3/pyo3) and [Maturin](https://github.com/PyO3/maturin).
 
 ## Installation
 
