@@ -304,7 +304,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
             ];
 
             for point in seed_points {
-                if is_feasible::<P>(&point, &constraints) {
+                if is_feasible(&point, &constraints) {
                     ref_set.push(point);
                 }
             }
@@ -323,13 +323,13 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
                     if self.enable_parallel && custom_points.len() >= 100 {
                         custom_points
                             .par_iter()
-                            .filter(|point| is_feasible::<P>(point, &constraints))
+                            .filter(|point| is_feasible(point, &constraints))
                             .cloned()
                             .collect()
                     } else {
                         custom_points
                             .iter()
-                            .filter(|point| is_feasible::<P>(point, &constraints))
+                            .filter(|point| is_feasible(point, &constraints))
                             .cloned()
                             .collect()
                     };
@@ -337,7 +337,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
                 #[cfg(not(feature = "rayon"))]
                 let feasible_custom: Vec<Array1<f64>> = custom_points
                     .iter()
-                    .filter(|point| is_feasible::<P>(point, &constraints))
+                    .filter(|point| is_feasible(point, &constraints))
                     .cloned()
                     .collect();
 
@@ -389,7 +389,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
 
         // Filter out constraint-violating candidates before diversification
         if !constraints.is_empty() {
-            candidates.retain(|point| is_feasible::<P>(point, &constraints));
+            candidates.retain(|point| is_feasible(point, &constraints));
 
             // If we don't have enough feasible candidates after filtering, generate more
             let mut attempts = 0;
@@ -398,7 +398,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
                     self.generate_stratified_samples(self.params.population_size * 2)?;
                 let feasible_batch: Vec<Array1<f64>> = new_batch
                     .into_iter()
-                    .filter(|point| is_feasible::<P>(point, &constraints))
+                    .filter(|point| is_feasible(point, &constraints))
                     .collect();
                 candidates.extend(feasible_batch);
                 attempts += 1;
@@ -729,7 +729,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
         // 2. Cheap distance filter to skip near-duplicates (up to 5 distance computations)
         // 3. Expensive objective evaluation only for diverse, feasible points
         let evaluate_trial = |point: &Array1<f64>| -> Option<(Array1<f64>, f64)> {
-            if !constraints.is_empty() && !is_feasible::<P>(point, &constraints) {
+            if !constraints.is_empty() && !is_feasible(point, &constraints) {
                 return None;
             }
 
@@ -842,10 +842,7 @@ fn euclidean_distance_squared(a: &Array1<f64>, b: &Array1<f64>) -> f64 {
 /// # Returns
 /// * `true` if all constraints are satisfied or if there are no constraints
 /// * `false` if any constraint is violated
-fn is_feasible<P: Problem>(
-    point: &Array1<f64>,
-    constraints: &[fn(&[f64], &mut ()) -> f64],
-) -> bool {
+fn is_feasible(point: &Array1<f64>, constraints: &[fn(&[f64], &mut ()) -> f64]) -> bool {
     if constraints.is_empty() {
         return true;
     }
