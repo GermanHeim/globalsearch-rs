@@ -1540,7 +1540,7 @@ mod tests_observers {
                             let prev_state = obs.previous_stage2_state.as_ref().map(|cell| cell.read().unwrap().clone());
 
                             // Check if state changed
-                            let has_changed = prev_state.as_ref().map_or(true, |prev| prev.has_changed(stage2));
+                            let has_changed = prev_state.as_ref().is_none_or(|prev| prev.has_changed(stage2));
 
                             // Update the previous state for next comparison
                             let current_state = PreviousStage2State::from_stage2(stage2);
