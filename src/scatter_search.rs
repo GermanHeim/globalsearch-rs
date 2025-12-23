@@ -96,6 +96,12 @@ pub enum ScatterSearchError {
     #[error("Scatter Search Error: No candidates left.")]
     NoCandidates,
 
+    /// Error when no feasible candidates can be generated that satisfy constraints
+    #[error(
+        "Scatter Search Error: No feasible candidates found that satisfy the problem constraints after {0} attempts."
+    )]
+    NoFeasibleCandidates(usize),
+
     /// Error when evaluating the objective function
     #[error("Scatter Search Error: Evaluation error: {0}.")]
     EvaluationError(#[from] crate::types::EvaluationError),
@@ -280,13 +286,63 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
     pub fn initialize_reference_set(&mut self) -> Result<(), ScatterSearchError> {
         let mut ref_set: Vec<Array1<f64>> = Vec::with_capacity(self.params.population_size);
 
-        ref_set.push(self.bounds.lower.to_owned());
-        ref_set.push(self.bounds.upper.to_owned());
-        ref_set.push((&self.bounds.lower + &self.bounds.upper) / 2.0);
+        // Get constraint functions for feasibility checking
+        let constraints = self.problem.constraints();
 
-        // Add custom points if provided
+        // Add seed points (bounds and midpoint)
+        if constraints.is_empty() {
+            // No constraints - add all seed points directly
+            ref_set.push(self.bounds.lower.to_owned());
+            ref_set.push(self.bounds.upper.to_owned());
+            ref_set.push((&self.bounds.lower + &self.bounds.upper) / 2.0);
+        } else {
+            // With constraints - only add seed points that satisfy them
+            let seed_points = vec![
+                self.bounds.lower.to_owned(),
+                self.bounds.upper.to_owned(),
+                (&self.bounds.lower + &self.bounds.upper) / 2.0,
+            ];
+
+            for point in seed_points {
+                if is_feasible::<P>(&point, &constraints) {
+                    ref_set.push(point);
+                }
+            }
+        }
+
+        // Add custom points if provided (and they satisfy constraints)
         if let Some(ref custom_points) = self.custom_points {
-            ref_set.extend(custom_points.iter().cloned());
+            if constraints.is_empty() {
+                // No constraints - add all custom points directly
+                ref_set.extend(custom_points.iter().cloned());
+            } else {
+                // With constraints - filter and add custom points that satisfy them
+                // Use parallelization only if we have many custom points (>= 100)
+                #[cfg(feature = "rayon")]
+                let feasible_custom: Vec<Array1<f64>> =
+                    if self.enable_parallel && custom_points.len() >= 100 {
+                        custom_points
+                            .par_iter()
+                            .filter(|point| is_feasible::<P>(point, &constraints))
+                            .cloned()
+                            .collect()
+                    } else {
+                        custom_points
+                            .iter()
+                            .filter(|point| is_feasible::<P>(point, &constraints))
+                            .cloned()
+                            .collect()
+                    };
+
+                #[cfg(not(feature = "rayon"))]
+                let feasible_custom: Vec<Array1<f64>> = custom_points
+                    .iter()
+                    .filter(|point| is_feasible::<P>(point, &constraints))
+                    .cloned()
+                    .collect();
+
+                ref_set.extend(feasible_custom);
+            }
         }
 
         #[cfg(feature = "progress_bar")]
@@ -327,7 +383,37 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
         &mut self,
         ref_set: &mut Vec<Array1<f64>>,
     ) -> Result<(), ScatterSearchError> {
+        // Get constraint functions for feasibility checking
+        let constraints = self.problem.constraints();
         let mut candidates = self.generate_stratified_samples(self.params.population_size)?;
+
+        // Filter out constraint-violating candidates before diversification
+        if !constraints.is_empty() {
+            candidates.retain(|point| is_feasible::<P>(point, &constraints));
+
+            // If we don't have enough feasible candidates after filtering, generate more
+            let mut attempts = 0;
+            while candidates.len() < self.params.population_size && attempts < 10 {
+                let new_batch =
+                    self.generate_stratified_samples(self.params.population_size * 2)?;
+                let feasible_batch: Vec<Array1<f64>> = new_batch
+                    .into_iter()
+                    .filter(|point| is_feasible::<P>(point, &constraints))
+                    .collect();
+                candidates.extend(feasible_batch);
+                attempts += 1;
+            }
+
+            // If still insufficient candidates after multiple attempts, return error
+            if candidates.is_empty() {
+                return Err(ScatterSearchError::NoFeasibleCandidates(attempts));
+            }
+
+            // Check if we have enough total points (seed + custom + candidates) to reach population_size
+            if ref_set.len() + candidates.len() < self.params.population_size {
+                return Err(ScatterSearchError::NoFeasibleCandidates(attempts));
+            }
+        }
 
         #[cfg(feature = "rayon")]
         let mut min_dists: Vec<f64> = if self.enable_parallel {
@@ -635,21 +721,27 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
             }
         };
 
-        // Evaluate trial points with two-level filtering:
-        // 1. Cheap distance filter to skip near-duplicates (up to 5 distance computations)
-        // 2. Expensive objective evaluation only for diverse points
+        // Get constraint functions for feasibility checking
+        let constraints = self.problem.constraints();
+
+        // Evaluate trial points with three-level filtering:
+        // 1. Constraint feasibility check (if constraints exist)
+        // 2. Cheap distance filter to skip near-duplicates (up to 5 distance computations)
+        // 3. Expensive objective evaluation only for diverse, feasible points
         let evaluate_trial = |point: &Array1<f64>| -> Option<(Array1<f64>, f64)> {
-            // Filter 1: Distance check - only check against top 5 reference points
+            if !constraints.is_empty() && !is_feasible::<P>(point, &constraints) {
+                return None;
+            }
+
             let is_diverse =
                 self.reference_set.iter().take(5).all(|ref_point| {
                     euclidean_distance_squared(point, ref_point) > min_dist_threshold
                 });
 
             if !is_diverse {
-                return None; // Skip evaluation if too close
+                return None;
             }
 
-            // Filter 2: Objective evaluation (expensive operation)
             let obj = self.problem.objective(point).ok()?;
             if obj < worst_obj { Some((point.clone(), obj)) } else { None }
         };
@@ -736,6 +828,34 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
 fn euclidean_distance_squared(a: &Array1<f64>, b: &Array1<f64>) -> f64 {
     let diff = a - b;
     diff.dot(&diff)
+}
+
+/// Check if a point satisfies all constraints
+///
+/// A point is feasible if all constraint functions return non-negative values.
+/// Constraint convention: g(x) >= 0 means satisfied, g(x) < 0 means violated.
+///
+/// # Arguments
+/// * `point` - The point to check
+/// * `constraints` - Vector of constraint functions
+///
+/// # Returns
+/// * `true` if all constraints are satisfied or if there are no constraints
+/// * `false` if any constraint is violated
+fn is_feasible<P: Problem>(
+    point: &Array1<f64>,
+    constraints: &[fn(&[f64], &mut ()) -> f64],
+) -> bool {
+    if constraints.is_empty() {
+        return true;
+    }
+
+    let x_slice = point.as_slice().expect("Failed to convert point to slice");
+
+    constraints.iter().all(|constraint_fn| {
+        let value = constraint_fn(x_slice, &mut ());
+        value >= 0.0
+    })
 }
 
 // The following code allows to compute the Euclidean distance between two points
@@ -1196,5 +1316,62 @@ mod tests_scatter_search {
 
         // After initialization and diversification, should still have population_size points
         assert_eq!(ss.reference_set.len(), 20, "Reference set should be capped at population_size");
+    }
+
+    #[test]
+    /// Test that scatter search respects constraints when provided
+    fn test_constraints_in_reference_set() {
+        // Define a simple constrained problem
+        #[derive(Debug, Clone)]
+        struct ConstrainedProblem;
+
+        impl Problem for ConstrainedProblem {
+            fn objective(&self, x: &Array1<f64>) -> Result<f64, EvaluationError> {
+                // Simple quadratic: (x-1)² + (y-1)²
+                Ok((x[0] - 1.0).powi(2) + (x[1] - 1.0).powi(2))
+            }
+
+            fn variable_bounds(&self) -> Array2<f64> {
+                array![[0.0, 2.0], [0.0, 2.0]]
+            }
+
+            fn constraints(&self) -> Vec<fn(&[f64], &mut ()) -> f64> {
+                vec![
+                    |x: &[f64], _: &mut ()| 1.5 - x[0] - x[1], // x + y <= 1.5 -> 1.5 - x - y >= 0
+                ]
+            }
+        }
+
+        let problem = ConstrainedProblem;
+        let params = OQNLPParams { population_size: 50, seed: 42, ..OQNLPParams::default() };
+
+        let ss = ScatterSearch::new(problem.clone(), params).unwrap();
+        let (ref_set, _) = ss.run().unwrap();
+
+        // Verify that all points in the reference set satisfy the constraint
+        let constraints = problem.constraints();
+        for (point, _obj) in &ref_set {
+            let x = point.as_slice().expect("Failed to convert point to slice");
+            for constraint_fn in &constraints {
+                let value = constraint_fn(x, &mut ());
+                assert!(
+                    value >= -1e-10,
+                    "Constraint violated: point = {:?}, constraint value = {}",
+                    point,
+                    value
+                );
+            }
+        }
+
+        // Also verify the constraint directly: x + y <= 1.5
+        for (point, _obj) in &ref_set {
+            let sum = point[0] + point[1];
+            assert!(
+                sum <= 1.5 + 1e-10,
+                "Direct constraint check failed: x + y = {} > 1.5 for point {:?}",
+                sum,
+                point
+            );
+        }
     }
 }
