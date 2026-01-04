@@ -157,12 +157,14 @@ pub enum OQNLPError {
     LocalSolverError(#[from] crate::local_solver::runner::LocalSolverError),
 
     /// Error when OQNLP fails to find a feasible solution
-    #[error("OQNLP Error: No feasible solution found.")]
-    NoFeasibleSolution,
+    #[error(
+        "OQNLP Error: No feasible solution found after evaluating {candidates_evaluated} candidates."
+    )]
+    NoFeasibleSolution { candidates_evaluated: usize },
 
     /// Error when the objective function evaluation fails
-    #[error("OQNLP Error: Objective function evaluation failed.")]
-    ObjectiveFunctionEvaluationFailed,
+    #[error("OQNLP Error: Objective function evaluation failed during {stage}.")]
+    ObjectiveFunctionEvaluationFailed { stage: String },
 
     /// Error when creating a new ScatterSearch instance
     #[error("OQNLP Error: Failed to create a new ScatterSearch instance: {0}")]
@@ -201,9 +203,9 @@ pub enum OQNLPError {
 
     /// Error when custom points have invalid dimensions
     #[error(
-        "OQNLP Error: Custom points must have the same dimension as the problem. Expected {expected} dimensions, got {got}."
+        "OQNLP Error: Custom point at index {point_index} has invalid dimension. Expected {expected} dimensions, got {got}."
     )]
-    InvalidCustomPointsDimension { expected: usize, got: usize },
+    InvalidCustomPointsDimension { point_index: usize, expected: usize, got: usize },
 
     /// Error when custom points are outside variable bounds
     #[error("OQNLP Error: Custom point at index {index} is outside variable bounds.")]
@@ -650,6 +652,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
             // Check dimension
             if point.len() != n_dims {
                 return Err(OQNLPError::InvalidCustomPointsDimension {
+                    point_index: i,
                     expected: n_dims,
                     got: point.len(),
                 });
@@ -826,7 +829,10 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
                     observer.mark_stage1_complete();
                 }
 
-                return self.solution_set.clone().ok_or(OQNLPError::NoFeasibleSolution);
+                return self
+                    .solution_set
+                    .clone()
+                    .ok_or(OQNLPError::NoFeasibleSolution { candidates_evaluated: 0 });
             }
 
             // Store reference set for checkpointing
@@ -1019,7 +1025,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
         #[cfg(feature = "checkpointing")]
         self.maybe_save_final_checkpoint()?;
 
-        self.solution_set.clone().ok_or(OQNLPError::NoFeasibleSolution)
+        self.solution_set.clone().ok_or(OQNLPError::NoFeasibleSolution { candidates_evaluated: 0 })
     }
 
     // Helper methods
@@ -1666,9 +1672,9 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
                 objectives[ref_set_index]
             } else {
                 // Fallback to evaluating objective function (e.g., when resuming from checkpoint)
-                self.problem
-                    .objective(&trial)
-                    .map_err(|_| OQNLPError::ObjectiveFunctionEvaluationFailed)?
+                self.problem.objective(&trial).map_err(|_| {
+                    OQNLPError::ObjectiveFunctionEvaluationFailed { stage: "unknown".to_string() }
+                })?
             };
 
             // Observer: Track function evaluation only if we actually evaluated (not cached)
@@ -1798,9 +1804,11 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
                     objectives[ref_set_index]
                 } else {
                     // Fallback to evaluating objective function (e.g., when resuming from checkpoint)
-                    self.problem
-                        .objective(trial)
-                        .map_err(|_| OQNLPError::ObjectiveFunctionEvaluationFailed)?
+                    self.problem.objective(trial).map_err(|_| {
+                        OQNLPError::ObjectiveFunctionEvaluationFailed {
+                            stage: "unknown".to_string(),
+                        }
+                    })?
                 };
                 Ok((local_iter, trial.clone(), obj))
             })
@@ -4427,7 +4435,7 @@ mod tests_oqnlp {
 
         assert!(result.is_err(), "with_points should fail with wrong dimension");
         match result {
-            Err(OQNLPError::InvalidCustomPointsDimension { expected, got }) => {
+            Err(OQNLPError::InvalidCustomPointsDimension { point_index: _, expected, got }) => {
                 assert_eq!(expected, 3, "Expected 3 dimensions");
                 assert_eq!(got, 2, "Got 2 dimensions");
             }

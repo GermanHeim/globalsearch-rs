@@ -575,12 +575,14 @@ impl Problem for PyProblem {
             let x_py = x
                 .to_vec()
                 .into_pyobject(py)
-                .map_err(|e| EvaluationError::InvalidInput(e.to_string()))?;
+                .map_err(|e| EvaluationError::InvalidInput { reason: e.to_string() })?;
             let result = self
                 .objective
                 .call1(py, (x_py,))
-                .map_err(|e| EvaluationError::InvalidInput(e.to_string()))?;
-            result.extract(py).map_err(|e: PyErr| EvaluationError::InvalidInput(e.to_string()))
+                .map_err(|e| EvaluationError::InvalidInput { reason: e.to_string() })?;
+            result
+                .extract(py)
+                .map_err(|e: PyErr| EvaluationError::InvalidInput { reason: e.to_string() })
         })
     }
 
@@ -589,10 +591,10 @@ impl Problem for PyProblem {
             let result = self
                 .variable_bounds
                 .call0(py)
-                .map_err(|e| EvaluationError::InvalidInput(e.to_string()))
-                .and_then(|res| {
+                .map_err(|e| EvaluationError::InvalidInput { reason: e.to_string() })
+                .and_then(|res: Py<PyAny>| {
                     res.extract::<Vec<Vec<f64>>>(py)
-                        .map_err(|e| EvaluationError::InvalidInput(e.to_string()))
+                        .map_err(|e| EvaluationError::InvalidInput { reason: e.to_string() })
                 });
 
             match result {
@@ -613,14 +615,14 @@ impl Problem for PyProblem {
                 let x_py = x
                     .to_vec()
                     .into_pyobject(py)
-                    .map_err(|e| EvaluationError::InvalidInput(e.to_string()))?;
+                    .map_err(|e| EvaluationError::InvalidInput { reason: e.to_string() })?;
                 let result = grad_fn
                     .call1(py, (x_py,))
-                    .map_err(|e| EvaluationError::InvalidInput(e.to_string()))?;
+                    .map_err(|e| EvaluationError::InvalidInput { reason: e.to_string() })?;
 
                 let grad_vec: Vec<f64> = result
                     .extract(py)
-                    .map_err(|e: PyErr| EvaluationError::InvalidInput(e.to_string()))?;
+                    .map_err(|e: PyErr| EvaluationError::InvalidInput { reason: e.to_string() })?;
 
                 Ok(Array1::from(grad_vec))
             })
@@ -635,20 +637,20 @@ impl Problem for PyProblem {
                 let x_py = x
                     .to_vec()
                     .into_pyobject(py)
-                    .map_err(|e| EvaluationError::InvalidInput(e.to_string()))?;
+                    .map_err(|e| EvaluationError::InvalidInput { reason: e.to_string() })?;
                 let result = hess_fn
                     .call1(py, (x_py,))
-                    .map_err(|e| EvaluationError::InvalidInput(e.to_string()))?;
+                    .map_err(|e| EvaluationError::InvalidInput { reason: e.to_string() })?;
 
                 let hess_vec: Vec<Vec<f64>> = result
                     .extract(py)
-                    .map_err(|e: PyErr| EvaluationError::InvalidInput(e.to_string()))?;
+                    .map_err(|e: PyErr| EvaluationError::InvalidInput { reason: e.to_string() })?;
 
                 let size = hess_vec.len();
                 let flat_hess: Vec<f64> = hess_vec.into_iter().flatten().collect();
 
                 Array2::from_shape_vec((size, size), flat_hess).map_err(|_| {
-                    EvaluationError::InvalidInput("Hessian shape mismatch".to_string())
+                    EvaluationError::InvalidInput { reason: "Hessian shape mismatch".to_string() }
                 })
             })
         } else {

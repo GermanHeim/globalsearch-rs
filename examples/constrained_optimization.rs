@@ -32,9 +32,9 @@ impl Problem for ConstrainedProblem {
     /// Objective: minimize distance from (1, 1)
     fn objective(&self, x: &Array1<f64>) -> Result<f64, EvaluationError> {
         if x.len() != 2 {
-            return Err(EvaluationError::InvalidInput(
-                "Problem requires exactly 2 variables".to_string(),
-            ));
+            return Err(EvaluationError::InvalidInput {
+                reason: "Problem requires exactly 2 variables".to_string(),
+            });
         }
 
         let x_val = x[0];

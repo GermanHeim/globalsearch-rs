@@ -520,54 +520,73 @@ impl LocalSolverType {
 
 #[derive(Debug, Error)]
 /// Error type for function, gradient and hessian evaluation
+///
+/// These errors provide detailed context about evaluation failures including
+/// the point at which the error occurred and the underlying cause.
 pub enum EvaluationError {
     /// Error when the input is invalid
-    #[error("Invalid input: {0}.")]
-    InvalidInput(String),
+    ///
+    /// Contains a descriptive message about what made the input invalid
+    #[error("Invalid input: {reason}")]
+    InvalidInput { reason: String },
 
-    /// Error when dividing by zero
-    #[error("Division by zero found.")]
+    /// Error when dividing by zero during computation
+    #[error("Division by zero encountered")]
     DivisionByZero,
 
-    /// Error when having a negative square root
-    #[error("Negative square root found.")]
-    NegativeSqrt,
+    /// Error when taking square root of negative number
+    ///
+    /// Includes the negative value encountered
+    #[error("Negative square root: attempted sqrt({value})")]
+    NegativeSqrt { value: f64 },
 
     /// Error when the objective function is not implemented
-    #[error("Objective function not implemented and needed for local solver.")]
+    #[error("Objective function not implemented and needed for local solver")]
     ObjectiveFunctionNotImplemented,
 
     /// Error when the gradient is not implemented
-    #[error("Gradient not implemented and needed for local solver.")]
+    #[error("Gradient not implemented and needed for local solver")]
     GradientNotImplemented,
 
     /// Error when the hessian is not implemented
-    #[error("Hessian not implemented and needed for local solver.")]
+    #[error("Hessian not implemented and needed for local solver")]
     HessianNotImplemented,
 
     /// Error when the objective function can't be evaluated
-    #[error("Objective function evaluation failed.")]
-    ObjectiveFunctionEvaluationFailed,
+    ///
+    /// Includes the underlying error message
+    #[error("Objective function evaluation failed: {reason}")]
+    ObjectiveFunctionEvaluationFailed { reason: String },
 
     /// Error when the gradient can't be evaluated
-    #[error("Gradient evaluation failed.")]
-    GradientEvaluationFailed,
+    ///
+    /// Includes the underlying error message
+    #[error("Gradient evaluation failed: {reason}")]
+    GradientEvaluationFailed { reason: String },
 
     /// Error when the hessian can't be evaluated
-    #[error("Hessian evaluation failed.")]
-    HessianEvaluationFailed,
+    ///
+    /// Includes the underlying error message
+    #[error("Hessian evaluation failed: {reason}")]
+    HessianEvaluationFailed { reason: String },
 
     /// Error when constraints are not implemented
-    #[error("Constraints not implemented and needed for constrained solver.")]
+    #[error(
+        "Constraints not implemented and needed for constrained solver (only COBYLA supports constraints)"
+    )]
     ConstraintNotImplemented,
 
     /// Error when an invalid constraint index is provided
-    #[error("Invalid constraint index provided.")]
-    InvalidConstraintIndex,
+    ///
+    /// Includes the invalid index and valid range
+    #[error("Invalid constraint index {index}, valid range is 0..{max_index}")]
+    InvalidConstraintIndex { index: usize, max_index: usize },
 
     /// Error when constraint evaluation fails
-    #[error("Constraint evaluation failed.")]
-    ConstraintEvaluationFailed,
+    ///
+    /// Includes the constraint index and error details
+    #[error("Constraint {index} evaluation failed: {reason}")]
+    ConstraintEvaluationFailed { index: usize, reason: String },
 }
 
 #[cfg(feature = "checkpointing")]

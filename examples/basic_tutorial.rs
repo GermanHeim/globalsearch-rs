@@ -52,9 +52,9 @@ impl Problem for Rosenbrock {
     fn objective(&self, x: &Array1<f64>) -> Result<f64, EvaluationError> {
         // Validate input dimensions
         if x.len() != 2 {
-            return Err(EvaluationError::InvalidInput(
-                "Rosenbrock function requires exactly 2 variables".to_string(),
-            ));
+            return Err(EvaluationError::InvalidInput {
+                reason: "Rosenbrock function requires exactly 2 variables".to_string(),
+            });
         }
 
         let x_val = x[0];
