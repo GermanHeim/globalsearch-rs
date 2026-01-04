@@ -300,7 +300,7 @@ impl SolutionSet {
 
     /// Returns the best solution in the set based on the objective function value.
     pub fn best_solution(&self) -> Option<&LocalSolution> {
-        self.solutions.iter().min_by(|a, b| a.objective.partial_cmp(&b.objective).unwrap())
+        self.solutions.iter().min_by(|a, b| a.objective.total_cmp(&b.objective))
     }
 
     /// Returns an iterator over the solutions in the set.
