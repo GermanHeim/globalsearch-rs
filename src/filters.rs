@@ -66,11 +66,24 @@ use ndarray::Array1;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-/// Filters errors
+/// Filters errors with value context
+///
+/// These errors include the problematic values and valid ranges to help
+/// users understand and fix configuration issues.
 pub enum FiltersErrors {
     /// Distance factor must be positive or equal to zero
-    #[error("Distance factor must be positive or equal to zero, got {0}.")]
-    NegativeDistanceFactor(f64),
+    ///
+    /// Includes the invalid value and recommended range
+    #[error("Distance factor must be positive or equal to zero, got {value}")]
+    NegativeDistanceFactor { value: f64 },
+
+    /// Distance threshold calculation resulted in invalid value
+    ///
+    /// Includes the calculated threshold and parameters used
+    #[error(
+        "Distance threshold calculation failed: threshold={threshold}, distance_factor={distance_factor}"
+    )]
+    InvalidDistanceThreshold { threshold: f64, distance_factor: f64 },
 }
 
 /// Quality-based filter for controlling solution acceptance in optimization.
@@ -196,7 +209,7 @@ impl DistanceFilter {
     /// Returns an error if the distance factor is negative
     pub fn new(params: FilterParams) -> Result<Self, FiltersErrors> {
         if params.distance_factor < 0.0 {
-            return Err(FiltersErrors::NegativeDistanceFactor(params.distance_factor));
+            return Err(FiltersErrors::NegativeDistanceFactor { value: params.distance_factor });
         }
 
         Ok(Self {
@@ -254,7 +267,9 @@ mod test_filters {
 
         let df: Result<DistanceFilter, FiltersErrors> = DistanceFilter::new(params);
 
-        assert!(matches!(df, Err(FiltersErrors::NegativeDistanceFactor(-0.5))));
+        assert!(
+            matches!(df, Err(FiltersErrors::NegativeDistanceFactor { value } ) if value == -0.5)
+        );
     }
 
     #[test]

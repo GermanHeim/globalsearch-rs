@@ -244,9 +244,9 @@ impl CatalyticCracking {
         // Validate parameters - must be positive for physical meaning
         for &param in theta.iter() {
             if param <= 0.0 {
-                return Err(EvaluationError::InvalidInput(
-                    "All reaction rate coefficients must be positive".to_string(),
-                ));
+                return Err(EvaluationError::InvalidInput {
+                    reason: "All reaction rate coefficients must be positive".to_string(),
+                });
             }
         }
 
@@ -260,7 +260,9 @@ impl CatalyticCracking {
         // Solve ODE system at experimental time points
         let (y1_solution, y2_solution) = solver
             .solve_to_times(&self.experimental_data.times, theta_slice)
-            .map_err(|_| EvaluationError::ObjectiveFunctionEvaluationFailed)?;
+            .map_err(|_| EvaluationError::ObjectiveFunctionEvaluationFailed {
+                reason: "Evaluation failed while solving ODE system".to_string(),
+            })?;
 
         // Calculate sum of squared residuals
         let mut ssr = 0.0;
@@ -283,11 +285,10 @@ impl Problem for CatalyticCracking {
     fn objective(&self, x: &Array1<f64>) -> Result<f64, EvaluationError> {
         // Validate input dimension - must have exactly 3 parameters
         if x.len() != 3 {
-            return Err(EvaluationError::InvalidInput(format!(
-                "Expected 3 parameters (θ₁, θ₂, θ₃), got {}",
-                x.len()
-            )));
-        }
+            return Err(EvaluationError::InvalidInput {
+                reason: format!("Expected 3 parameters (θ₁, θ₂, θ₃), got {}", x.len()),
+            });
+        };
 
         self.residual_sum_of_squares(x)
     }

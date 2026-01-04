@@ -111,20 +111,44 @@ pub enum BincodeError {
 /// - Incompatible algorithm versions
 pub enum CheckpointError {
     /// IO error when reading/writing checkpoint files
-    #[error("IO error: {0}")]
-    IoError(#[from] io::Error),
+    ///
+    /// Includes the operation being performed and the file path
+    #[error("IO error during {operation} on '{path}': {source}")]
+    IoError {
+        operation: String,
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
 
     /// Serialization/deserialization error
-    #[error("Serialization error: {0}")]
-    SerializationError(#[from] BincodeError),
+    ///
+    /// Includes whether it's encoding or decoding and the file involved
+    #[error("Serialization error during {operation} of '{path}': {source}")]
+    SerializationError {
+        operation: String,
+        path: PathBuf,
+        #[source]
+        source: BincodeError,
+    },
 
     /// Checkpoint file not found
-    #[error("Checkpoint file not found: {0}")]
-    CheckpointNotFound(PathBuf),
+    ///
+    /// Includes search path
+    #[error("Checkpoint file not found at: {path}")]
+    CheckpointNotFound { path: PathBuf },
 
     /// Invalid checkpoint data
-    #[error("Invalid checkpoint data: {0}")]
-    InvalidCheckpoint(String),
+    ///
+    /// Includes file path and reason
+    #[error("Invalid checkpoint data in '{path}': {reason}")]
+    InvalidCheckpoint { path: PathBuf, reason: String },
+
+    /// Directory creation failed
+    ///
+    /// Includes the directory path and reason for failure
+    #[error("Failed to create checkpoint directory '{path}': {reason}")]
+    DirectoryCreationFailed { path: PathBuf, reason: String },
 }
 
 /// Manages checkpoint creation, storage, and retrieval for OQNLP optimizations.
@@ -191,7 +215,11 @@ impl CheckpointManager {
     /// Create a new checkpoint manager with the given configuration
     pub fn new(config: CheckpointConfig) -> Result<Self, CheckpointError> {
         if !config.checkpoint_dir.exists() {
-            fs::create_dir_all(&config.checkpoint_dir)?;
+            fs::create_dir_all(&config.checkpoint_dir).map_err(|e| CheckpointError::IoError {
+                operation: "create_directory".to_string(),
+                path: config.checkpoint_dir.clone(),
+                source: e,
+            })?;
         }
 
         Ok(Self { config })
@@ -211,8 +239,17 @@ impl CheckpointManager {
 
         let filepath = self.config.checkpoint_dir.join(filename);
         let encoded = bincode::serde::encode_to_vec(checkpoint, bincode::config::legacy())
-            .map_err(BincodeError::EncodeError)?;
-        fs::write(&filepath, encoded)?;
+            .map_err(BincodeError::EncodeError)
+            .map_err(|e| CheckpointError::SerializationError {
+                operation: "encode".to_string(),
+                path: filepath.clone(),
+                source: e,
+            })?;
+        fs::write(&filepath, encoded).map_err(|e| CheckpointError::IoError {
+            operation: "write".to_string(),
+            path: filepath.clone(),
+            source: e,
+        })?;
 
         Ok(filepath)
     }
@@ -235,13 +272,22 @@ impl CheckpointManager {
         path: &Path,
     ) -> Result<OQNLPCheckpoint, CheckpointError> {
         if !path.exists() {
-            return Err(CheckpointError::CheckpointNotFound(path.to_path_buf()));
+            return Err(CheckpointError::CheckpointNotFound { path: path.to_path_buf() });
         }
 
-        let encoded = fs::read(path)?;
+        let encoded = fs::read(path).map_err(|e| CheckpointError::IoError {
+            operation: "read".to_string(),
+            path: path.to_path_buf(),
+            source: e,
+        })?;
         let (checkpoint, _): (OQNLPCheckpoint, usize) =
             bincode::serde::decode_from_slice(&encoded, bincode::config::legacy())
-                .map_err(BincodeError::DecodeError)?;
+                .map_err(BincodeError::DecodeError)
+                .map_err(|e| CheckpointError::SerializationError {
+                    operation: "decode".to_string(),
+                    path: path.to_path_buf(),
+                    source: e,
+                })?;
 
         Ok(checkpoint)
     }
@@ -258,14 +304,23 @@ impl CheckpointManager {
 
     /// Find the latest checkpoint file when keep_all is enabled
     fn find_latest_checkpoint(&self) -> Result<PathBuf, CheckpointError> {
-        let entries = fs::read_dir(&self.config.checkpoint_dir)?;
+        let entries =
+            fs::read_dir(&self.config.checkpoint_dir).map_err(|e| CheckpointError::IoError {
+                operation: "read_directory".to_string(),
+                path: self.config.checkpoint_dir.clone(),
+                source: e,
+            })?;
         let pattern = format!("{}_", self.config.checkpoint_name);
 
         let mut latest_iteration = 0;
         let mut latest_path = None;
 
         for entry in entries {
-            let entry = entry?;
+            let entry = entry.map_err(|e| CheckpointError::IoError {
+                operation: "read_directory_entry".to_string(),
+                path: self.config.checkpoint_dir.clone(),
+                source: e,
+            })?;
             let path = entry.path();
 
             if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
@@ -281,8 +336,9 @@ impl CheckpointManager {
             }
         }
 
-        latest_path
-            .ok_or_else(|| CheckpointError::CheckpointNotFound(self.config.checkpoint_dir.clone()))
+        latest_path.ok_or_else(|| CheckpointError::CheckpointNotFound {
+            path: self.config.checkpoint_dir.clone(),
+        })
     }
 
     /// Clean up old checkpoint files (keep only the latest N files)
@@ -291,13 +347,22 @@ impl CheckpointManager {
             return Ok(());
         }
 
-        let entries = fs::read_dir(&self.config.checkpoint_dir)?;
+        let entries =
+            fs::read_dir(&self.config.checkpoint_dir).map_err(|e| CheckpointError::IoError {
+                operation: "read_directory".to_string(),
+                path: self.config.checkpoint_dir.clone(),
+                source: e,
+            })?;
         let pattern = format!("{}_", self.config.checkpoint_name);
 
         let mut checkpoints = Vec::new();
 
         for entry in entries {
-            let entry = entry?;
+            let entry = entry.map_err(|e| CheckpointError::IoError {
+                operation: "read_directory_entry".to_string(),
+                path: self.config.checkpoint_dir.clone(),
+                source: e,
+            })?;
             let path = entry.path();
 
             if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
@@ -312,7 +377,11 @@ impl CheckpointManager {
 
         checkpoints.sort_by(|a, b| b.0.cmp(&a.0));
         for (_, path) in checkpoints.iter().skip(keep_count) {
-            fs::remove_file(path)?;
+            fs::remove_file(path).map_err(|e| CheckpointError::IoError {
+                operation: "delete".to_string(),
+                path: path.clone(),
+                source: e,
+            })?;
         }
 
         Ok(())
@@ -349,13 +418,22 @@ impl Default for CheckpointManager {
 /// ```
 pub fn read_checkpoint_file(path: &Path) -> Result<OQNLPCheckpoint, CheckpointError> {
     if !path.exists() {
-        return Err(CheckpointError::CheckpointNotFound(path.to_path_buf()));
+        return Err(CheckpointError::CheckpointNotFound { path: path.to_path_buf() });
     }
 
-    let encoded = fs::read(path)?;
+    let encoded = fs::read(path).map_err(|e| CheckpointError::IoError {
+        operation: "read".to_string(),
+        path: path.to_path_buf(),
+        source: e,
+    })?;
     let (checkpoint, _): (OQNLPCheckpoint, usize) =
         bincode::serde::decode_from_slice(&encoded, bincode::config::legacy())
-            .map_err(BincodeError::DecodeError)?;
+            .map_err(BincodeError::DecodeError)
+            .map_err(|e| CheckpointError::SerializationError {
+                operation: "decode".to_string(),
+                path: path.to_path_buf(),
+                source: e,
+            })?;
 
     Ok(checkpoint)
 }
@@ -596,7 +674,7 @@ mod tests_checkpointing {
         let result = manager.find_latest_checkpoint();
         assert!(result.is_err());
         match result {
-            Err(CheckpointError::CheckpointNotFound(path)) => {
+            Err(CheckpointError::CheckpointNotFound { path }) => {
                 assert_eq!(path, temp_dir);
             }
             _ => panic!("Expected CheckpointNotFound error"),
@@ -961,7 +1039,7 @@ mod tests_checkpointing {
         assert!(result.is_err());
 
         match result {
-            Err(CheckpointError::CheckpointNotFound(path)) => {
+            Err(CheckpointError::CheckpointNotFound { path }) => {
                 assert_eq!(path, non_existent_path);
             }
             _ => panic!("Expected CheckpointNotFound error"),
@@ -984,7 +1062,7 @@ mod tests_checkpointing {
         assert!(result.is_err());
 
         match result {
-            Err(CheckpointError::SerializationError(_)) => {
+            Err(CheckpointError::SerializationError { operation: _, path: _, source: _ }) => {
                 // Expected error type
             }
             _ => panic!("Expected SerializationError"),
@@ -1010,7 +1088,7 @@ mod tests_checkpointing {
         assert!(result.is_err());
 
         match result {
-            Err(CheckpointError::SerializationError(_)) => {
+            Err(CheckpointError::SerializationError { operation: _, path: _, source: _ }) => {
                 // Expected error type
             }
             _ => panic!("Expected SerializationError"),

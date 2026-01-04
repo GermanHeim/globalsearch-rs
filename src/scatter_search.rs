@@ -90,21 +90,44 @@ pub struct VariableBounds {
 /// Error types that can occur during scatter search operations.
 ///
 /// These errors represent various failure modes that can happen during
-/// the scatter search algorithm execution.
+/// the scatter search algorithm execution, with detailed context for debugging.
 pub enum ScatterSearchError {
     /// Error when the reference set is empty
-    #[error("Scatter Search Error: No candidates left.")]
+    #[error("Scatter Search Error: No candidates left")]
     NoCandidates,
 
     /// Error when no feasible candidates can be generated that satisfy constraints
+    ///
+    /// Includes attempts made and problem dimension
     #[error(
-        "Scatter Search Error: No feasible candidates found that satisfy the problem constraints after {0} attempts."
+        "Scatter Search Error: No feasible candidates found after {attempts} attempts (problem dimension: {dimension})"
     )]
-    NoFeasibleCandidates(usize),
+    NoFeasibleCandidates { attempts: usize, dimension: usize },
 
     /// Error when evaluating the objective function
-    #[error("Scatter Search Error: Evaluation error: {0}.")]
-    EvaluationError(#[from] crate::types::EvaluationError),
+    ///
+    /// Wraps the underlying evaluation error with scatter search context
+    #[error("Scatter Search Error: Evaluation failed during {phase}: {source}")]
+    EvaluationError {
+        phase: String,
+        #[source]
+        source: crate::types::EvaluationError,
+    },
+
+    /// Error when invalid bounds are provided
+    ///
+    /// Includes dimension and which bounds are invalid
+    #[error(
+        "Scatter Search Error: Invalid bounds for variable {dimension}: lower={lower}, upper={upper}. Lower bound must be < upper bound."
+    )]
+    InvalidBounds { dimension: usize, lower: f64, upper: f64 },
+}
+
+// Implement From trait for automatic error conversion
+impl From<crate::types::EvaluationError> for ScatterSearchError {
+    fn from(err: crate::types::EvaluationError) -> Self {
+        ScatterSearchError::EvaluationError { phase: "evaluation".to_string(), source: err }
+    }
 }
 
 /// Type alias for the return type of scatter search run method
@@ -137,6 +160,17 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
             lower: var_bounds.column(0).to_owned(),
             upper: var_bounds.column(1).to_owned(),
         };
+
+        // Validate bounds
+        for i in 0..bounds.lower.len() {
+            if bounds.lower[i] >= bounds.upper[i] {
+                return Err(ScatterSearchError::InvalidBounds {
+                    dimension: i,
+                    lower: bounds.lower[i],
+                    upper: bounds.upper[i],
+                });
+            }
+        }
 
         let seed: u64 = params.seed;
         let ss: ScatterSearch<P> = Self {
@@ -418,12 +452,18 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
 
             // If still insufficient candidates after multiple attempts, return error
             if candidates.is_empty() {
-                return Err(ScatterSearchError::NoFeasibleCandidates(attempts));
+                return Err(ScatterSearchError::NoFeasibleCandidates {
+                    attempts,
+                    dimension: self.bounds.lower.len(),
+                });
             }
 
             // Check if we have enough total points (seed + custom + candidates) to reach population_size
             if ref_set.len() + candidates.len() < self.params.population_size {
-                return Err(ScatterSearchError::NoFeasibleCandidates(attempts));
+                return Err(ScatterSearchError::NoFeasibleCandidates {
+                    attempts,
+                    dimension: self.bounds.lower.len(),
+                });
             }
         }
 
@@ -1390,6 +1430,39 @@ mod tests_scatter_search {
                 sum,
                 point
             );
+        }
+    }
+
+    #[test]
+    /// Test that invalid bounds (lower >= upper) are properly rejected
+    fn test_invalid_bounds() {
+        #[derive(Debug, Clone)]
+        struct InvalidBoundsProblem;
+
+        impl Problem for InvalidBoundsProblem {
+            fn objective(&self, x: &Array1<f64>) -> Result<f64, EvaluationError> {
+                Ok(x[0].powi(2) + x[1].powi(2))
+            }
+
+            fn variable_bounds(&self) -> Array2<f64> {
+                // Invalid bounds: lower >= upper for first dimension
+                array![[2.0, 1.0], [-1.0, 1.0]]
+            }
+        }
+
+        let problem = InvalidBoundsProblem;
+        let params = OQNLPParams::default();
+
+        let result = ScatterSearch::new(problem, params);
+        assert!(result.is_err(), "ScatterSearch::new should fail with invalid bounds");
+
+        match result {
+            Err(ScatterSearchError::InvalidBounds { dimension, lower, upper }) => {
+                assert_eq!(dimension, 0, "Should report error for first dimension");
+                assert_eq!(lower, 2.0, "Lower bound should be 2.0");
+                assert_eq!(upper, 1.0, "Upper bound should be 1.0");
+            }
+            _ => panic!("Expected InvalidBounds error"),
         }
     }
 }
