@@ -55,7 +55,7 @@ fn get_current_problem_id() -> usize {
 // Helper function to evaluate all constraints for a given problem ID
 fn evaluate_constraints_for_id(problem_id: usize, x: &[f64]) -> Vec<f64> {
     let registry = get_constraint_registry();
-    let registry_lock = registry.lock().unwrap();
+    let registry_lock = registry.lock().expect("Constraint registry mutex poisoned");
 
     if let Some(constraints) = registry_lock.get(&problem_id) {
         Python::attach(|py| {

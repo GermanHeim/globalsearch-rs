@@ -329,7 +329,7 @@ impl PyObserver {
     ///
     /// Stage 1 tracking is required for `stage1()` and `stage1_final()` to return data.
     fn with_stage1_tracking(&mut self) -> PyResult<()> {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().expect("RwLock poisoned");
         *inner = inner.clone().with_stage1_tracking();
         Ok(())
     }
@@ -347,7 +347,7 @@ impl PyObserver {
     ///
     /// Stage 2 tracking is required for `stage2()` to return data.
     fn with_stage2_tracking(&mut self) -> PyResult<()> {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().expect("RwLock poisoned");
         *inner = inner.clone().with_stage2_tracking();
         Ok(())
     }
@@ -362,7 +362,7 @@ impl PyObserver {
     /// Timing data is accessible via the `total_time()` methods on
     /// [`PyStage1State`] and [`PyStage2State`].
     fn with_timing(&mut self) -> PyResult<()> {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().expect("RwLock poisoned");
         *inner = inner.clone().with_timing();
         Ok(())
     }
@@ -376,7 +376,7 @@ impl PyObserver {
     ///
     /// * `mode` - The observer mode determining which stages to track
     fn with_mode(&mut self, mode: PyObserverMode) -> PyResult<()> {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().expect("RwLock poisoned");
         *inner = inner.clone().with_mode(mode.into());
         Ok(())
     }
@@ -390,7 +390,7 @@ impl PyObserver {
     ///
     /// * `frequency` - Number of iterations between callback calls
     fn with_callback_frequency(&mut self, frequency: usize) -> PyResult<()> {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().expect("RwLock poisoned");
         *inner = inner.clone().with_callback_frequency(frequency);
         Ok(())
     }
@@ -427,7 +427,7 @@ impl PyObserver {
     /// for both stages of the optimization. The default callback prints progress
     /// information to stderr (using `eprintln!`).
     fn with_default_callback(&mut self) -> PyResult<()> {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().expect("RwLock poisoned");
         *inner = inner.clone().with_default_callback();
         Ok(())
     }
@@ -436,7 +436,7 @@ impl PyObserver {
     ///
     /// This prints updates during scatter search and local optimization in Stage 1.
     fn with_stage1_callback(&mut self) -> PyResult<()> {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().expect("RwLock poisoned");
         *inner = inner.clone().with_stage1_callback();
         Ok(())
     }
@@ -446,7 +446,7 @@ impl PyObserver {
     /// This prints iteration progress during Stage 2. Use `with_callback_frequency()`
     /// to control how often updates are printed.
     fn with_stage2_callback(&mut self) -> PyResult<()> {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().expect("RwLock poisoned");
         *inner = inner.clone().with_stage2_callback();
         Ok(())
     }
@@ -474,7 +474,7 @@ impl PyObserver {
     /// observer.unique_updates()  # Only print when state changes
     /// ```
     fn unique_updates(&mut self) -> PyResult<()> {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().expect("RwLock poisoned");
         *inner = inner.clone().unique_updates();
         Ok(())
     }
@@ -487,7 +487,7 @@ impl PyObserver {
     ///
     /// For final Stage 1 statistics after completion, use `stage1_final()`.
     fn stage1(&self) -> Option<PyStage1State> {
-        self.inner.read().unwrap().stage1().map(|s| s.clone().into())
+        self.inner.read().expect("RwLock poisoned").stage1().map(|s| s.clone().into())
     }
 
     /// Get Stage 1 state reference even after completion (for final statistics)
@@ -496,7 +496,7 @@ impl PyObserver {
     /// active. This method should be used for accessing final statistics after
     /// optimization completes.
     fn stage1_final(&self) -> Option<PyStage1State> {
-        self.inner.read().unwrap().stage1_final().map(|s| s.clone().into())
+        self.inner.read().expect("RwLock poisoned").stage1_final().map(|s| s.clone().into())
     }
 
     /// Get Stage 2 state reference
@@ -505,7 +505,7 @@ impl PyObserver {
     /// Stage 2 has started. Returns `None` before Stage 2 begins to prevent
     /// premature callback invocations.
     fn stage2(&self) -> Option<PyStage2State> {
-        self.inner.read().unwrap().stage2().map(|s| s.clone().into())
+        self.inner.read().expect("RwLock poisoned").stage2().map(|s| s.clone().into())
     }
 
     /// Check if Stage 1 should be observed
@@ -514,7 +514,7 @@ impl PyObserver {
     /// allows Stage 1 observation (Stage1Only or Both modes).
     #[getter]
     fn should_observe_stage1(&self) -> bool {
-        self.inner.read().unwrap().should_observe_stage1()
+        self.inner.read().expect("RwLock poisoned").should_observe_stage1()
     }
 
     /// Check if Stage 2 should be observed
@@ -523,7 +523,7 @@ impl PyObserver {
     /// allows Stage 2 observation (Stage2Only or Both modes).
     #[getter]
     fn should_observe_stage2(&self) -> bool {
-        self.inner.read().unwrap().should_observe_stage2()
+        self.inner.read().expect("RwLock poisoned").should_observe_stage2()
     }
 
     /// Check if timing is enabled
@@ -540,7 +540,7 @@ impl PyObserver {
     /// Returns `None` if timing is not enabled or timer hasn't started.
     #[getter]
     fn elapsed_time(&self) -> Option<f64> {
-        self.inner.read().unwrap().elapsed_time()
+        self.inner.read().expect("RwLock poisoned").elapsed_time()
     }
 
     fn __str__(&self) -> String {
@@ -585,11 +585,11 @@ impl From<Observer> for PyObserver {
 
 impl PyObserver {
     pub fn into_inner(self) -> Observer {
-        self.inner.into_inner().unwrap()
+        self.inner.into_inner().expect("RwLock poisoned")
     }
 
     pub fn clone_inner(&self) -> Observer {
-        let mut observer = self.inner.read().unwrap().clone();
+        let mut observer = self.inner.read().expect("RwLock poisoned").clone();
         if let Some(ref py_callback) = self.python_callback {
             let py_callback = Arc::clone(py_callback);
             let rust_callback = move |obs: &mut Observer| {

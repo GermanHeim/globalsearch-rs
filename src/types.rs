@@ -900,7 +900,7 @@ mod tests_types {
         ]);
         let solution_set: SolutionSet = SolutionSet { solutions };
 
-        let best_solution = solution_set.best_solution().unwrap();
+        let best_solution = solution_set.best_solution().expect("No best solution found");
         assert_eq!(best_solution.objective, -1.0);
     }
 

@@ -556,7 +556,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
 
         // Precompute seeds while holding the mutex once
         let seeds: Vec<u64> = {
-            let mut rng = self.rng.lock().unwrap();
+            let mut rng = self.rng.lock().expect("RNG mutex poisoned");
             (0..n).map(|_| rng.random::<u64>()).collect::<Vec<_>>()
         };
 
@@ -656,7 +656,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
 
         // Precompute seeds for each combine_points call
         let seeds: Vec<u64> = {
-            let mut rng = self.rng.lock().unwrap();
+            let mut rng = self.rng.lock().expect("RNG mutex poisoned");
             (0..indices.len()).map(|_| rng.random::<u64>()).collect::<Vec<_>>()
         };
 
