@@ -411,7 +411,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
         // Sort reference set by objective value (best first) for k-selection
         let mut points_with_objectives: Vec<(Array1<f64>, f64)> =
             ref_set.into_iter().zip(objectives).collect();
-        points_with_objectives.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        points_with_objectives.sort_by(|a, b| a.1.total_cmp(&b.1));
 
         let (sorted_points, sorted_objectives): (Vec<Array1<f64>>, Vec<f64>) =
             points_with_objectives.into_iter().unzip();
@@ -490,7 +490,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
                 min_dists
                     .iter()
                     .enumerate()
-                    .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                    .max_by(|(_, a), (_, b)| a.total_cmp(b))
                     .map(|(i, &v)| (i, v))
                     .ok_or(ScatterSearchError::NoCandidates)?
             };
@@ -498,7 +498,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
             let (max_idx, _) = min_dists
                 .iter()
                 .enumerate()
-                .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                .max_by(|(_, a), (_, b)| a.total_cmp(b))
                 .map(|(i, &v)| (i, v))
                 .ok_or(ScatterSearchError::NoCandidates)?;
 
@@ -861,14 +861,14 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
             self.reference_set_objectives
                 .par_iter()
                 .enumerate()
-                .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                .min_by(|(_, a), (_, b)| a.total_cmp(b))
                 .map(|(idx, _)| idx)
                 .ok_or(ScatterSearchError::NoCandidates)?
         } else {
             self.reference_set_objectives
                 .iter()
                 .enumerate()
-                .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                .min_by(|(_, a), (_, b)| a.total_cmp(b))
                 .map(|(idx, _)| idx)
                 .ok_or(ScatterSearchError::NoCandidates)?
         };
@@ -878,7 +878,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
             .reference_set_objectives
             .iter()
             .enumerate()
-            .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+            .min_by(|(_, a), (_, b)| a.total_cmp(b))
             .map(|(idx, _)| idx)
             .ok_or(ScatterSearchError::NoCandidates)?;
 
