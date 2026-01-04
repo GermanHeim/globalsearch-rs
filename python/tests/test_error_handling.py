@@ -48,7 +48,7 @@ def test_gradient_not_implemented_lbfgs():
     except Exception as e:
         assert (
             str(e)
-            == "OQNLP Error: Local solver failed: Local Solver Error: unknown failed to run: Gradient not implemented and needed for local solver."
+            == "OQNLP Error: Local solver failed: Local Solver Error: unknown failed to run: Gradient not implemented and needed for local solver"
         )
 
 
@@ -59,7 +59,7 @@ def test_gradient_not_implemented_steepestdescent():
     except Exception as e:
         assert (
             str(e)
-            == "OQNLP Error: Local solver failed: Local Solver Error: unknown failed to run: Gradient not implemented and needed for local solver."
+            == "OQNLP Error: Local solver failed: Local Solver Error: unknown failed to run: Gradient not implemented and needed for local solver"
         )
 
 
@@ -70,7 +70,7 @@ def test_hessian_not_implemented_newtoncg():
     except Exception as e:
         assert (
             str(e)
-            == "OQNLP Error: Local solver failed: Local Solver Error: unknown failed to run: Hessian not implemented and needed for local solver."
+            == "OQNLP Error: Local solver failed: Local Solver Error: unknown failed to run: Hessian not implemented and needed for local solver"
         )
 
 
@@ -81,7 +81,7 @@ def test_hessian_not_implemented_trustregion():
     except Exception as e:
         assert (
             str(e)
-            == "OQNLP Error: Local solver failed: Local Solver Error: unknown failed to run: Hessian not implemented and needed for local solver."
+            == "OQNLP Error: Local solver failed: Local Solver Error: unknown failed to run: Hessian not implemented and needed for local solver"
         )
 
 
@@ -100,5 +100,5 @@ def test_trustregion_requires_hessian():
     except Exception as e:
         assert (
             str(e)
-            == "OQNLP Error: Local solver failed: Local Solver Error: unknown failed to run: Hessian not implemented and needed for local solver."
+            == "OQNLP Error: Local solver failed: Local Solver Error: unknown failed to run: Hessian not implemented and needed for local solver"
         )
