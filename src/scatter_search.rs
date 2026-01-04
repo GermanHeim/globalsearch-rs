@@ -411,7 +411,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
         // Sort reference set by objective value (best first) for k-selection
         let mut points_with_objectives: Vec<(Array1<f64>, f64)> =
             ref_set.into_iter().zip(objectives).collect();
-        points_with_objectives.sort_by(|a, b| a.1.total_cmp(&b.1));
+        points_with_objectives.sort_unstable_by(|a, b| a.1.total_cmp(&b.1));
 
         let (sorted_points, sorted_objectives): (Vec<Array1<f64>>, Vec<f64>) =
             points_with_objectives.into_iter().unzip();
@@ -841,7 +841,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
         all_points.select_nth_unstable_by(k - 1, |a, b| a.1.total_cmp(&b.1));
 
         // Now sort only the first k elements (these are guaranteed to be the k best globally)
-        all_points[..k].sort_by(|a, b| a.1.total_cmp(&b.1));
+        all_points[..k].sort_unstable_by(|a, b| a.1.total_cmp(&b.1));
 
         // Partition the remaining to get the pop_size best overall
         all_points.select_nth_unstable_by(pop_size - 1, |a, b| a.1.total_cmp(&b.1));
