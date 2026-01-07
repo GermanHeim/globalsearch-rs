@@ -697,8 +697,8 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
         let mut points = Vec::with_capacity(6);
 
         // Linear combinations.
-        let directions: Vec<f64> = vec![0.25, 0.5, 0.75, 1.25];
-        for &alpha in &directions {
+        const DIRECTIONS: [f64; 4] = [0.25, 0.5, 0.75, 1.25];
+        for &alpha in &DIRECTIONS {
             let mut point = a * alpha + b * (1.0 - alpha);
             self.apply_bounds(&mut point);
             points.push(point);
