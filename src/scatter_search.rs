@@ -648,12 +648,6 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
         let indices: Vec<(usize, usize)> =
             (0..k).flat_map(|i| ((i + 1)..k).map(move |j| (i, j))).collect();
 
-        // Pre-allocate the result vector
-        let n_combinations = indices.len();
-        let n_trial_points_per_combo = 6; // 4 linear combinations + 2 random
-        let mut trial_points: Vec<Array1<f64>> =
-            Vec::with_capacity(n_combinations * n_trial_points_per_combo);
-
         // Precompute seeds for each combine_points call
         let seeds: Vec<u64> = {
             let mut rng = self.rng.lock().expect("RNG mutex poisoned");
@@ -661,39 +655,39 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
         };
 
         #[cfg(feature = "rayon")]
-        {
-            let points_per_combo: Vec<Vec<Array1<f64>>> = indices
+        let trial_points: Vec<Array1<f64>> = if self.enable_parallel {
+            indices
                 .par_iter()
                 .zip(seeds.par_iter())
-                .map(|(&(i, j), &seed)| {
+                .flat_map(|(&(i, j), &seed)| {
+                    self.combine_points(&self.reference_set[i], &self.reference_set[j], seed)
+                        .into_par_iter()
+                })
+                .collect()
+        } else {
+            indices
+                .iter()
+                .zip(seeds.iter())
+                .flat_map(|(&(i, j), &seed)| {
                     self.combine_points(&self.reference_set[i], &self.reference_set[j], seed)
                 })
-                .collect::<Result<Vec<_>, ScatterSearchError>>()?;
-
-            for points in points_per_combo {
-                trial_points.extend(points);
-            }
-        }
+                .collect()
+        };
 
         #[cfg(not(feature = "rayon"))]
-        {
-            for (&(i, j), &seed) in indices.iter().zip(seeds.iter()) {
-                let points =
-                    self.combine_points(&self.reference_set[i], &self.reference_set[j], seed)?;
-                trial_points.extend(points);
-            }
-        }
+        let trial_points: Vec<Array1<f64>> = indices
+            .iter()
+            .zip(seeds.iter())
+            .flat_map(|(&(i, j), &seed)| {
+                self.combine_points(&self.reference_set[i], &self.reference_set[j], seed)
+            })
+            .collect();
 
         Ok(trial_points)
     }
 
     /// Combines two points into several trial points.
-    pub fn combine_points(
-        &self,
-        a: &Array1<f64>,
-        b: &Array1<f64>,
-        seed: u64,
-    ) -> Result<Vec<Array1<f64>>, ScatterSearchError> {
+    pub fn combine_points(&self, a: &Array1<f64>, b: &Array1<f64>, seed: u64) -> Vec<Array1<f64>> {
         let mut points = Vec::with_capacity(6);
 
         // Linear combinations.
@@ -715,7 +709,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
             points.push(point);
         }
 
-        Ok(points)
+        points
     }
 
     pub fn apply_bounds(&self, point: &mut Array1<f64>) {
@@ -1073,7 +1067,7 @@ mod tests_scatter_search {
         let a: Array1<f64> = array![1.0, 1.0];
         let b: Array1<f64> = array![2.0, 2.0];
 
-        let trial_points: Vec<Array1<f64>> = ss.combine_points(&a, &b, 0).unwrap();
+        let trial_points: Vec<Array1<f64>> = ss.combine_points(&a, &b, 0);
 
         // 4 linear combinations and 2 random perturbations
         assert_eq!(trial_points.len(), 6);
