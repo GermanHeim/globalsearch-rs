@@ -176,8 +176,8 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
         let ss: ScatterSearch<P> = Self {
             problem,
             params: params.clone(),
-            reference_set: Vec::with_capacity(params.population_size),
-            reference_set_objectives: Vec::with_capacity(params.population_size),
+            reference_set: Vec::new(),
+            reference_set_objectives: Vec::new(),
             bounds,
             rng: Mutex::new(StdRng::seed_from_u64(seed)),
             #[cfg(feature = "progress_bar")]
