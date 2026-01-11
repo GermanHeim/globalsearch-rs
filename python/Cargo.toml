@@ -1,6 +1,6 @@
 [package]
 name = "pyglobalsearch"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 authors = ["Germán Martín Heim <german.martin.heim@gmail.com>"]
 license = "MIT"
@@ -18,7 +18,7 @@ name = "pyglobalsearch"
 crate-type = ["cdylib"]
 
 [dependencies]
-globalsearch = { version = "0.4.0", path = "..", features = ["rayon", "argmin"] }
+globalsearch = { version = "0.5.0", path = "..", features = ["rayon", "argmin"] }
 pyo3 = { version = "0.27.2", features = ["extension-module"] }
 ndarray = "0.16.1"
 seq-macro = "0.3"
