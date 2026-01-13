@@ -310,7 +310,7 @@ impl PySolutionSet {
     /// :returns: The solution with the lowest objective function value, or None if the set is empty
     /// :rtype: PyLocalSolution or None
     fn best_solution(&self) -> Option<PyLocalSolution> {
-        self.solutions.iter().min_by(|a, b| a.objective.partial_cmp(&b.objective).unwrap()).cloned()
+        self.solutions.iter().min_by(|a, b| a.objective.total_cmp(&b.objective)).cloned()
     }
 
     /// Returns the solution at the given index.

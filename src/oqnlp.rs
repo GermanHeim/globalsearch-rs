@@ -753,10 +753,11 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
                         stage1.enter_substage("scatter_search_complete");
                         stage1.set_reference_set_size(ref_set.len());
                         // Find the best solution and its coordinates
+                        // Use total_cmp which provides total ordering (NaN > all values)
                         if let Some((best_idx, &best_obj)) = ref_objectives
                             .iter()
                             .enumerate()
-                            .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                            .min_by(|(_, a), (_, b)| a.total_cmp(b))
                         {
                             stage1.set_best_solution(best_obj, &ref_set[best_idx]);
                         }
