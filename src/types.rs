@@ -870,6 +870,49 @@ mod tests_types {
         let _should_panic: LocalSolution = solution_set[0].clone();
     }
 
+    #[test]
+    /// Test that `OQNLPParams::local_solver_type()` correctly infers the solver type
+    /// from the `local_solver_config` field for the COBYLA default
+    fn test_oqnlp_params_local_solver_type_default() {
+        let params = OQNLPParams::default();
+        assert_eq!(params.local_solver_type(), LocalSolverType::COBYLA);
+    }
+
+    #[cfg(feature = "argmin")]
+    #[test]
+    /// Test that `OQNLPParams::local_solver_type()` correctly infers the solver type
+    /// for each argmin config variant
+    fn test_oqnlp_params_local_solver_type_argmin_variants() {
+        use crate::local_solver::builders::{
+            LBFGSBuilder, NelderMeadBuilder, NewtonCGBuilder, SteepestDescentBuilder,
+            TrustRegionBuilder,
+        };
+
+        let cases: &[(LocalSolverType, crate::local_solver::builders::LocalSolverConfig)] = &[
+            (LocalSolverType::LBFGS, LBFGSBuilder::default().build()),
+            (LocalSolverType::NelderMead, NelderMeadBuilder::default().build()),
+            (LocalSolverType::SteepestDescent, SteepestDescentBuilder::default().build()),
+            (LocalSolverType::TrustRegion, TrustRegionBuilder::default().build()),
+            (LocalSolverType::NewtonCG, NewtonCGBuilder::default().build()),
+        ];
+
+        for (expected_type, config) in cases {
+            let params =
+                OQNLPParams { local_solver_config: config.clone(), ..OQNLPParams::default() };
+            assert_eq!(&params.local_solver_type(), expected_type);
+        }
+    }
+
+    #[test]
+    /// Test that setting `local_solver_config` directly determines the inferred type,
+    /// making it impossible to create a mismatch between config and type
+    fn test_oqnlp_params_solver_type_matches_config() {
+        use crate::local_solver::builders::COBYLABuilder;
+        let config = COBYLABuilder::default().max_iter(500).build();
+        let params = OQNLPParams { local_solver_config: config, ..OQNLPParams::default() };
+        assert_eq!(params.local_solver_type(), LocalSolverType::COBYLA);
+    }
+
     #[cfg(feature = "argmin")]
     #[test]
     /// Test the from_string method for the LocalSolverType enum

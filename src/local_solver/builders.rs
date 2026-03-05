@@ -2263,4 +2263,33 @@ mod tests_builders {
             _ => panic!("Expected COBYLA local solver"),
         }
     }
+
+    #[test]
+    /// Test that `LocalSolverConfig::solver_type()` returns the correct `LocalSolverType`
+    /// for the COBYLA variant
+    fn test_solver_type_cobyla() {
+        use crate::types::LocalSolverType;
+        let config = COBYLABuilder::default().build();
+        assert_eq!(config.solver_type(), LocalSolverType::COBYLA);
+    }
+
+    #[cfg(feature = "argmin")]
+    #[test]
+    /// Test that `LocalSolverConfig::solver_type()` returns the correct `LocalSolverType`
+    /// for all argmin variants
+    fn test_solver_type_argmin_variants() {
+        use crate::types::LocalSolverType;
+
+        assert_eq!(LBFGSBuilder::default().build().solver_type(), LocalSolverType::LBFGS);
+        assert_eq!(NelderMeadBuilder::default().build().solver_type(), LocalSolverType::NelderMead);
+        assert_eq!(
+            SteepestDescentBuilder::default().build().solver_type(),
+            LocalSolverType::SteepestDescent
+        );
+        assert_eq!(
+            TrustRegionBuilder::default().build().solver_type(),
+            LocalSolverType::TrustRegion
+        );
+        assert_eq!(NewtonCGBuilder::default().build().solver_type(), LocalSolverType::NewtonCG);
+    }
 }
