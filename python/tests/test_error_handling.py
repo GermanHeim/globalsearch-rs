@@ -102,3 +102,26 @@ def test_trustregion_requires_hessian():
             str(e)
             == "OQNLP Error: Local solver failed: Local Solver Error: unknown failed to run: Hessian not implemented and needed for local solver"
         )
+
+
+def test_local_solver_config_type_mismatch():
+    """Test that specifying local_solver and local_solver_config with mismatched types raises ValueError."""
+    cobyla_config = gs.builders.PyCOBYLA()
+    try:
+        gs.optimize(
+            problem, params, local_solver="LBFGS", local_solver_config=cobyla_config
+        )
+        assert False, "Expected ValueError for solver/config type mismatch"
+    except ValueError as e:
+        assert "does not match" in str(e)
+        assert "LBFGS" in str(e)
+        assert "cobyla" in str(e)
+
+
+def test_local_solver_config_matching_name_is_allowed():
+    """Test that specifying both local_solver and local_solver_config with matching types is allowed."""
+    cobyla_config = gs.builders.PyCOBYLA()
+    result = gs.optimize(
+        problem, params, local_solver="COBYLA", local_solver_config=cobyla_config
+    )
+    assert result is not None

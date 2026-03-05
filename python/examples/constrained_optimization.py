@@ -54,7 +54,6 @@ def main():
     result = gs.optimize(
         problem=problem,
         params=params,
-        local_solver="COBYLA",
         local_solver_config=cobyla_config,
         verbose=True,
     )
