@@ -28,7 +28,7 @@ use globalsearch::local_solver::builders::COBYLABuilder;
 use globalsearch::observers::Observer;
 use globalsearch::oqnlp::OQNLP;
 use globalsearch::problem::Problem;
-use globalsearch::types::{EvaluationError, LocalSolverType, OQNLPParams};
+use globalsearch::types::{EvaluationError, OQNLPParams};
 use ndarray::{Array1, Array2, array};
 
 /// Shubert function implementation
@@ -84,7 +84,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         threshold_factor: 0.3,
         distance_factor: 0.8,
         population_size: 13000,
-        local_solver_type: LocalSolverType::COBYLA,
         local_solver_config: COBYLABuilder::default().max_iter(75).initial_step_size(1.0).build(),
         seed: 0,
     };

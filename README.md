@@ -141,7 +141,7 @@ Or use `cargo add globalsearch` in your project directory.
 2. Set OQNLP parameters
 
    ```rust
-   use globalsearch::types::{LocalSolverType, OQNLPParams};
+   use globalsearch::types::OQNLPParams;
    use globalsearch::local_solver::builders::SteepestDescentBuilder;
 
    let params: OQNLPParams = OQNLPParams {
@@ -150,7 +150,6 @@ Or use `cargo add globalsearch` in your project directory.
        threshold_factor: 0.2,
        distance_factor: 0.75,
        population_size: 250,
-       local_solver_type: LocalSolverType::SteepestDescent,
        local_solver_config: SteepestDescentBuilder::default().build(),
        seed: 0,
    };
@@ -171,7 +170,6 @@ Or use `cargo add globalsearch` in your project directory.
        pub threshold_factor: f64,
        pub distance_factor: f64,
        pub population_size: usize,
-       pub local_solver_type: LocalSolverType,
        pub local_solver_config: LocalSolverConfig,
        pub seed: u64,
    }
@@ -206,7 +204,6 @@ Or use `cargo add globalsearch` in your project directory.
                 threshold_factor: 0.2,
                 distance_factor: 0.75,
                 population_size: 250,
-                local_solver_type: LocalSolverType::SteepestDescent,
                 local_solver_config: SteepestDescentBuilder::default().build(),
                 seed: 0,
             };

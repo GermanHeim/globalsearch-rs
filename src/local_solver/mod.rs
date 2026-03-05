@@ -49,7 +49,7 @@
 //! use globalsearch::local_solver::builders::{
 //!     LBFGSBuilder, HagerZhangBuilder, TrustRegionBuilder, TrustRegionRadiusMethod
 //! };
-//! use globalsearch::types::{LocalSolverType, OQNLPParams};
+//! use globalsearch::types::OQNLPParams;
 //!
 //! // L-BFGS with custom line search
 //! let lbfgs_config = LBFGSBuilder::default()
@@ -70,7 +70,6 @@
 //!
 //! // Use in OQNLP parameters
 //! let params = OQNLPParams {
-//!     local_solver_type: LocalSolverType::LBFGS,
 //!     local_solver_config: lbfgs_config,
 //!     ..OQNLPParams::default()
 //! };

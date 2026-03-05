@@ -348,6 +348,25 @@ impl LocalSolverConfig {
     pub fn cobyla() -> COBYLABuilder {
         COBYLABuilder::default()
     }
+
+    /// Returns the corresponding LocalSolverType for this configuration
+    pub fn solver_type(&self) -> crate::types::LocalSolverType {
+        match self {
+            #[cfg(feature = "argmin")]
+            LocalSolverConfig::LBFGS { .. } => crate::types::LocalSolverType::LBFGS,
+            #[cfg(feature = "argmin")]
+            LocalSolverConfig::NelderMead { .. } => crate::types::LocalSolverType::NelderMead,
+            #[cfg(feature = "argmin")]
+            LocalSolverConfig::SteepestDescent { .. } => {
+                crate::types::LocalSolverType::SteepestDescent
+            }
+            #[cfg(feature = "argmin")]
+            LocalSolverConfig::TrustRegion { .. } => crate::types::LocalSolverType::TrustRegion,
+            #[cfg(feature = "argmin")]
+            LocalSolverConfig::NewtonCG { .. } => crate::types::LocalSolverType::NewtonCG,
+            LocalSolverConfig::COBYLA { .. } => crate::types::LocalSolverType::COBYLA,
+        }
+    }
 }
 
 #[cfg(feature = "argmin")]
