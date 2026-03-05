@@ -12,7 +12,7 @@ use globalsearch::{
     local_solver::builders::NelderMeadBuilder,
     oqnlp::OQNLP,
     problem::Problem,
-    types::{CheckpointConfig, EvaluationError, LocalSolverType, OQNLPParams},
+    types::{CheckpointConfig, EvaluationError, OQNLPParams},
 };
 
 #[cfg(feature = "checkpointing")]
@@ -64,7 +64,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Configure OQNLP parameters for initial optimization
     let params = OQNLPParams {
-        local_solver_type: LocalSolverType::NelderMead,
         local_solver_config: NelderMeadBuilder::default().build(),
         iterations: 15, // Very few iterations to find only one solution initially
         population_size: 200, // Smaller population size

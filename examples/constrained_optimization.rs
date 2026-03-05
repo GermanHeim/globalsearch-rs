@@ -20,7 +20,7 @@ use globalsearch::problem::Problem;
 use globalsearch::{
     local_solver::builders::COBYLABuilder,
     oqnlp::OQNLP,
-    types::{EvaluationError, LocalSolverType, OQNLPParams, SolutionSet},
+    types::{EvaluationError, OQNLPParams, SolutionSet},
 };
 use ndarray::{Array1, Array2, array};
 
@@ -106,7 +106,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         wait_cycle: 5,
         threshold_factor: 0.1,
         distance_factor: 0.8,
-        local_solver_type: LocalSolverType::COBYLA,
         local_solver_config: cobyla_config,
         seed: 0,
     };

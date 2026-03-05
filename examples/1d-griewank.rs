@@ -14,7 +14,7 @@ use globalsearch::local_solver::builders::{HagerZhangBuilder, LBFGSBuilder};
 use globalsearch::problem::Problem;
 use globalsearch::{
     oqnlp::OQNLP,
-    types::{EvaluationError, LocalSolverType, OQNLPParams, SolutionSet},
+    types::{EvaluationError, OQNLPParams, SolutionSet},
 };
 use ndarray::{Array1, Array2, array};
 
@@ -45,7 +45,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         threshold_factor: 0.1,
         distance_factor: 0.75,
         population_size: 100,
-        local_solver_type: LocalSolverType::LBFGS,
         local_solver_config: LBFGSBuilder::default().build(),
         seed: 0,
     };
@@ -63,7 +62,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         threshold_factor: 0.1,
         distance_factor: 0.75,
         population_size: 500,
-        local_solver_type: LocalSolverType::LBFGS,
         local_solver_config: LBFGSBuilder::default()
             .max_iter(100)
             .history_size(15)

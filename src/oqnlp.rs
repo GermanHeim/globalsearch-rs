@@ -61,7 +61,7 @@
 //! use globalsearch::problem::Problem;
 //! use globalsearch::{
 //!     oqnlp::OQNLP,
-//!     types::{EvaluationError, LocalSolverType, OQNLPParams, SolutionSet},
+//!     types::{EvaluationError, OQNLPParams, SolutionSet},
 //! };
 //! use ndarray::{array, Array1, Array2};
 //!
@@ -109,7 +109,6 @@
 //!     // It is recommended that you adjust these parameters to your problem
 //!     // and the desired behavior of the algorithm, instead of using the default values.
 //!     let params: OQNLPParams = OQNLPParams {
-//!         local_solver_type: LocalSolverType::TrustRegion,
 //!         local_solver_config: TrustRegionBuilder::default()
 //!             .method(TrustRegionRadiusMethod::Steihaug)
 //!             .build(),
@@ -467,7 +466,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
             distance_filter: DistanceFilter::new(filter_params)?,
             local_solver: LocalSolver::new(
                 problem,
-                params.local_solver_type.clone(),
+                params.local_solver_type(),
                 params.local_solver_config.clone(),
             ),
             solution_set: None,
@@ -1886,7 +1885,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
             if local_candidates.len() >= 2 && self.enable_parallel {
                 // Clone once for sharing across threads
                 let problem = self.problem.clone();
-                let solver_type = self.params.local_solver_type.clone();
+                let solver_type = self.params.local_solver_type();
                 let solver_config = self.params.local_solver_config.clone();
                 let track_evals =
                     self.observer.as_ref().map(|obs| obs.should_observe_stage2()).unwrap_or(false);

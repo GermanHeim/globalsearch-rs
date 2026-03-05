@@ -11,7 +11,7 @@ use globalsearch::{
     local_solver::builders::LBFGSBuilder,
     oqnlp::OQNLP,
     problem::Problem,
-    types::{CheckpointConfig, EvaluationError, LocalSolverType, OQNLPParams},
+    types::{CheckpointConfig, EvaluationError, OQNLPParams},
 };
 
 #[cfg(feature = "checkpointing")]
@@ -66,7 +66,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         wait_cycle: 10,
         threshold_factor: 0.2,
         distance_factor: 0.75,
-        local_solver_type: LocalSolverType::LBFGS,
         local_solver_config: LBFGSBuilder::default().build(),
         seed: 42,
     };
@@ -96,7 +95,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         wait_cycle: 10,
         threshold_factor: 0.2,
         distance_factor: 0.75,
-        local_solver_type: LocalSolverType::LBFGS,
         local_solver_config: LBFGSBuilder::default().build(),
         seed: 42,
     };
@@ -128,7 +126,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         wait_cycle: 10,
         threshold_factor: 0.2,
         distance_factor: 0.75,
-        local_solver_type: LocalSolverType::LBFGS,
         local_solver_config: LBFGSBuilder::default().build(),
         seed: 42,
     };

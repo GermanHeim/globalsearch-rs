@@ -15,17 +15,19 @@
 //! ## Example
 //!
 //! ```rust
-//! use globalsearch::types::{OQNLPParams, LocalSolverType};
+//! use globalsearch::types::OQNLPParams;
 //! use globalsearch::local_solver::builders::COBYLABuilder;
 //!
 //! // Create optimization parameters
 //! let params = OQNLPParams {
 //!     iterations: 500,
 //!     population_size: 1000,
-//!     local_solver_type: LocalSolverType::COBYLA,
 //!     local_solver_config: COBYLABuilder::default().build(),
 //!     ..OQNLPParams::default()
 //! };
+//!
+//! // The local solver type is automatically inferred from the config
+//! println!("Using solver: {:?}", params.local_solver_type());
 //! ```
 
 use crate::local_solver::builders::{COBYLABuilder, LocalSolverConfig};
@@ -86,14 +88,18 @@ pub struct OQNLPParams {
     /// Factor that influences the minimum required distance between candidate solutions
     pub distance_factor: f64,
 
-    /// Type of local solver to use from argmin
-    pub local_solver_type: LocalSolverType,
-
     /// Configuration for the local solver
     pub local_solver_config: LocalSolverConfig,
 
     /// Random seed for the algorithm
     pub seed: u64,
+}
+
+impl OQNLPParams {
+    /// Returns the local solver type inferred from the local_solver_config
+    pub fn local_solver_type(&self) -> LocalSolverType {
+        self.local_solver_config.solver_type()
+    }
 }
 
 impl Default for OQNLPParams {
@@ -107,8 +113,7 @@ impl Default for OQNLPParams {
     /// - `wait_cycle`: 15
     /// - `threshold_factor`: 0.2
     /// - `distance_factor`: 0.75
-    /// - `local_solver_type`: `LocalSolverType::COBYLA`
-    /// - `local_solver_config`: `COBYLABuilder::default().build()`
+    /// - `local_solver_config`: `COBYLABuilder::default().build()` (COBYLA)
     /// - `seed`: 0
     fn default() -> Self {
         Self {
@@ -117,7 +122,6 @@ impl Default for OQNLPParams {
             wait_cycle: 15,
             threshold_factor: 0.2,
             distance_factor: 0.75,
-            local_solver_type: LocalSolverType::COBYLA,
             local_solver_config: COBYLABuilder::default().build(),
             seed: 0,
         }
@@ -758,7 +762,7 @@ impl fmt::Display for OQNLPCheckpoint {
         writeln!(f, "  Wait cycle: {}", self.params.wait_cycle)?;
         writeln!(f, "  Threshold factor: {}", self.params.threshold_factor)?;
         writeln!(f, "  Distance factor: {}", self.params.distance_factor)?;
-        writeln!(f, "  Local solver: {:?}", self.params.local_solver_type)?;
+        writeln!(f, "  Local solver: {:?}", self.params.local_solver_type())?;
         writeln!(f, "  Seed: {}", self.params.seed)?;
 
         if let Some(target) = self.target_objective {
@@ -923,7 +927,6 @@ mod tests_types {
                 threshold_factor: 0.3,
                 distance_factor: 0.8,
                 seed: 42,
-                local_solver_type: LocalSolverType::COBYLA,
                 local_solver_config: crate::local_solver::builders::COBYLABuilder::default()
                     .build(),
             },

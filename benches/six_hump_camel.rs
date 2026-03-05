@@ -15,7 +15,7 @@ use globalsearch::local_solver::builders::SteepestDescentBuilder;
 use globalsearch::problem::Problem;
 use globalsearch::{
     oqnlp::OQNLP,
-    types::{EvaluationError, LocalSolverType, OQNLPParams, SolutionSet},
+    types::{EvaluationError, OQNLPParams, SolutionSet},
 };
 use ndarray::{Array1, Array2, array};
 use std::hint::black_box;
@@ -50,7 +50,6 @@ fn six_hump_camel() -> Result<SolutionSet, Box<dyn std::error::Error>> {
         threshold_factor: 0.2,
         distance_factor: 0.75,
         population_size: 100,
-        local_solver_type: LocalSolverType::SteepestDescent,
         local_solver_config: SteepestDescentBuilder::default().build(),
         seed: 0,
     };

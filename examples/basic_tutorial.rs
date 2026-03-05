@@ -23,7 +23,7 @@ use globalsearch::problem::Problem;
 use globalsearch::{
     local_solver::builders::COBYLABuilder,
     oqnlp::OQNLP,
-    types::{EvaluationError, LocalSolverType, OQNLPParams, SolutionSet},
+    types::{EvaluationError, OQNLPParams, SolutionSet},
 };
 use ndarray::{Array1, Array2, array};
 
@@ -98,15 +98,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         wait_cycle: 15,         // Wait before updating search parameters
         threshold_factor: 0.65, // Merit filter sensitivity
         distance_factor: 0.10,  // Minimum distance between solutions
-        local_solver_type: LocalSolverType::COBYLA,
-        local_solver_config, // Pass the COBYLA configuration
-        seed: 0,             // Random seed for reproducibility
+        local_solver_config,    // Pass the COBYLA configuration
+        seed: 0,                // Random seed for reproducibility
     };
 
     println!("Optimization Settings:");
     println!("- Stage two iterations: {}", params.iterations);
     println!("- Population size: {}", params.population_size);
-    println!("- Local solver: {:?}", params.local_solver_type);
+    println!("- Local solver: {:?}", params.local_solver_type());
     println!("- Random seed: {}", params.seed);
     println!();
 

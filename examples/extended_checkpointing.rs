@@ -11,7 +11,7 @@ use globalsearch::{
     local_solver::builders::{TrustRegionBuilder, TrustRegionRadiusMethod},
     oqnlp::OQNLP,
     problem::Problem,
-    types::{CheckpointConfig, EvaluationError, LocalSolverType, OQNLPParams, SolutionSet},
+    types::{CheckpointConfig, EvaluationError, OQNLPParams, SolutionSet},
 };
 
 #[cfg(feature = "checkpointing")]
@@ -105,7 +105,6 @@ fn run_optimization_stage(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Configure OQNLP parameters for this stage
     let params = OQNLPParams {
-        local_solver_type: LocalSolverType::TrustRegion,
         local_solver_config: TrustRegionBuilder::default()
             .method(TrustRegionRadiusMethod::Steihaug)
             .build(),

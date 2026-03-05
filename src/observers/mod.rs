@@ -1418,7 +1418,7 @@ mod tests_observers {
         use crate::local_solver::builders::COBYLABuilder;
         use crate::oqnlp::OQNLP;
         use crate::problem::Problem;
-        use crate::types::{EvaluationError, LocalSolverType, OQNLPParams};
+        use crate::types::{EvaluationError, OQNLPParams};
         use ndarray::{Array1, Array2};
 
         /// Simple quadratic problem: sum x_i^2 for i=1 to n
@@ -1460,7 +1460,6 @@ mod tests_observers {
             threshold_factor: 0.5,
             distance_factor: 0.5,
             population_size: 150,
-            local_solver_type: LocalSolverType::COBYLA,
             local_solver_config: COBYLABuilder::default().max_iter(25).build(),
             seed: 0,
         };
