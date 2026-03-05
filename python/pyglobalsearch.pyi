@@ -1603,7 +1603,7 @@ class observers:
 def optimize(
     problem: PyProblem,
     params: PyOQNLPParams,
-    local_solver: Optional[str] = "COBYLA",
+    local_solver: Optional[str] = None,
     local_solver_config: Optional[
         Union[
             PyLBFGS,
@@ -1645,9 +1645,11 @@ def optimize(
     With custom solver configuration::
 
         >>> cobyla_config = gs.builders.cobyla(max_iter=1000)
-        >>> result = gs.optimize(problem, params,
-        ...                     local_solver="COBYLA",
-        ...                     local_solver_config=cobyla_config)
+        >>> result = gs.optimize(problem, params, local_solver_config=cobyla_config)
+
+    Or using just the solver name for a default configuration::
+
+        >>> result = gs.optimize(problem, params, local_solver="LBFGS")
 
     With observer for progress monitoring::
 
@@ -1672,11 +1674,15 @@ def optimize(
     :type problem: PyProblem
     :param params: Parameters controlling the optimization algorithm behavior
     :type params: PyOQNLPParams
-    :param local_solver: Local optimization algorithm ("COBYLA", "LBFGS", "NewtonCG",
-                        "TrustRegion", "NelderMead", "SteepestDescent")
-    :type local_solver: str
-    :param local_solver_config: Custom configuration for the local solver (None for defaults)
-    :type local_solver_config: Union[PyLBFGS, PyNelderMead, PySteepestDescent, PyNewtonCG, PyTrustRegion, PyCOBYLA]
+    :param local_solver: Local optimization algorithm to use with its default configuration.
+                        One of: ``"COBYLA"`` (default when neither argument is given), ``"LBFGS"``,
+                        ``"NewtonCG"``, ``"TrustRegion"``, ``"NelderMead"``, ``"SteepestDescent"``.
+                        When passed alongside ``local_solver_config``, must match the config type.
+    :type local_solver: str, optional
+    :param local_solver_config: Custom configuration for the local solver. The solver type is inferred
+                               from the config object's type (e.g. ``PyCOBYLA``, ``PyLBFGS``).
+                               When passed alongside ``local_solver``, both must refer to the same solver type.
+    :type local_solver_config: Union[PyLBFGS, PyNelderMead, PySteepestDescent, PyNewtonCG, PyTrustRegion, PyCOBYLA], optional
     :param seed: Random seed for reproducible results (0 by default)
     :type seed: int
     :param target_objective: Stop optimization when this objective value is reached (None by default = no target)

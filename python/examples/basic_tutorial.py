@@ -133,7 +133,6 @@ def main():
         result = gs.optimize(
             problem=problem,
             params=params,
-            local_solver="COBYLA",
             local_solver_config=local_solver_config,
             seed=0,  # For reproducible results
             verbose=True,  # Show progress during optimization

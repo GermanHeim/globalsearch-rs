@@ -711,10 +711,14 @@ impl Problem for PyProblem {
 /// :type params: PyOQNLPParams
 /// :param observer: Optional observer for tracking algorithm progress and metrics
 /// :type observer: PyObserver, optional
-/// :param local_solver: Local optimization algorithm ("COBYLA", "LBFGS", "NewtonCG", "TrustRegion", "NelderMead", "SteepestDescent")
+/// :param local_solver: Local optimization algorithm to use with its default configuration.
+///     One of: ``"COBYLA"`` (default), ``"LBFGS"``, ``"NewtonCG"``, ``"TrustRegion"``, ``"NelderMead"``, ``"SteepestDescent"``.
+///     When passed alongside ``local_solver_config``, must match the config type or a ``ValueError`` is raised.
 /// :type local_solver: str, optional
-/// :param local_solver_config: Custom configuration for the local solver (must match solver type)
-/// :type local_solver_config: object, optional
+/// :param local_solver_config: Custom configuration for the local solver. The solver type is inferred
+///     directly from the config object's type (e.g. ``PyCOBYLA``, ``PyLBFGS``).
+///     When passed alongside ``local_solver``, both must refer to the same solver type.
+/// :type local_solver_config: PyCOBYLA | PyLBFGS | PyNelderMead | PySteepestDescent | PyNewtonCG | PyTrustRegion, optional
 /// :param seed: Random seed for reproducible results
 /// :type seed: int, optional
 /// :param target_objective: Stop optimization when this objective value is reached
@@ -748,9 +752,11 @@ impl Problem for PyProblem {
 /// With custom solver configuration:
 ///
 /// >>> cobyla_config = gs.builders.cobyla(max_iter=1000)
-/// >>> result = gs.optimize(problem, params,
-/// ...                     local_solver="COBYLA",
-/// ...                     local_solver_config=cobyla_config)
+/// >>> result = gs.optimize(problem, params, local_solver_config=cobyla_config)
+///
+/// Or using just the solver name for a default configuration:
+///
+/// >>> result = gs.optimize(problem, params, local_solver="LBFGS")
 ///
 /// With early stopping:
 ///
@@ -799,86 +805,61 @@ fn optimize(
     with_points: Option<Vec<Vec<f64>>>,
 ) -> PyResult<PySolutionSet> {
     Python::attach(|py| {
-        // Convert local_solver string to enum
-        let solver_type = LocalSolverType::from_string(local_solver.unwrap_or("cobyla"))
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
-
         let seed = seed.unwrap_or(0);
 
-        // Create local solver configuration (default)
+        // Build the local solver config:
+        // - Pass only local_solver_config -> solver type inferred from the config object.
+        // - Pass only local_solver (string) -> use that solver with its default config.
+        // - Pass neither -> COBYLA with default config.
+        // - Pass both -> allowed only when they agree, errors on mismatch.
         let local_solver_config = if let Some(config) = local_solver_config {
-            match solver_type {
-                LocalSolverType::LBFGS => {
-                    if let Ok(lbfgs_config) = config.extract::<crate::builders::PyLBFGS>(py) {
-                        lbfgs_config.to_builder().build()
-                    } else {
-                        return Err(PyValueError::new_err(
-                            "Expected PyLBFGS for LBFGS solver type".to_string(),
-                        ));
-                    }
-                }
-                LocalSolverType::NelderMead => {
-                    if let Ok(neldermead_config) =
-                        config.extract::<crate::builders::PyNelderMead>(py)
-                    {
-                        neldermead_config.to_builder().build()
-                    } else {
-                        return Err(PyValueError::new_err(
-                            "Expected PyNelderMead for NelderMead solver type".to_string(),
-                        ));
-                    }
-                }
-                LocalSolverType::SteepestDescent => {
-                    if let Ok(steepest_descent_config) =
-                        config.extract::<crate::builders::PySteepestDescent>(py)
-                    {
-                        steepest_descent_config.to_builder().build()
-                    } else {
-                        return Err(PyValueError::new_err(
-                            "Expected PySteepestDescent for SteepestDescent solver type"
-                                .to_string(),
-                        ));
-                    }
-                }
-                LocalSolverType::NewtonCG => {
-                    if let Ok(newtoncg_config) = config.extract::<crate::builders::PyNewtonCG>(py) {
-                        newtoncg_config.to_builder().build()
-                    } else {
-                        return Err(PyValueError::new_err(
-                            "Expected PyNewtonCG for NewtonCG solver type".to_string(),
-                        ));
-                    }
-                }
-                LocalSolverType::TrustRegion => {
-                    if let Ok(trustregion_config) =
-                        config.extract::<crate::builders::PyTrustRegion>(py)
-                    {
-                        trustregion_config.to_builder().build()
-                    } else {
-                        return Err(PyValueError::new_err(
-                            "Expected PyTrustRegion for TrustRegion solver type".to_string(),
-                        ));
-                    }
-                }
-                LocalSolverType::COBYLA => {
-                    if let Ok(cobyla_config) = config.extract::<crate::builders::PyCOBYLA>(py) {
-                        cobyla_config.to_builder().build()
-                    } else {
-                        return Err(PyValueError::new_err(
-                            "Expected PyCOBYLA for COBYLA solver type".to_string(),
-                        ));
-                    }
+            let (built_config, inferred_name) =
+                if let Ok(c) = config.extract::<crate::builders::PyCOBYLA>(py) {
+                    (c.to_builder().build(), "cobyla")
+                } else if let Ok(c) = config.extract::<crate::builders::PyLBFGS>(py) {
+                    (c.to_builder().build(), "lbfgs")
+                } else if let Ok(c) = config.extract::<crate::builders::PyNelderMead>(py) {
+                    (c.to_builder().build(), "nelder-mead")
+                } else if let Ok(c) = config.extract::<crate::builders::PySteepestDescent>(py) {
+                    (c.to_builder().build(), "steepestdescent")
+                } else if let Ok(c) = config.extract::<crate::builders::PyNewtonCG>(py) {
+                    (c.to_builder().build(), "newtoncg")
+                } else if let Ok(c) = config.extract::<crate::builders::PyTrustRegion>(py) {
+                    (c.to_builder().build(), "trustregion")
+                } else {
+                    return Err(PyValueError::new_err(
+                        "local_solver_config must be one of: PyCOBYLA, PyLBFGS, PyNelderMead, \
+                         PySteepestDescent, PyNewtonCG, PyTrustRegion"
+                            .to_string(),
+                    ));
+                };
+
+            // If a solver name was also supplied, verify it agrees with the config type.
+            if let Some(name) = local_solver {
+                let expected = LocalSolverType::from_string(name)
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?;
+                let inferred = LocalSolverType::from_string(inferred_name).unwrap();
+                if expected != inferred {
+                    return Err(PyValueError::new_err(format!(
+                        "local_solver \"{}\" does not match local_solver_config type \"{}\". \
+                         Remove local_solver or make sure both refer to the same solver.",
+                        name, inferred_name,
+                    )));
                 }
             }
+
+            built_config
         } else {
-            // Create default local solver configuration
+            // No config provided - use the solver string to pick a default
+            let solver_type = LocalSolverType::from_string(local_solver.unwrap_or("cobyla"))
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
             match solver_type {
+                LocalSolverType::COBYLA => COBYLABuilder::default().build(),
                 LocalSolverType::LBFGS => LBFGSBuilder::default().build(),
-                LocalSolverType::NewtonCG => NewtonCGBuilder::default().build(),
-                LocalSolverType::TrustRegion => TrustRegionBuilder::default().build(),
                 LocalSolverType::NelderMead => NelderMeadBuilder::default().build(),
                 LocalSolverType::SteepestDescent => SteepestDescentBuilder::default().build(),
-                LocalSolverType::COBYLA => COBYLABuilder::default().build(),
+                LocalSolverType::NewtonCG => NewtonCGBuilder::default().build(),
+                LocalSolverType::TrustRegion => TrustRegionBuilder::default().build(),
             }
         };
 
@@ -889,7 +870,6 @@ fn optimize(
             threshold_factor: params.threshold_factor,
             distance_factor: params.distance_factor,
             seed,
-            local_solver_type: solver_type,
             local_solver_config,
         };
 

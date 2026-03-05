@@ -98,7 +98,6 @@ def main():
     result = gs.optimize(
         problem=problem,
         params=params,
-        local_solver="COBYLA",
         seed=0,
         local_solver_config=cobyla_config,
         observer=observer,
