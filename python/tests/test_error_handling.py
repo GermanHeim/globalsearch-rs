@@ -115,7 +115,7 @@ def test_local_solver_config_type_mismatch():
     except ValueError as e:
         assert "does not match" in str(e)
         assert "LBFGS" in str(e)
-        assert "cobyla" in str(e)
+        assert "COBYLA" in str(e)
 
 
 def test_local_solver_config_matching_name_is_allowed():

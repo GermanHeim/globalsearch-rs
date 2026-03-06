@@ -813,19 +813,19 @@ fn optimize(
         // - Pass neither -> COBYLA with default config.
         // - Pass both -> allowed only when they agree, errors on mismatch.
         let local_solver_config = if let Some(config) = local_solver_config {
-            let (built_config, inferred_name) =
+            let (built_config, inferred_type) =
                 if let Ok(c) = config.extract::<crate::builders::PyCOBYLA>(py) {
-                    (c.to_builder().build(), "cobyla")
+                    (c.to_builder().build(), LocalSolverType::COBYLA)
                 } else if let Ok(c) = config.extract::<crate::builders::PyLBFGS>(py) {
-                    (c.to_builder().build(), "lbfgs")
+                    (c.to_builder().build(), LocalSolverType::LBFGS)
                 } else if let Ok(c) = config.extract::<crate::builders::PyNelderMead>(py) {
-                    (c.to_builder().build(), "nelder-mead")
+                    (c.to_builder().build(), LocalSolverType::NelderMead)
                 } else if let Ok(c) = config.extract::<crate::builders::PySteepestDescent>(py) {
-                    (c.to_builder().build(), "steepestdescent")
+                    (c.to_builder().build(), LocalSolverType::SteepestDescent)
                 } else if let Ok(c) = config.extract::<crate::builders::PyNewtonCG>(py) {
-                    (c.to_builder().build(), "newtoncg")
+                    (c.to_builder().build(), LocalSolverType::NewtonCG)
                 } else if let Ok(c) = config.extract::<crate::builders::PyTrustRegion>(py) {
-                    (c.to_builder().build(), "trustregion")
+                    (c.to_builder().build(), LocalSolverType::TrustRegion)
                 } else {
                     return Err(PyValueError::new_err(
                         "local_solver_config must be one of: PyCOBYLA, PyLBFGS, PyNelderMead, \
@@ -838,12 +838,11 @@ fn optimize(
             if let Some(name) = local_solver {
                 let expected = LocalSolverType::from_string(name)
                     .map_err(|e| PyValueError::new_err(e.to_string()))?;
-                let inferred = LocalSolverType::from_string(inferred_name).unwrap();
-                if expected != inferred {
+                if expected != inferred_type {
                     return Err(PyValueError::new_err(format!(
-                        "local_solver \"{}\" does not match local_solver_config type \"{}\". \
+                        "local_solver \"{name}\" does not match local_solver_config type \
+                         \"{inferred_type:?}\". \
                          Remove local_solver or make sure both refer to the same solver.",
-                        name, inferred_name,
                     )));
                 }
             }
