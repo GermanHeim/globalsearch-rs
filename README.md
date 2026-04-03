@@ -175,19 +175,6 @@ Or use `cargo add globalsearch` in your project directory.
    }
    ```
 
-   And `LocalSolverType` is defined as:
-
-   ```rust
-   pub enum LocalSolverType {
-       LBFGS,
-       NelderMead,
-       SteepestDescent,
-       TrustRegion,
-       NewtonCG,
-       COBYLA,
-   }
-   ```
-
    You can also modify the local solver configuration for each type of local solver. See [`builders.rs`](https://github.com/GermanHeim/globalsearch-rs/tree/main/src/local_solver/builders.rs) for more details.
 
 3. Run the optimizer
