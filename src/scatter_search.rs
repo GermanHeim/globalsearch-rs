@@ -47,7 +47,7 @@ use crate::problem::Problem;
 use crate::types::OQNLPParams;
 use ndarray::Array1;
 use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use std::sync::Mutex;
 use thiserror::Error;
 

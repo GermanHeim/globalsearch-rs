@@ -18,8 +18,8 @@ argmin-math = { version = "0.5.1", features = ["ndarray_latest-nolinalg"], optio
 ndarray = { version = "0.16.1" }
 rayon = { version = "1.11.0", optional = true }
 thiserror = "2.0.17"
-rand = "0.9.2"
 kdam = { version = "0.6.3", optional = true }
+rand = "0.10.0"
 serde = { version = "1.0.228", features = ["derive"], optional = true }
 bincode = { version = "2.0.1", features = ["serde"], optional = true }
 chrono = { version = "0.4.42", features = ["serde"], optional = true }
