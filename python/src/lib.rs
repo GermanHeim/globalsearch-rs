@@ -10,6 +10,7 @@ use globalsearch::oqnlp::OQNLP;
 use globalsearch::problem::Problem;
 use globalsearch::types::{EvaluationError, LocalSolverType, OQNLPParams};
 use ndarray::{Array1, Array2};
+use numpy::{IntoPyArray, PyArray1, PyArray2, PyArrayMethods, ToPyArray};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use seq_macro::seq;
@@ -59,12 +60,12 @@ fn evaluate_constraints_for_id(problem_id: usize, x: &[f64]) -> Vec<f64> {
 
     if let Some(constraints) = registry_lock.get(&problem_id) {
         Python::attach(|py| {
+            let x_arr = Array1::from(x.to_vec()).into_pyarray(py);
             constraints
                 .iter()
                 .map(|constraint| {
-                    let args = (x.to_vec(),);
                     constraint
-                        .call1(py, args)
+                        .call1(py, (x_arr.clone(),))
                         .expect("Failed to call constraint function")
                         .extract::<f64>(py)
                         .expect("Constraint function must return a float")
@@ -108,7 +109,7 @@ fn get_constraint_functions(num_constraints: usize) -> Vec<fn(&[f64], &mut ()) -
     functions
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone)]
 /// Parameters for the OQNLP global optimization algorithm.
 ///
@@ -170,7 +171,7 @@ pub struct PyOQNLPParams {
     pub rel_tol: f64,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone)]
 /// A local solution found by the optimization algorithm.
 ///
@@ -238,6 +239,14 @@ impl PyLocalSolution {
         self.point.clone()
     }
 
+    /// Returns the solution point as a NumPy 1D array.
+    ///
+    /// :returns: The solution coordinates as a ``numpy.ndarray`` of shape ``(n,)``
+    /// :rtype: numpy.ndarray
+    fn as_array<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
+        Array1::from(self.point.clone()).into_pyarray(py)
+    }
+
     fn __repr__(&self) -> String {
         format!("PyLocalSolution(point={:?}, objective={})", self.point, self.objective)
     }
@@ -247,7 +256,7 @@ impl PyLocalSolution {
     }
 }
 
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Debug, Clone)]
 /// A collection of local solutions found by the optimization algorithm.
 ///
@@ -425,8 +434,44 @@ impl PyOQNLPParams {
     }
 }
 
-#[pyclass]
-#[derive(Debug)]
+/// Resolve variable bounds from either a numpy array, a list-of-lists, or a callable.
+fn resolve_variable_bounds(py: Python<'_>, obj: &Py<PyAny>) -> PyResult<Array2<f64>> {
+    let bound = obj.bind(py);
+
+    if let Ok(arr) = bound.cast::<PyArray2<f64>>() {
+        return Ok(arr.readonly().as_array().to_owned());
+    }
+
+    if let Ok(bounds) = bound.extract::<Vec<Vec<f64>>>() {
+        let rows = bounds.len();
+        let cols = if rows > 0 { bounds[0].len() } else { 0 };
+        return Array2::from_shape_vec((rows, cols), bounds.into_iter().flatten().collect())
+            .map_err(|e| PyValueError::new_err(format!("Invalid bounds shape: {e}")));
+    }
+
+    if bound.is_callable() {
+        let result = bound.call0().map_err(|e| {
+            PyValueError::new_err(format!("Failed to call variable_bounds callable: {e}"))
+        })?;
+        if let Ok(arr) = result.cast::<PyArray2<f64>>() {
+            return Ok(arr.readonly().as_array().to_owned());
+        }
+        let bounds = result.extract::<Vec<Vec<f64>>>().map_err(|_| {
+            PyValueError::new_err(
+                "variable_bounds callable must return a 2D array of shape (n_vars, 2)",
+            )
+        })?;
+        let rows = bounds.len();
+        let cols = if rows > 0 { bounds[0].len() } else { 0 };
+        return Array2::from_shape_vec((rows, cols), bounds.into_iter().flatten().collect())
+            .map_err(|e| PyValueError::new_err(format!("Invalid bounds shape: {e}")));
+    }
+
+    Err(PyValueError::new_err(
+        "variable_bounds must be a 2D array of shape (n_vars, 2) or a callable returning one",
+    ))
+}
+
 /// Defines an optimization problem to be solved.
 ///
 /// A PyProblem encapsulates all the mathematical components needed for optimization:
@@ -435,8 +480,9 @@ impl PyOQNLPParams {
 ///
 /// :param objective: Function that takes x (array-like) and returns the value to minimize (float)
 /// :type objective: callable
-/// :param variable_bounds: Function that returns bounds array of shape (n_vars, 2) with [lower, upper] bounds
-/// :type variable_bounds: callable
+/// :param variable_bounds: Bounds array of shape (n_vars, 2) with [lower, upper] bounds,
+///     or a callable returning such an array.
+/// :type variable_bounds: numpy.ndarray or callable
 /// :param gradient: Function that takes x and returns gradient array (for gradient-based solvers)
 /// :type gradient: callable, optional
 /// :param hessian: Function that takes x and returns Hessian matrix (for Newton-type solvers)
@@ -461,6 +507,8 @@ impl PyOQNLPParams {
 ///
 /// >>> def constraint(x): return x[0] + x[1] - 1  # x[0] + x[1] >= 1
 /// >>> problem = gs.PyProblem(objective, bounds, constraints=[constraint])
+#[pyclass(from_py_object)]
+#[derive(Debug)]
 pub struct PyProblem {
     #[pyo3(get, set)]
     /// Objective function to minimize
@@ -469,12 +517,15 @@ pub struct PyProblem {
     /// :return: Objective function value (float)
     objective: Py<pyo3::PyAny>,
 
-    #[pyo3(get, set)]
-    /// Function returning variable bounds
+    #[pyo3(get)]
+    /// The original variable_bounds value passed at construction (array or callable).
     ///
-    /// :returns: 2D array-like of shape (n_vars, 2) with [lower, upper] bounds for each variable
-    /// :rtype: array-like
+    /// :returns: The original bounds array or callable supplied by the user
     variable_bounds: Py<pyo3::PyAny>,
+
+    /// Bounds resolved and cached at construction time. Used by all internal Rust calls
+    /// so that Python is never re-entered just to fetch static bound data.
+    cached_bounds: Array2<f64>,
 
     #[pyo3(get, set)]
     /// Function returning the gradient
@@ -511,6 +562,7 @@ impl Clone for PyProblem {
         Python::attach(|py| Self {
             objective: self.objective.clone_ref(py),
             variable_bounds: self.variable_bounds.clone_ref(py),
+            cached_bounds: self.cached_bounds.clone(),
             gradient: self.gradient.as_ref().map(|g| g.clone_ref(py)),
             hessian: self.hessian.as_ref().map(|h| h.clone_ref(py)),
             constraints: self.constraints.as_ref().map(|c| c.clone_ref(py)),
@@ -524,20 +576,23 @@ impl PyProblem {
     #[new]
     #[pyo3(signature = (objective, variable_bounds, gradient=None, hessian=None, constraints=None))]
     fn new(
+        py: Python<'_>,
         objective: Py<pyo3::PyAny>,
         variable_bounds: Py<pyo3::PyAny>,
         gradient: Option<Py<pyo3::PyAny>>,
         hessian: Option<Py<pyo3::PyAny>>,
         constraints: Option<Py<pyo3::PyAny>>,
-    ) -> Self {
-        PyProblem {
+    ) -> PyResult<Self> {
+        let cached_bounds = resolve_variable_bounds(py, &variable_bounds)?;
+        Ok(PyProblem {
             objective,
             variable_bounds,
+            cached_bounds,
             gradient,
             hessian,
             constraints,
             problem_id: get_next_problem_id(),
-        }
+        })
     }
 }
 
@@ -572,10 +627,7 @@ impl Problem for PyProblem {
         // Serialize Python calls from parallel threads to avoid GIL deadlocks
         let _guard = get_python_call_mutex().lock().unwrap();
         Python::attach(|py| {
-            let x_py = x
-                .to_vec()
-                .into_pyobject(py)
-                .map_err(|e| EvaluationError::InvalidInput { reason: e.to_string() })?;
+            let x_py = x.to_pyarray(py);
             let result = self
                 .objective
                 .call1(py, (x_py,))
@@ -587,44 +639,25 @@ impl Problem for PyProblem {
     }
 
     fn variable_bounds(&self) -> Array2<f64> {
-        Python::attach(|py| {
-            let result = self
-                .variable_bounds
-                .call0(py)
-                .map_err(|e| EvaluationError::InvalidInput { reason: e.to_string() })
-                .and_then(|res: Py<PyAny>| {
-                    res.extract::<Vec<Vec<f64>>>(py)
-                        .map_err(|e| EvaluationError::InvalidInput { reason: e.to_string() })
-                });
-
-            match result {
-                Ok(bounds) => {
-                    let rows = bounds.len();
-                    let cols = if rows > 0 { bounds[0].len() } else { 0 };
-                    Array2::from_shape_vec((rows, cols), bounds.into_iter().flatten().collect())
-                        .unwrap()
-                }
-                Err(_) => panic!("Variable bounds must be a 2D array of floats"),
-            }
-        })
+        self.cached_bounds.clone()
     }
 
     fn gradient(&self, x: &Array1<f64>) -> Result<Array1<f64>, EvaluationError> {
         if let Some(grad_fn) = &self.gradient {
             Python::attach(|py| {
-                let x_py = x
-                    .to_vec()
-                    .into_pyobject(py)
-                    .map_err(|e| EvaluationError::InvalidInput { reason: e.to_string() })?;
+                let x_py = x.to_pyarray(py);
                 let result = grad_fn
                     .call1(py, (x_py,))
                     .map_err(|e| EvaluationError::InvalidInput { reason: e.to_string() })?;
 
-                let grad_vec: Vec<f64> = result
-                    .extract(py)
-                    .map_err(|e: PyErr| EvaluationError::InvalidInput { reason: e.to_string() })?;
-
-                Ok(Array1::from(grad_vec))
+                if let Ok(arr) = result.bind(py).cast::<PyArray1<f64>>() {
+                    Ok(arr.readonly().as_array().to_owned())
+                } else {
+                    let grad_vec: Vec<f64> = result.extract(py).map_err(|e: PyErr| {
+                        EvaluationError::InvalidInput { reason: e.to_string() }
+                    })?;
+                    Ok(Array1::from(grad_vec))
+                }
             })
         } else {
             Err(EvaluationError::GradientNotImplemented)
@@ -634,24 +667,25 @@ impl Problem for PyProblem {
     fn hessian(&self, x: &Array1<f64>) -> Result<Array2<f64>, EvaluationError> {
         if let Some(hess_fn) = &self.hessian {
             Python::attach(|py| {
-                let x_py = x
-                    .to_vec()
-                    .into_pyobject(py)
-                    .map_err(|e| EvaluationError::InvalidInput { reason: e.to_string() })?;
+                let x_py = x.to_pyarray(py);
                 let result = hess_fn
                     .call1(py, (x_py,))
                     .map_err(|e| EvaluationError::InvalidInput { reason: e.to_string() })?;
 
-                let hess_vec: Vec<Vec<f64>> = result
-                    .extract(py)
-                    .map_err(|e: PyErr| EvaluationError::InvalidInput { reason: e.to_string() })?;
-
-                let size = hess_vec.len();
-                let flat_hess: Vec<f64> = hess_vec.into_iter().flatten().collect();
-
-                Array2::from_shape_vec((size, size), flat_hess).map_err(|_| {
-                    EvaluationError::InvalidInput { reason: "Hessian shape mismatch".to_string() }
-                })
+                if let Ok(arr) = result.bind(py).cast::<PyArray2<f64>>() {
+                    Ok(arr.readonly().as_array().to_owned())
+                } else {
+                    let hess_vec: Vec<Vec<f64>> = result.extract(py).map_err(|e: PyErr| {
+                        EvaluationError::InvalidInput { reason: e.to_string() }
+                    })?;
+                    let size = hess_vec.len();
+                    let flat_hess: Vec<f64> = hess_vec.into_iter().flatten().collect();
+                    Array2::from_shape_vec((size, size), flat_hess).map_err(|_| {
+                        EvaluationError::InvalidInput {
+                            reason: "Hessian shape mismatch".to_string(),
+                        }
+                    })
+                }
             })
         } else {
             Err(EvaluationError::HessianNotImplemented)

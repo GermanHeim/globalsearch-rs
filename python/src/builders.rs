@@ -6,7 +6,7 @@ use globalsearch::local_solver::builders::{
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone)]
 /// Hager-Zhang line search method configuration.
 ///
@@ -125,7 +125,7 @@ fn hagerzhang(
     PyHagerZhang { delta, sigma, epsilon, theta, gamma, eta, bounds }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone)]
 pub struct PyMoreThuente {
     #[pyo3(get, set)]
@@ -174,7 +174,7 @@ pub enum PyLineSearchMethod {
     HagerZhang(PyHagerZhang),
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone)]
 pub struct PyLineSearchParams {
     pub method: PyLineSearchMethod,
@@ -215,7 +215,7 @@ impl PyLineSearchParams {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone)]
 /// L-BFGS (Limited-memory Broyden-Fletcher-Goldfarb-Shanno) solver configuration.
 ///
@@ -432,7 +432,7 @@ fn lbfgs(
     })
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone)]
 pub struct PyNelderMead {
     #[pyo3(get, set)]
@@ -529,7 +529,7 @@ fn neldermead(
     PyNelderMead { simplex_delta, sd_tolerance, max_iter, alpha, gamma, rho, sigma }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone)]
 pub struct PySteepestDescent {
     #[pyo3(get, set)]
@@ -611,7 +611,7 @@ fn steepestdescent(
     Ok(PySteepestDescent { max_iter, line_search_params })
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone)]
 pub struct PyNewtonCG {
     #[pyo3(get, set)]
@@ -719,7 +719,7 @@ fn newtoncg(
     Ok(PyNewtonCG { max_iter, curvature_threshold, tolerance, line_search_params })
 }
 
-#[pyclass(eq, eq_int)]
+#[pyclass(eq, eq_int, from_py_object)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum PyTrustRegionRadiusMethod {
     Cauchy,
@@ -748,7 +748,7 @@ impl From<PyTrustRegionRadiusMethod> for TrustRegionRadiusMethod {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone)]
 pub struct PyTrustRegion {
     #[pyo3(get, set)]
@@ -829,7 +829,7 @@ fn trustregion(
     PyTrustRegion { trust_region_radius_method, max_iter, radius, max_radius, eta }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone)]
 /// COBYLA (Constrained Optimization BY Linear Approximations) solver configuration.
 ///

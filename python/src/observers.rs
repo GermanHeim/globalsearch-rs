@@ -3,7 +3,7 @@ use pyo3::prelude::*;
 use std::sync::{Arc, RwLock};
 
 /// Observer mode determines which stages to track
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PyObserverMode {
     /// Only track Stage 1 (reference set construction)
@@ -29,7 +29,7 @@ impl From<PyObserverMode> for ObserverMode {
 /// Tracks comprehensive metrics during the scatter search phase that builds
 /// the initial reference set. This includes reference set construction,
 /// trial point generation, function evaluations, and substage progression.
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Debug, Clone)]
 pub struct PyStage1State {
     inner: Stage1State,
@@ -140,7 +140,7 @@ impl From<Stage1State> for PyStage1State {
 /// Tracks comprehensive metrics during the iterative refinement phase that
 /// improves the solution set through merit filtering and local optimization.
 /// This phase focuses on intensifying search around high-quality regions.
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Debug, Clone)]
 pub struct PyStage2State {
     inner: Stage2State,

@@ -86,7 +86,7 @@ class ProblemProtocol(Protocol):
     """
 
     objective: ObjectiveFunctionProtocol
-    variable_bounds: BoundsFunctionProtocol
+    variable_bounds: Union[NDArray[np.float64], BoundsFunctionProtocol]
     gradient: Optional[GradientFunctionProtocol]
     hessian: Optional[HessianFunctionProtocol]
     constraints: Optional[List[ConstraintFunctionProtocol]]
@@ -180,6 +180,15 @@ class PyLocalSolution:
 
         :return: The solution point in parameter space
         :rtype: List[float]
+        """
+        ...
+
+    def as_array(self) -> NDArray[np.float64]:
+        """
+        Returns the solution point as a NumPy 1D array.
+
+        :return: The solution coordinates as a ``numpy.ndarray`` of shape ``(n,)``
+        :rtype: numpy.ndarray
         """
         ...
 
@@ -342,8 +351,9 @@ class PyProblem:
     - **constraints**: ``List[(x: NDArray[np.float64]) -> float]``
         List of constraint functions where ``constraint(x) >= 0`` means satisfied
 
-    - **variable_bounds**: ``() -> NDArray[np.float64]``
-        Returns array of shape ``(n_vars, 2)`` with ``[lower, upper]`` bounds per variable
+    - **variable_bounds**: ``NDArray[np.float64]`` *or* ``() -> NDArray[np.float64]``
+        Array of shape ``(n_vars, 2)`` with ``[lower, upper]`` bounds per variable,
+        or a zero-argument callable returning such an array.
 
     **Solver Requirements**
 
@@ -402,14 +412,14 @@ class PyProblem:
     """
 
     objective: Callable[[NDArray[np.float64]], float]
-    variable_bounds: Callable[[], NDArray[np.float64]]
+    variable_bounds: Union[NDArray[np.float64], Callable[[], NDArray[np.float64]]]
     gradient: Optional[Callable[[NDArray[np.float64]], NDArray[np.float64]]]
     hessian: Optional[Callable[[NDArray[np.float64]], NDArray[np.float64]]]
     constraints: Optional[List[Callable[[NDArray[np.float64]], float]]]
     def __init__(
         self,
         objective: Callable[[NDArray[np.float64]], float],
-        variable_bounds: Callable[[], NDArray[np.float64]],
+        variable_bounds: Union[NDArray[np.float64], Callable[[], NDArray[np.float64]]],
         gradient: Optional[Callable[[NDArray[np.float64]], NDArray[np.float64]]] = None,
         hessian: Optional[Callable[[NDArray[np.float64]], NDArray[np.float64]]] = None,
         constraints: Optional[List[Callable[[NDArray[np.float64]], float]]] = None,
@@ -427,8 +437,9 @@ class PyProblem:
 
         :param objective: Function that computes the objective value to be minimized
         :type objective: Callable[[NDArray[np.float64]], float]
-        :param variable_bounds: Function that returns an array of [lower, upper] bounds for each variable
-        :type variable_bounds: Callable[[], NDArray[np.float64]]
+        :param variable_bounds: Bounds array of shape (n_vars, 2), or a zero-argument
+            callable returning one.
+        :type variable_bounds: NDArray[np.float64] or Callable[[], NDArray[np.float64]]
         :param gradient: Optional function that computes the gradient of the objective
         :type gradient: Optional[Callable[[NDArray[np.float64]], NDArray[np.float64]]]
         :param hessian: Optional function that computes the Hessian of the objective
@@ -436,7 +447,7 @@ class PyProblem:
         :param constraints: Optional list of constraint functions. Each constraint is satisfied when constraint(x) >= 0
         :type constraints: Optional[List[Callable[[NDArray[np.float64]], float]]]
 
-        :raises ValueError: If functions have incorrect signatures or bounds have wrong shape
+        :raises ValueError: If variable_bounds has wrong shape or the callable fails
         """
         ...
 
