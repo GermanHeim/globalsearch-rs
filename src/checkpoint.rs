@@ -375,7 +375,7 @@ impl CheckpointManager {
             }
         }
 
-        checkpoints.sort_by(|a, b| b.0.cmp(&a.0));
+        checkpoints.sort_by_key(|b| std::cmp::Reverse(b.0));
         for (_, path) in checkpoints.iter().skip(keep_count) {
             fs::remove_file(path).map_err(|e| CheckpointError::IoError {
                 operation: "delete".to_string(),
