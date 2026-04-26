@@ -804,7 +804,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
                 observer.invoke_callback();
             }
 
-            self.process_local_solution(local_sol)?;
+            self.process_local_solution(&local_sol)?;
 
             // Check if target objective has been reached after Stage 1
             if self.target_objective_reached() {
@@ -1070,7 +1070,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
     }
 
     /// Process a local solution, updating the best solution and filters
-    fn process_local_solution(&mut self, solution: LocalSolution) -> Result<bool, OQNLPError> {
+    fn process_local_solution(&mut self, solution: &LocalSolution) -> Result<bool, OQNLPError> {
         let abs_tol = self.abs_tol;
         let rel_tol = self.rel_tol;
 
@@ -1083,7 +1083,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
                 );
             }
             // Still add to distance filter to maintain diversity, but don't add to solution set
-            self.distance_filter.add_solution(solution);
+            self.distance_filter.add_solution(solution.clone());
             return Ok(false);
         }
 
@@ -1102,7 +1102,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
             self.solution_set =
                 Some(SolutionSet { solutions: Array1::from(vec![solution.clone()]) });
             self.merit_filter.update_threshold(solution.objective);
-            self.distance_filter.add_solution(solution);
+            self.distance_filter.add_solution(solution.clone());
 
             return Ok(true);
         };
@@ -1162,7 +1162,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
             false
         };
 
-        self.distance_filter.add_solution(solution);
+        self.distance_filter.add_solution(solution.clone());
         Ok(added)
     }
 
@@ -1651,8 +1651,6 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
                 self.current_seed = self.params.seed + self.current_iteration as u64;
             }
 
-            let trial = trial.clone();
-
             // Observer: Update iteration
             if let Some(ref mut observer) = self.observer {
                 if observer.should_observe_stage2() {
@@ -1692,17 +1690,17 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
                 // Only track evaluations if observer is active
                 let (local_trial, eval_count) = if let Some(ref mut observer) = self.observer {
                     if observer.should_observe_stage2() {
-                        self.local_solver.solve_with_tracking(trial, true)?
+                        self.local_solver.solve_with_tracking(trial.to_owned(), true)?
                     } else {
-                        let sol = self.local_solver.solve(trial)?;
+                        let sol = self.local_solver.solve(trial.to_owned())?;
                         (sol, 0)
                     }
                 } else {
-                    let sol = self.local_solver.solve(trial)?;
+                    let sol = self.local_solver.solve(trial.to_owned())?;
                     (sol, 0)
                 };
 
-                let added: bool = self.process_local_solution(local_trial.clone())?;
+                let added: bool = self.process_local_solution(&local_trial)?;
 
                 // Observer: Track local solver call and results
                 if let Some(ref mut observer) = self.observer {
@@ -1902,20 +1900,20 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
                         );
 
                         let (local_solution, eval_count) = if track_evals {
-                            local_solver.solve_with_tracking(trial.clone(), true)?
+                            local_solver.solve_with_tracking(trial.to_owned(), true)?
                         } else {
-                            let sol = local_solver.solve(trial.clone())?;
+                            let sol = local_solver.solve(trial.to_owned())?;
                             (sol, 0)
                         };
 
-                        Ok((*local_iter, trial.clone(), *obj, local_solution, eval_count))
+                        Ok((*local_iter, *obj, local_solution, eval_count))
                     })
                     .collect();
 
                 let local_results = local_results?;
 
                 // Process local results sequentially to maintain state consistency
-                for (local_iter, _trial, obj, local_solution, eval_count) in local_results {
+                for (local_iter, obj, local_solution, eval_count) in local_results {
                     #[cfg(feature = "checkpointing")]
                     {
                         self.current_iteration = local_iter;
@@ -1924,7 +1922,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
                     }
 
                     self.merit_filter.update_threshold(obj);
-                    let added = self.process_local_solution(local_solution.clone())?;
+                    let added = self.process_local_solution(&local_solution)?;
 
                     // Observer: Track local solver call and results (parallel case)
                     if let Some(ref mut observer) = self.observer {
@@ -2007,7 +2005,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
                         (sol, 0)
                     };
 
-                    let added = self.process_local_solution(local_trial.clone())?;
+                    let added = self.process_local_solution(&local_trial)?;
 
                     // Observer: Track local solver call and results (single local search case)
                     if let Some(ref mut observer) = self.observer {
@@ -2081,7 +2079,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
                         .local_solver
                         .solve(trial)
                         .map_err(|e| OQNLPError::LocalSolverError(e.to_string()))?;
-                    let added = self.process_local_solution(local_trial.clone())?;
+                    let added = self.process_local_solution(&local_trial)?;
 
                     if self.verbose && added {
                         println!(
@@ -2167,7 +2165,7 @@ mod tests_oqnlp {
         let trial = Array1::from(vec![1.0, 2.0, 3.0]);
         let ls: LocalSolution = LocalSolution { objective: trial.sum(), point: trial.clone() };
 
-        let added: bool = oqnlp.process_local_solution(ls.clone()).unwrap();
+        let added: bool = oqnlp.process_local_solution(&ls).unwrap();
         // For the first solution, no duplicate exists so added should be true
         // and the solution set should contain one solution
         assert!(added);
@@ -2188,10 +2186,10 @@ mod tests_oqnlp {
         let ls: LocalSolution = LocalSolution { objective: trial.sum(), point: trial.clone() };
 
         // Process the solution for the first time
-        oqnlp.process_local_solution(ls.clone()).unwrap();
+        oqnlp.process_local_solution(&ls).unwrap();
 
         // Process the duplicate solution, it should not be added
-        let added: bool = oqnlp.process_local_solution(ls.clone()).unwrap();
+        let added: bool = oqnlp.process_local_solution(&ls).unwrap();
         let sol_set = oqnlp.solution_set.unwrap();
         assert_eq!(sol_set.len(), 1);
         assert!(!added);
@@ -2207,12 +2205,12 @@ mod tests_oqnlp {
         // First solution with objective 6.0
         let trial1 = Array1::from(vec![2.0, 2.0, 2.0]);
         let ls1: LocalSolution = LocalSolution { objective: trial1.sum(), point: trial1.clone() };
-        oqnlp.process_local_solution(ls1).unwrap();
+        oqnlp.process_local_solution(&ls1).unwrap();
 
         // Second solution with objective 3.0 (better)
         let trial2 = Array1::from(vec![1.0, 1.0, 1.0]);
         let ls2: LocalSolution = LocalSolution { objective: trial2.sum(), point: trial2.clone() };
-        let added: bool = oqnlp.process_local_solution(ls2.clone()).unwrap();
+        let added: bool = oqnlp.process_local_solution(&ls2).unwrap();
 
         // When a new best is found, the solution set is replaced
         let sol_set: SolutionSet = oqnlp.solution_set.unwrap();
@@ -2512,13 +2510,12 @@ mod tests_oqnlp {
         };
 
         // Test that out-of-bounds solution is rejected
-        let added_out_of_bounds = oqnlp.process_local_solution(out_of_bounds_solution).unwrap();
+        let added_out_of_bounds = oqnlp.process_local_solution(&out_of_bounds_solution).unwrap();
         assert!(!added_out_of_bounds);
         assert!(oqnlp.solution_set.is_none()); // No solution should be added
 
         // Test that within-bounds solution is accepted
-        let added_within_bounds =
-            oqnlp.process_local_solution(within_bounds_solution.clone()).unwrap();
+        let added_within_bounds = oqnlp.process_local_solution(&within_bounds_solution).unwrap();
         assert!(added_within_bounds);
         assert!(oqnlp.solution_set.is_some());
         let sol_set = oqnlp.solution_set.unwrap();
@@ -2533,8 +2530,7 @@ mod tests_oqnlp {
         let out_of_bounds_solution2 =
             LocalSolution { point: Array1::from(vec![15.0, 20.0, 25.0]), objective: 60.0 };
 
-        let added_out_of_bounds2 =
-            oqnlp2.process_local_solution(out_of_bounds_solution2.clone()).unwrap();
+        let added_out_of_bounds2 = oqnlp2.process_local_solution(&out_of_bounds_solution2).unwrap();
         assert!(added_out_of_bounds2);
         assert!(oqnlp2.solution_set.is_some());
         let sol_set2 = oqnlp2.solution_set.unwrap();
@@ -2573,18 +2569,18 @@ mod tests_oqnlp {
         };
 
         // Process out-of-bounds solution - should be rejected even if it meets target
-        oqnlp.process_local_solution(out_of_bounds_good_obj).unwrap();
+        oqnlp.process_local_solution(&out_of_bounds_good_obj).unwrap();
         assert!(!oqnlp.target_objective_reached()); // Should not reach target due to bounds
 
         // Process within-bounds solution that meets target - should be accepted
-        oqnlp.process_local_solution(within_bounds_good_obj).unwrap();
+        oqnlp.process_local_solution(&within_bounds_good_obj).unwrap();
         assert!(oqnlp.target_objective_reached()); // Should reach target
 
         // Reset for next test
         oqnlp.solution_set = None;
 
         // Process within-bounds solution that doesn't meet target - should be accepted but target not reached
-        oqnlp.process_local_solution(within_bounds_bad_obj).unwrap();
+        oqnlp.process_local_solution(&within_bounds_bad_obj).unwrap();
         assert!(!oqnlp.target_objective_reached()); // Should not reach target due to objective
     }
 
