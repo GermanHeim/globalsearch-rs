@@ -1136,7 +1136,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
             }
 
             false
-        } else if obj_diff <= tol && !self.is_duplicate_in_set(&solution, &solutions) {
+        } else if obj_diff <= tol && !self.is_duplicate_in_set(solution, &solutions) {
             // Similar objective value and not duplicate, add to set
             let mut new_solutions: Vec<LocalSolution> = solutions.to_vec();
             new_solutions.push(solution.clone());
@@ -1670,7 +1670,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
                 objectives[ref_set_index]
             } else {
                 // Fallback to evaluating objective function (e.g., when resuming from checkpoint)
-                self.problem.objective(&trial).map_err(|_| {
+                self.problem.objective(trial).map_err(|_| {
                     OQNLPError::ObjectiveFunctionEvaluationFailed { stage: "unknown".to_string() }
                 })?
             };
@@ -1684,7 +1684,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
                 }
             }
 
-            if self.should_start_local(&trial, obj)? {
+            if self.should_start_local(trial, obj)? {
                 self.merit_filter.update_threshold(obj);
 
                 // Only track evaluations if observer is active
