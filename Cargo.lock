@@ -214,12 +214,9 @@ checksum = "702fc72eb24e5a1e48ce58027a675bc24edd52096d5397d4aea7c6dd9eca0bd1"
 
 [[package]]
 name = "cobyla"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33946cfffe8fc6ee4c8818ea13ac805e3017e8b126d060e1d3766a49ca0c86b7"
-dependencies = [
- "libc",
-]
+checksum = "4d7c3233e5d400a8fd61b50b79797d28a0657e4c0abeb41469b69d2d9d60ef3e"
 
 [[package]]
 name = "core-foundation-sys"
