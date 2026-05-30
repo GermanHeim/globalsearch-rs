@@ -184,7 +184,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-globalsearch = "0.5.0"
+globalsearch = "0.6.0"
 ```
 
 Or use `cargo add globalsearch` in your project directory.
