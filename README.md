@@ -46,35 +46,6 @@ Similar to MATLAB's `GlobalSearch` \[2\], using cobyla, argmin, rayon and ndarra
 
 - 🔄 Checkpointing support for long-running optimizations
 
-## Installation
-
-### Using as a dependency
-
-Add this to your `Cargo.toml`:
-
-```toml
-[dependencies]
-globalsearch = "0.5.0"
-```
-
-Or use `cargo add globalsearch` in your project directory.
-
-### Building from source
-
-1. Install Rust toolchain using [rustup](https://rustup.rs/).
-2. Clone repository:
-
-   ```bash
-   git clone https://github.com/GermanHeim/globalsearch-rs.git
-   cd globalsearch-rs
-   ```
-
-3. Build the project:
-
-   ```bash
-   cargo build --release
-   ```
-
 ## Usage
 
 1. Define a problem by implementing the `Problem` trait.
@@ -203,6 +174,35 @@ Or use `cargo add globalsearch` in your project directory.
 
         Ok(())
    }
+   ```
+
+## Installation
+
+### Using as a dependency
+
+Add this to your `Cargo.toml`:
+
+```toml
+[dependencies]
+globalsearch = "0.5.0"
+```
+
+Or use `cargo add globalsearch` in your project directory.
+
+### Building from source
+
+1. Install Rust toolchain using [rustup](https://rustup.rs/).
+2. Clone repository:
+
+   ```bash
+   git clone https://github.com/GermanHeim/globalsearch-rs.git
+   cd globalsearch-rs
+   ```
+
+3. Build the project:
+
+   ```bash
+   cargo build --release
    ```
 
 ## Project Structure
