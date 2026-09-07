@@ -34,7 +34,8 @@
 //! - **Sign Convention**:
 //!   - `g(x) ≥ 0`: Constraint satisfied
 //!   - `g(x) < 0`: Constraint violated
-//! - **Return Type**: Vector of constraint function closures
+//! - **Return Type**: A vector containing all constraint values at the given point
+//! - **Requirement**: The number and order of constraint values must remain stable
 //! - **Use Cases**: Nonlinear inequality constraints beyond simple bounds
 //!
 //! ## Example: Six-Hump Camel Function
@@ -89,6 +90,7 @@
 
 use crate::types::EvaluationError;
 use ndarray::{Array1, Array2};
+use std::sync::OnceLock;
 
 /// # Trait for optimization problems
 ///
@@ -142,16 +144,17 @@ pub trait Problem {
     /// You may be able to guide your solutions to your desired bounds/constraints by using a penalty method.
     fn variable_bounds(&self) -> Array2<f64>;
 
-    /// Constraint functions for constrained optimization
+    /// Evaluates the constraints at `x`.
     ///
-    /// Returns constraint functions in the format expected by optimization solvers.
-    /// Function pointers that take (&[f64], &mut ()) and return f64.
+    /// The returned array must contain the same number of values in the same order
+    /// on every successful evaluation. The first evaluation determines the number
+    /// of constraints for an optimization run.
     ///
     /// **Sign Convention**:
     /// - **Positive or zero**: constraint satisfied  
     /// - **Negative**: constraint violated
     ///
-    /// The default implementation returns an empty vector (no constraints).
+    /// The default implementation returns an empty array (no constraints).
     ///
     /// # Examples
     ///
@@ -170,14 +173,116 @@ pub trait Problem {
     ///         ndarray::array![[-1.0, 1.0], [-1.0, 1.0]]
     ///     }
     ///
-    ///     fn constraints(&self) -> Vec<fn(&[f64], &mut ()) -> f64> {
-    ///         vec![
-    ///             |x: &[f64], _: &mut ()| 1.0 - x[0] - x[1], // x[0] + x[1] <= 1.0 -> 1.0 - x[0] - x[1] >= 0
-    ///         ]
+    ///     fn constraints(&self, x: &Array1<f64>) -> Result<Array1<f64>, EvaluationError> {
+    ///         Ok(ndarray::array![
+    ///             1.0 - x[0] - x[1], // x[0] + x[1] <= 1.0
+    ///         ])
     ///     }
     /// }
     /// ```
-    fn constraints(&self) -> Vec<fn(&[f64], &mut ()) -> f64> {
-        vec![]
+    fn constraints(&self, _x: &Array1<f64>) -> Result<Array1<f64>, EvaluationError> {
+        Ok(Array1::from_vec(Vec::new()))
+    }
+}
+
+pub(crate) fn evaluate_constraints<P: Problem>(
+    problem: &P,
+    x: &Array1<f64>,
+    dimension: &OnceLock<usize>,
+) -> Result<Array1<f64>, EvaluationError> {
+    if dimension.get() == Some(&0) {
+        return Ok(Array1::from_vec(Vec::new()));
+    }
+
+    let constraints = problem.constraints(x)?;
+    let actual = constraints.len();
+    let expected = *dimension.get_or_init(|| actual);
+
+    if actual != expected {
+        return Err(EvaluationError::ConstraintDimensionMismatch { expected, actual });
+    }
+
+    Ok(constraints)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ndarray::array;
+
+    struct ParameterizedConstraint {
+        limit: f64,
+    }
+
+    impl Problem for ParameterizedConstraint {
+        fn objective(&self, x: &Array1<f64>) -> Result<f64, EvaluationError> {
+            Ok(x.sum())
+        }
+
+        fn variable_bounds(&self) -> Array2<f64> {
+            array![[0.0, 2.0], [0.0, 2.0]]
+        }
+
+        fn constraints(&self, x: &Array1<f64>) -> Result<Array1<f64>, EvaluationError> {
+            Ok(array![self.limit - x.sum()])
+        }
+    }
+
+    #[test]
+    fn constraints_can_use_problem_data() {
+        let problem = ParameterizedConstraint { limit: 1.5 };
+
+        assert_eq!(problem.constraints(&array![0.5, 0.25]).unwrap(), array![0.75]);
+    }
+
+    #[test]
+    fn constraints_default_to_an_empty_vector() {
+        struct Unconstrained;
+
+        impl Problem for Unconstrained {
+            fn objective(&self, x: &Array1<f64>) -> Result<f64, EvaluationError> {
+                Ok(x.sum())
+            }
+
+            fn variable_bounds(&self) -> Array2<f64> {
+                array![[0.0, 1.0]]
+            }
+        }
+
+        let problem = Unconstrained;
+
+        assert!(problem.constraints(&array![0.5]).unwrap().is_empty());
+    }
+
+    #[test]
+    fn constraint_dimension_is_validated() {
+        struct VariableDimensionConstraints;
+
+        impl Problem for VariableDimensionConstraints {
+            fn objective(&self, x: &Array1<f64>) -> Result<f64, EvaluationError> {
+                Ok(x.sum())
+            }
+
+            fn variable_bounds(&self) -> Array2<f64> {
+                array![[0.0, 1.0]]
+            }
+
+            fn constraints(&self, x: &Array1<f64>) -> Result<Array1<f64>, EvaluationError> {
+                if x[0] < 0.5 { Ok(array![1.0, 2.0]) } else { Ok(array![1.0]) }
+            }
+        }
+
+        let dimension = OnceLock::new();
+        let constraints =
+            evaluate_constraints(&VariableDimensionConstraints, &array![0.25], &dimension).unwrap();
+        assert_eq!(constraints, array![1.0, 2.0]);
+
+        let error = evaluate_constraints(&VariableDimensionConstraints, &array![0.75], &dimension)
+            .unwrap_err();
+
+        assert!(matches!(
+            error,
+            EvaluationError::ConstraintDimensionMismatch { expected: 2, actual: 1 }
+        ));
     }
 }

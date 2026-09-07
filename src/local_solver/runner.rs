@@ -66,7 +66,7 @@
 use crate::local_solver::builders::LocalSolverConfig;
 #[cfg(feature = "argmin")]
 use crate::local_solver::builders::{LineSearchMethod, TrustRegionRadiusMethod};
-use crate::problem::Problem;
+use crate::problem::{Problem, evaluate_constraints};
 use crate::types::{LocalSolution, LocalSolverType};
 #[cfg(feature = "argmin")]
 use argmin::core::{CostFunction, Error, Executor, Gradient, Hessian};
@@ -963,7 +963,7 @@ impl<P: Problem> LocalSolver<P> {
         track_evaluations: bool,
     ) -> Result<(LocalSolution, u64), LocalSolverError> {
         use std::sync::{
-            Arc,
+            Arc, OnceLock,
             atomic::{AtomicU64, Ordering},
         };
 
@@ -995,7 +995,54 @@ impl<P: Problem> LocalSolver<P> {
                 self.problem.objective(&point).unwrap_or(f64::INFINITY)
             };
 
-            let constraint_funcs = self.problem.constraints();
+            let constraint_dimension = Arc::new(OnceLock::new());
+            let initial_constraints =
+                evaluate_constraints(&self.problem, &initial_point, &constraint_dimension)
+                    .map_err(|error| LocalSolverError::RunFailed {
+                        solver_type: "COBYLA".to_string(),
+                        reason: error.to_string(),
+                    })?;
+            let constraint_count = initial_constraints.len();
+            let constraint_cache =
+                Arc::new(std::sync::Mutex::new(Some((x0.clone(), initial_constraints.to_vec()))));
+            let constraint_error = Arc::new(std::sync::Mutex::new(None));
+            let constraint_funcs: Vec<_> = (0..constraint_count)
+                .map(|index| {
+                    let constraint_cache = Arc::clone(&constraint_cache);
+                    let constraint_dimension = Arc::clone(&constraint_dimension);
+                    let constraint_error = Arc::clone(&constraint_error);
+
+                    move |x: &[f64], _user_data: &mut ()| -> f64 {
+                        let mut cache = constraint_cache
+                            .lock()
+                            .expect("COBYLA constraint cache mutex poisoned");
+                        let needs_evaluation = cache
+                            .as_ref()
+                            .is_none_or(|(cached_x, _): &(Vec<f64>, Vec<f64>)| cached_x != x);
+
+                        if needs_evaluation {
+                            let point = Array1::from_vec(x.to_vec());
+                            let values = match evaluate_constraints(
+                                &self.problem,
+                                &point,
+                                &constraint_dimension,
+                            ) {
+                                Ok(values) => values.to_vec(),
+                                Err(error) => {
+                                    *constraint_error
+                                        .lock()
+                                        .expect("COBYLA constraint error mutex poisoned") =
+                                        Some(error.to_string());
+                                    vec![f64::NEG_INFINITY; constraint_count]
+                                }
+                            };
+                            *cache = Some((x.to_vec(), values));
+                        }
+
+                        cache.as_ref().expect("constraint values were cached").1[index]
+                    }
+                })
+                .collect();
             let problem_bounds = self.problem.variable_bounds();
 
             if problem_bounds.nrows() != x0.len() {
@@ -1012,7 +1059,7 @@ impl<P: Problem> LocalSolver<P> {
             let bounds: Vec<(f64, f64)> =
                 (0..x0.len()).map(|i| (problem_bounds[[i, 0]], problem_bounds[[i, 1]])).collect();
 
-            match cobyla::minimize(
+            let result = cobyla::minimize(
                 objective,
                 &x0,
                 &bounds,
@@ -1026,7 +1073,18 @@ impl<P: Problem> LocalSolver<P> {
                     xtol_rel: *xtol_rel,
                     xtol_abs: if xtol_abs.is_empty() { vec![] } else { xtol_abs.clone() },
                 }),
-            ) {
+            );
+
+            if let Some(reason) =
+                constraint_error.lock().expect("COBYLA constraint error mutex poisoned").take()
+            {
+                return Err(LocalSolverError::RunFailed {
+                    solver_type: "COBYLA".to_string(),
+                    reason,
+                });
+            }
+
+            match result {
                 Ok((_status, solution_x, objective_value)) => {
                     let solution_point = Array1::from_vec(solution_x);
                     let solution =
@@ -1086,10 +1144,8 @@ mod tests_local_solvers {
             array![[0.0, 2.0], [0.0, 2.0]]
         }
 
-        fn constraints(&self) -> Vec<fn(&[f64], &mut ()) -> f64> {
-            vec![
-                |x: &[f64], _: &mut ()| 1.5 - x[0] - x[1], // x + y <= 1.5 -> 1.5 - x - y >= 0
-            ]
+        fn constraints(&self, x: &Array1<f64>) -> Result<Array1<f64>, EvaluationError> {
+            Ok(array![1.5 - x[0] - x[1]])
         }
     }
 
@@ -1599,16 +1655,15 @@ mod tests_local_solvers {
     /// Test that constraint evaluation works correctly
     fn test_constraint_evaluation() {
         let problem = ConstrainedQuadratic;
-        let constraints = problem.constraints();
 
         // Test constraint at a point that satisfies it
         let feasible_point = array![0.5, 0.5];
-        let constraint_val = constraints[0](&[feasible_point[0], feasible_point[1]], &mut ());
+        let constraint_val = problem.constraints(&feasible_point).unwrap()[0];
         assert!(constraint_val > 0.0); // Should be positive (satisfied in COBYLA convention)
 
         // Test constraint at a point that violates it
         let infeasible_point = array![1.0, 1.0];
-        let constraint_val = constraints[0](&[infeasible_point[0], infeasible_point[1]], &mut ());
+        let constraint_val = problem.constraints(&infeasible_point).unwrap()[0];
         assert!(constraint_val < 0.0); // Should be negative (violated in COBYLA convention)
     }
 

@@ -2,8 +2,9 @@
 Tests for error handling and validation in pyglobalsearch.
 """
 
-import pyglobalsearch as gs
 import numpy as np
+import pyglobalsearch as gs
+import pytest
 from numpy.typing import NDArray
 
 
@@ -125,3 +126,18 @@ def test_local_solver_config_matching_name_is_allowed():
         problem, params, local_solver="COBYLA", local_solver_config=cobyla_config
     )
     assert result is not None
+
+
+def test_constraint_error_is_propagated():
+    """Errors raised by constraint callbacks reach the Python caller."""
+
+    def failing_constraint(_x):
+        raise RuntimeError("constraint failure")
+
+    constrained_problem = gs.PyProblem(
+        obj, variable_bounds, constraints=[failing_constraint]
+    )
+    small_params = gs.PyOQNLPParams(iterations=1, population_size=20, wait_cycle=1)
+
+    with pytest.raises(ValueError, match="constraint failure"):
+        gs.optimize(constrained_problem, small_params)

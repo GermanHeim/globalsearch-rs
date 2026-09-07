@@ -79,15 +79,15 @@ Similar to MATLAB's `GlobalSearch` \[2\], using cobyla, argmin, rayon and ndarra
            array![[..., ...], [..., ...]] // Lower and upper bounds for each variable
        }
 
-       fn constraints(&self) -> Vec<fn(&[f64], &mut ()) -> f64> {
-            vec![
-              ..., // Optional: Constraint functions here, only valid with COBYLA
-            ]
+       fn constraints(&self, x: &Array1<f64>) -> Result<Array1<f64>, EvaluationError> {
+            Ok(array![
+              ..., // Optional: Constraint values here, only valid with COBYLA
+            ])
        }
    }
    ```
 
-   The `constraints` method (only available with the COBYLA local solver) allows you to define constraint functions for constrained optimization problems. Constraints should follow the sign convention:
+   The `constraints` method (only available with the COBYLA local solver) evaluates every constraint at a point. Its output length and order must remain stable throughout optimization. Constraints follow this sign convention:
    - **Positive or zero**: constraint satisfied  
    - **Negative**: constraint violated
 
@@ -96,11 +96,11 @@ Similar to MATLAB's `GlobalSearch` \[2\], using cobyla, argmin, rayon and ndarra
    ```rust
    impl Problem for MinimizeProblem {
        // ...
-       fn constraints(&self) -> Vec<fn(&[f64], &mut ()) -> f64> {
-           vec![
-               |x: &[f64], _: &mut ()| 1.0 - x[0] - x[1], // x[0] + x[1] <= 1.0
-               |x: &[f64], _: &mut ()| x[0] - 0.5,        // x[0] >= 0.5
-           ]
+       fn constraints(&self, x: &Array1<f64>) -> Result<Array1<f64>, EvaluationError> {
+           Ok(array![
+               1.0 - x[0] - x[1], // x[0] + x[1] <= 1.0
+               x[0] - 0.5,        // x[0] >= 0.5
+           ])
        }
    }
    ```
