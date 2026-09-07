@@ -599,7 +599,6 @@ impl Problem for PyProblem {
             Ok(Array1::from_vec(values))
         })
     }
-
 }
 
 /// Perform global optimization on the given problem.
