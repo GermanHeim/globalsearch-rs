@@ -190,6 +190,10 @@ pub(crate) fn evaluate_constraints<P: Problem>(
     x: &Array1<f64>,
     dimension: &OnceLock<usize>,
 ) -> Result<Array1<f64>, EvaluationError> {
+    if dimension.get() == Some(&0) {
+        return Ok(Array1::from_vec(Vec::new()));
+    }
+
     let constraints = problem.constraints(x)?;
     let actual = constraints.len();
     let expected = *dimension.get_or_init(|| actual);
