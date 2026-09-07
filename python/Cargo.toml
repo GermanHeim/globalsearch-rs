@@ -22,7 +22,6 @@ globalsearch = { version = "0.6.0", path = "..", features = ["rayon", "argmin"] 
 pyo3 = { version = "0.28.3", features = ["extension-module"] }
 ndarray = "0.16.1"
 numpy = "0.28.0"
-seq-macro = "0.3"
 
 [package.metadata.maturin]
 bindings = "pyo3"

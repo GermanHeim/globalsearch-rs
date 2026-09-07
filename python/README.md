@@ -124,7 +124,6 @@ The Python bindings are still in development and may not be fully functional. Th
 Additionally, the Python bindings have limitations:
 
 - No support for checkpointing
-- Maximum number of constraints is 1000
 
 ## License
 

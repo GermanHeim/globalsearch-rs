@@ -52,16 +52,14 @@ impl Problem for ConstrainedProblem {
         ]
     }
 
-    /// General constraints (only supported by COBYLA)
-    /// Return value ≥ 0 means constraint is satisfied
-    /// Return value < 0 means constraint is violated
-    fn constraints(&self) -> Vec<fn(&[f64], &mut ()) -> f64> {
-        vec![
-            // Constraint 1: x + y ≤ 1.5  ⇒  1.5 - x - y ≥ 0
-            |x: &[f64], _: &mut ()| 1.5 - x[0] - x[1],
-            // Constraint 2: x² + y² ≥ 0.5  ⇒  x² + y² - 0.5 ≥ 0
-            |x: &[f64], _: &mut ()| x[0] * x[0] + x[1] * x[1] - 0.5,
-        ]
+    /// General constraints (only supported by COBYLA).
+    ///
+    /// Nonnegative values are feasible; negative values are violations.
+    fn constraints(&self, x: &Array1<f64>) -> Result<Array1<f64>, EvaluationError> {
+        Ok(array![
+            1.5 - x[0] - x[1],               // x + y ≤ 1.5
+            x[0] * x[0] + x[1] * x[1] - 0.5, // x² + y² ≥ 0.5
+        ])
     }
 }
 
@@ -124,7 +122,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Display results with constraint information
     println!(
         "{}",
-        solution_set.display_with_constraints(&problem, Some(&["x + y ≤ 1.5", "x² + y² ≥ 0.5"]))
+        solution_set.display_with_constraints(&problem, Some(&["x + y ≤ 1.5", "x² + y² ≥ 0.5"]))?
     );
 
     // Detailed analysis

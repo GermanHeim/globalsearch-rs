@@ -31,10 +31,11 @@
 //! ```
 
 use crate::local_solver::builders::{COBYLABuilder, LocalSolverConfig};
-use crate::problem::Problem;
+use crate::problem::{Problem, evaluate_constraints};
 use ndarray::Array1;
 use std::fmt;
 use std::ops::Index;
+use std::sync::OnceLock;
 use thiserror::Error;
 
 #[cfg(feature = "checkpointing")]
@@ -325,13 +326,18 @@ impl SolutionSet {
     /// # Returns
     ///
     /// A formatted string showing solutions with constraint violations
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a constraint cannot be evaluated or returns an
+    /// unexpected number of values.
     pub fn display_with_constraints<P: Problem>(
         &self,
         problem: &P,
         constraint_descriptions: Option<&[&str]>,
-    ) -> String {
+    ) -> Result<String, EvaluationError> {
         let mut result = String::new();
-        let constraints = problem.constraints();
+        let constraint_dimension = OnceLock::new();
 
         result.push_str("━━━━━━━━━━━ Solution Set ━━━━━━━━━━━\n");
         result.push_str(&format!("Total solutions: {}\n", self.solutions.len()));
@@ -349,14 +355,11 @@ impl SolutionSet {
             result.push_str("  Parameters:\n");
             result.push_str(&format!("    {:.8e}\n", solution.point));
 
-            // Add constraint violations if constraints exist
+            let constraints =
+                evaluate_constraints(problem, &solution.point, &constraint_dimension)?;
             if !constraints.is_empty() {
                 result.push_str("  Constraint violations:\n");
-                for (j, constraint_fn) in constraints.iter().enumerate() {
-                    let x_slice: Vec<f64> = solution.point.to_vec();
-                    let constraint_value = constraint_fn(&x_slice, &mut ());
-
-                    // Format constraint status
+                for (j, &constraint_value) in constraints.iter().enumerate() {
                     let status = if constraint_value >= 0.0 { "✓" } else { "✗" };
                     let violation = if constraint_value < 0.0 {
                         format!(" (violated by {:.6})", -constraint_value)
@@ -391,7 +394,7 @@ impl SolutionSet {
             }
         }
 
-        result
+        Ok(result)
     }
 
     /// Display solution set with constraint violations if the problem has constraints.
@@ -406,15 +409,13 @@ impl SolutionSet {
     /// # Returns
     ///
     /// A formatted string showing solutions with or without constraint violations
-    pub fn display_with_problem<P: Problem>(&self, problem: &P) -> String {
-        let constraints = problem.constraints();
-        if constraints.is_empty() {
-            // No constraints, use regular display
-            format!("{}", self)
-        } else {
-            // Has constraints, use constraint-aware display
-            self.display_with_constraints(problem, None)
-        }
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a constraint cannot be evaluated or returns an
+    /// unexpected number of values.
+    pub fn display_with_problem<P: Problem>(&self, problem: &P) -> Result<String, EvaluationError> {
+        self.display_with_constraints(problem, None)
     }
 }
 
@@ -591,6 +592,10 @@ pub enum EvaluationError {
     /// Includes the constraint index and error details
     #[error("Constraint {index} evaluation failed: {reason}")]
     ConstraintEvaluationFailed { index: usize, reason: String },
+
+    /// Error when the number of constraint values changes between evaluations
+    #[error("Constraint dimension mismatch: expected {expected} values, got {actual}")]
+    ConstraintDimensionMismatch { expected: usize, actual: usize },
 }
 
 #[cfg(feature = "checkpointing")]
@@ -1028,10 +1033,8 @@ mod tests_types {
                 ndarray::array![[-2.0, 2.0], [-2.0, 2.0]]
             }
 
-            fn constraints(&self) -> Vec<fn(&[f64], &mut ()) -> f64> {
-                vec![
-                    |x: &[f64], _: &mut ()| 1.0 - x[0] - x[1], // x[0] + x[1] <= 1.0
-                ]
+            fn constraints(&self, x: &Array1<f64>) -> Result<Array1<f64>, EvaluationError> {
+                Ok(array![1.0 - x[0] - x[1]])
             }
         }
 
@@ -1041,8 +1044,9 @@ mod tests_types {
         let problem = TestProblemWithConstraints;
 
         let constraint_descriptions = ["x[0] + x[1] <= 1.0"];
-        let display_output =
-            solution_set.display_with_constraints(&problem, Some(&constraint_descriptions));
+        let display_output = solution_set
+            .display_with_constraints(&problem, Some(&constraint_descriptions))
+            .unwrap();
 
         assert!(display_output.contains("Solution Set"));
         assert!(display_output.contains("Total solutions: 1"));
@@ -1077,7 +1081,7 @@ mod tests_types {
         let solution_set = SolutionSet { solutions };
         let problem = TestProblemNoConstraints;
 
-        let display_output = solution_set.display_with_problem(&problem);
+        let display_output = solution_set.display_with_problem(&problem).unwrap();
 
         assert!(display_output.contains("Solution Set"));
         assert!(display_output.contains("Total solutions: 1"));

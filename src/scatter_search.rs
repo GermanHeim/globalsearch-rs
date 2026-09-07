@@ -43,12 +43,12 @@
 //! ```
 
 use crate::observers::Observer;
-use crate::problem::Problem;
-use crate::types::OQNLPParams;
+use crate::problem::{Problem, evaluate_constraints};
+use crate::types::{EvaluationError, OQNLPParams};
 use ndarray::Array1;
 use rand::rngs::StdRng;
 use rand::{RngExt, SeedableRng};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use thiserror::Error;
 
 #[cfg(feature = "rayon")]
@@ -151,6 +151,7 @@ pub struct ScatterSearch<'a, P: Problem> {
     observer: Option<&'a mut Observer>,
     /// Custom points to seed the reference set
     custom_points: Option<Vec<Array1<f64>>>,
+    constraint_dimension: OnceLock<usize>,
 }
 
 impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
@@ -187,6 +188,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
             enable_parallel: true,
             observer: None,
             custom_points: None,
+            constraint_dimension: OnceLock::new(),
         };
 
         Ok(ss)
@@ -289,7 +291,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
             pb.update(1).expect("Failed to update progress bar");
         }
 
-        self.update_reference_set(&trial_points);
+        self.update_reference_set(&trial_points)?;
 
         // Update observer with intensification metrics
         if let Some(ref mut obs) = self.observer {
@@ -320,63 +322,60 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
     pub fn initialize_reference_set(&mut self) -> Result<(), ScatterSearchError> {
         let mut ref_set: Vec<Array1<f64>> = Vec::with_capacity(self.params.population_size);
 
-        // Get constraint functions for feasibility checking
-        let constraints = self.problem.constraints();
+        let seed_points = vec![
+            self.bounds.lower.to_owned(),
+            self.bounds.upper.to_owned(),
+            (&self.bounds.lower + &self.bounds.upper) / 2.0,
+        ];
 
-        // Add seed points (bounds and midpoint)
-        if constraints.is_empty() {
-            // No constraints - add all seed points directly
-            ref_set.push(self.bounds.lower.to_owned());
-            ref_set.push(self.bounds.upper.to_owned());
-            ref_set.push((&self.bounds.lower + &self.bounds.upper) / 2.0);
-        } else {
-            // With constraints - only add seed points that satisfy them
-            let seed_points = vec![
-                self.bounds.lower.to_owned(),
-                self.bounds.upper.to_owned(),
-                (&self.bounds.lower + &self.bounds.upper) / 2.0,
-            ];
-
-            for point in seed_points {
-                if is_feasible(&point, &constraints) {
-                    ref_set.push(point);
-                }
+        for point in seed_points {
+            if is_feasible(&point, &self.problem, &self.constraint_dimension)? {
+                ref_set.push(point);
             }
         }
 
         // Add custom points if provided (and they satisfy constraints)
         if let Some(ref custom_points) = self.custom_points {
-            if constraints.is_empty() {
-                // No constraints - add all custom points directly
-                ref_set.extend(custom_points.iter().cloned());
-            } else {
-                // With constraints - filter and add custom points that satisfy them
-                // Use parallelization only if we have many custom points (>= 100)
-                #[cfg(feature = "rayon")]
-                let feasible_custom: Vec<Array1<f64>> =
-                    if self.enable_parallel && custom_points.len() >= 100 {
-                        custom_points
-                            .par_iter()
-                            .filter(|point| is_feasible(point, &constraints))
-                            .cloned()
-                            .collect()
-                    } else {
-                        custom_points
-                            .iter()
-                            .filter(|point| is_feasible(point, &constraints))
-                            .cloned()
-                            .collect()
-                    };
+            // Use parallelization only if we have many custom points (>= 100)
+            #[cfg(feature = "rayon")]
+            let feasible_custom: Vec<Array1<f64>> =
+                if self.enable_parallel && custom_points.len() >= 100 {
+                    custom_points
+                        .par_iter()
+                        .map(|point| {
+                            is_feasible(point, &self.problem, &self.constraint_dimension)
+                                .map(|feasible| feasible.then(|| point.clone()))
+                        })
+                        .collect::<Result<Vec<_>, _>>()?
+                        .into_iter()
+                        .flatten()
+                        .collect()
+                } else {
+                    custom_points
+                        .iter()
+                        .map(|point| {
+                            is_feasible(point, &self.problem, &self.constraint_dimension)
+                                .map(|feasible| feasible.then(|| point.clone()))
+                        })
+                        .collect::<Result<Vec<_>, _>>()?
+                        .into_iter()
+                        .flatten()
+                        .collect()
+                };
 
-                #[cfg(not(feature = "rayon"))]
-                let feasible_custom: Vec<Array1<f64>> = custom_points
-                    .iter()
-                    .filter(|point| is_feasible(point, &constraints))
-                    .cloned()
-                    .collect();
+            #[cfg(not(feature = "rayon"))]
+            let feasible_custom: Vec<Array1<f64>> = custom_points
+                .iter()
+                .map(|point| {
+                    is_feasible(point, &self.problem, &self.constraint_dimension)
+                        .map(|feasible| feasible.then(|| point.clone()))
+                })
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .flatten()
+                .collect();
 
-                ref_set.extend(feasible_custom);
-            }
+            ref_set.extend(feasible_custom);
         }
 
         #[cfg(feature = "progress_bar")]
@@ -385,7 +384,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
             pb.update(1).expect("Failed to update progress bar");
         }
 
-        self.diversify_reference_set(&mut ref_set, &constraints)?;
+        self.diversify_reference_set(&mut ref_set)?;
 
         // Evaluate objectives for the initial reference set
         // Parallelize when we have many points (>= 20) as objective evaluations can be expensive
@@ -431,40 +430,36 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
     pub fn diversify_reference_set(
         &mut self,
         ref_set: &mut Vec<Array1<f64>>,
-        constraints: &[fn(&[f64], &mut ()) -> f64],
     ) -> Result<(), ScatterSearchError> {
         let mut candidates = self.generate_stratified_samples(self.params.population_size)?;
 
-        // Filter out constraint-violating candidates before diversification
-        if !constraints.is_empty() {
-            candidates.retain(|point| is_feasible(point, constraints));
+        // Filter out constraint-violating candidates before diversification.
+        candidates = filter_feasible(candidates, &self.problem, &self.constraint_dimension)?;
 
-            // If we don't have enough feasible candidates after filtering, generate more
-            let mut attempts = 0;
-            while candidates.len() < self.params.population_size && attempts < 10 {
-                let new_batch =
-                    self.generate_stratified_samples(self.params.population_size * 2)?;
-                let feasible_batch: Vec<Array1<f64>> =
-                    new_batch.into_iter().filter(|point| is_feasible(point, constraints)).collect();
-                candidates.extend(feasible_batch);
-                attempts += 1;
-            }
+        // If we don't have enough feasible candidates after filtering, generate more.
+        let mut attempts = 0;
+        while candidates.len() < self.params.population_size && attempts < 10 {
+            let new_batch = self.generate_stratified_samples(self.params.population_size * 2)?;
+            let feasible_batch =
+                filter_feasible(new_batch, &self.problem, &self.constraint_dimension)?;
+            candidates.extend(feasible_batch);
+            attempts += 1;
+        }
 
-            // If still insufficient candidates after multiple attempts, return error
-            if candidates.is_empty() {
-                return Err(ScatterSearchError::NoFeasibleCandidates {
-                    attempts,
-                    dimension: self.bounds.lower.len(),
-                });
-            }
+        // If still insufficient candidates after multiple attempts, return error.
+        if candidates.is_empty() {
+            return Err(ScatterSearchError::NoFeasibleCandidates {
+                attempts,
+                dimension: self.bounds.lower.len(),
+            });
+        }
 
-            // Check if we have enough total points (seed + custom + candidates) to reach population_size
-            if ref_set.len() + candidates.len() < self.params.population_size {
-                return Err(ScatterSearchError::NoFeasibleCandidates {
-                    attempts,
-                    dimension: self.bounds.lower.len(),
-                });
-            }
+        // Check if we have enough total points (seed + custom + candidates) to reach population_size.
+        if ref_set.len() + candidates.len() < self.params.population_size {
+            return Err(ScatterSearchError::NoFeasibleCandidates {
+                attempts,
+                dimension: self.bounds.lower.len(),
+            });
         }
 
         #[cfg(feature = "rayon")]
@@ -718,10 +713,13 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
         }
     }
 
-    pub fn update_reference_set(&mut self, trials: &[Array1<f64>]) {
+    pub fn update_reference_set(
+        &mut self,
+        trials: &[Array1<f64>],
+    ) -> Result<(), ScatterSearchError> {
         // Early termination if no trials
         if trials.is_empty() {
-            return;
+            return Ok(());
         }
 
         // Reference set is already sorted (from previous iteration or initialize_reference_set)
@@ -772,45 +770,62 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
             }
         };
 
-        // Get constraint functions for feasibility checking (cached for closure)
-        let constraints = self.problem.constraints();
-
         // Evaluate trial points with three-level filtering:
         // 1. Constraint feasibility check (if constraints exist)
         // 2. Cheap distance filter to skip near-duplicates (up to 5 distance computations)
         // 3. Expensive objective evaluation only for diverse, feasible points
-        let evaluate_trial = |point: &Array1<f64>| -> Option<(Array1<f64>, f64)> {
-            if !constraints.is_empty() && !is_feasible(point, &constraints) {
-                return None;
-            }
+        let evaluate_trial =
+            |point: &Array1<f64>| -> Result<Option<(Array1<f64>, f64)>, EvaluationError> {
+                if !is_feasible(point, &self.problem, &self.constraint_dimension)? {
+                    return Ok(None);
+                }
 
-            let is_diverse =
-                self.reference_set.iter().take(5).all(|ref_point| {
+                let is_diverse = self.reference_set.iter().take(5).all(|ref_point| {
                     euclidean_distance_squared(point, ref_point) > min_dist_threshold
                 });
 
-            if !is_diverse {
-                return None;
-            }
+                if !is_diverse {
+                    return Ok(None);
+                }
 
-            let obj = self.problem.objective(point).ok()?;
-            if obj < worst_obj { Some((point.clone(), obj)) } else { None }
-        };
+                let obj = match self.problem.objective(point) {
+                    Ok(obj) => obj,
+                    Err(_) => return Ok(None),
+                };
+                Ok((obj < worst_obj).then(|| (point.clone(), obj)))
+            };
 
         #[cfg(feature = "rayon")]
         let trial_evaluated: Vec<(Array1<f64>, f64)> = if self.enable_parallel {
-            trials.par_iter().filter_map(evaluate_trial).collect()
+            trials
+                .par_iter()
+                .map(evaluate_trial)
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .flatten()
+                .collect()
         } else {
-            trials.iter().filter_map(evaluate_trial).collect()
+            trials
+                .iter()
+                .map(evaluate_trial)
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .flatten()
+                .collect()
         };
 
         #[cfg(not(feature = "rayon"))]
-        let trial_evaluated: Vec<(Array1<f64>, f64)> =
-            trials.iter().filter_map(evaluate_trial).collect();
+        let trial_evaluated: Vec<(Array1<f64>, f64)> = trials
+            .iter()
+            .map(evaluate_trial)
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect();
 
         // If no trials passed filtering, keep current reference set unchanged
         if trial_evaluated.is_empty() {
-            return;
+            return Ok(());
         }
 
         // Prepare reference set for merging - avoid cloning by using mem::take
@@ -847,6 +862,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
         let (points, objectives): (Vec<Array1<f64>>, Vec<f64>) = all_points.into_iter().unzip();
         self.reference_set = points;
         self.reference_set_objectives = objectives;
+        Ok(())
     }
 
     pub fn best_solution(&self) -> Result<Array1<f64>, ScatterSearchError> {
@@ -893,34 +909,43 @@ fn euclidean_distance_squared(a: &Array1<f64>, b: &Array1<f64>) -> f64 {
     diff.dot(&diff)
 }
 
-/// Check if a point satisfies all constraints
+/// Check if a point satisfies all constraints.
 ///
-/// A point is feasible if all constraint functions return non-negative values.
+/// A point is feasible if all constraint values are non-negative.
 /// Constraint convention: g(x) >= 0 means satisfied, g(x) < 0 means violated.
 ///
 /// # Arguments
 /// * `point` - The point to check
-/// * `constraints` - Vector of constraint functions
+/// * `problem` - The problem defining the constraints
+/// * `constraint_dimension` - Dimension inferred from the first constraint evaluation
 ///
 /// # Returns
 /// * `true` if all constraints are satisfied or if there are no constraints
 /// * `false` if any constraint is violated
 #[inline]
-fn is_feasible(point: &Array1<f64>, constraints: &[fn(&[f64], &mut ()) -> f64]) -> bool {
-    if constraints.is_empty() {
-        return true;
-    }
+fn is_feasible<P: Problem>(
+    point: &Array1<f64>,
+    problem: &P,
+    constraint_dimension: &OnceLock<usize>,
+) -> Result<bool, EvaluationError> {
+    Ok(evaluate_constraints(problem, point, constraint_dimension)?
+        .iter()
+        .all(|&value| value >= 0.0))
+}
 
-    let x_slice = point.as_slice().expect("Failed to convert point to slice");
-
-    // Early exit on first violation for performance
-    for constraint_fn in constraints {
-        let value = constraint_fn(x_slice, &mut ());
-        if value < 0.0 {
-            return false;
-        }
-    }
-    true
+fn filter_feasible<P: Problem>(
+    points: Vec<Array1<f64>>,
+    problem: &P,
+    constraint_dimension: &OnceLock<usize>,
+) -> Result<Vec<Array1<f64>>, EvaluationError> {
+    points
+        .into_iter()
+        .map(|point| {
+            is_feasible(&point, problem, constraint_dimension)
+                .map(|feasible| feasible.then_some(point))
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(|points| points.into_iter().flatten().collect())
 }
 
 #[cfg(test)]
@@ -1118,7 +1143,7 @@ mod tests_scatter_search {
         ss.initialize_reference_set().unwrap();
 
         let trials: Vec<Array1<f64>> = vec![array![1.0, 1.0], array![2.0, 2.0]];
-        ss.update_reference_set(&trials);
+        ss.update_reference_set(&trials).unwrap();
 
         assert_eq!(ss.reference_set.len(), 4);
     }
@@ -1202,7 +1227,7 @@ mod tests_scatter_search {
         ss.initialize_reference_set().unwrap();
 
         let trials: Vec<Array1<f64>> = vec![array![1.0, 1.0], array![2.0, 2.0]];
-        ss.update_reference_set(&trials);
+        ss.update_reference_set(&trials).unwrap();
 
         assert_eq!(ss.reference_set.len(), 4);
     }
@@ -1387,10 +1412,8 @@ mod tests_scatter_search {
                 array![[0.0, 2.0], [0.0, 2.0]]
             }
 
-            fn constraints(&self) -> Vec<fn(&[f64], &mut ()) -> f64> {
-                vec![
-                    |x: &[f64], _: &mut ()| 1.5 - x[0] - x[1], // x + y <= 1.5 -> 1.5 - x - y >= 0
-                ]
+            fn constraints(&self, x: &Array1<f64>) -> Result<Array1<f64>, EvaluationError> {
+                Ok(array![1.5 - x[0] - x[1]])
             }
         }
 
@@ -1401,11 +1424,8 @@ mod tests_scatter_search {
         let (ref_set, _) = ss.run().unwrap();
 
         // Verify that all points in the reference set satisfy the constraint
-        let constraints = problem.constraints();
         for (point, _obj) in &ref_set {
-            let x = point.as_slice().expect("Failed to convert point to slice");
-            for constraint_fn in &constraints {
-                let value = constraint_fn(x, &mut ());
+            for value in problem.constraints(point).unwrap() {
                 assert!(
                     value >= -1e-10,
                     "Constraint violated: point = {:?}, constraint value = {}",
