@@ -157,11 +157,11 @@ pub enum LocalSolverConfig {
         line_search_params: LineSearchParams,
     },
     COBYLA {
-        /// Maximum number of iterations for the COBYLA local solver
+        /// Maximum number of objective evaluations for the COBYLA local solver
         max_iter: u64,
         /// Initial step size for the algorithm
         ///
-        /// This determines the initial step size for the algorithm.
+        /// This determines the initial trust-region radius for the algorithm.
         /// Default is 0.5.
         initial_step_size: f64,
         /// Relative function tolerance
@@ -176,15 +176,14 @@ pub enum LocalSolverConfig {
         ftol_abs: f64,
         /// Relative parameter tolerance
         ///
-        /// Convergence criterion based on relative change in parameters.
+        /// Sets the final trust-region radius relative to `initial_step_size`.
         /// Default is 0 (disabled).
         xtol_rel: f64,
-        /// Absolute parameter tolerance
+        /// Per-variable absolute parameter tolerances
         ///
-        /// Convergence criterion based on absolute change in parameters.
         /// Each element corresponds to the absolute tolerance for that variable.
-        /// The algorithm stops when all x\[i\] change by less than xtol_abs\[i\].
-        /// Default is empty vector (disabled).
+        /// The largest positive tolerance contributes to the final trust-region radius.
+        /// Default is an empty vector (disabled).
         xtol_abs: Vec<f64>,
     },
 }
@@ -1034,8 +1033,8 @@ impl Default for NewtonCGBuilder {
 
 /// Configuration builder for COBYLA (Constrained Optimization BY Linear Approximations).
 ///
-/// COBYLA is a derivative-free optimization algorithm specifically designed for
-/// constrained optimization problems. It uses linear approximations of the
+/// This builder configures Basin's derivative-free COBYLA implementation for
+/// constrained optimization problems. COBYLA uses linear approximations of the
 /// objective function and constraints to guide the search.
 ///
 /// ## Algorithm Characteristics
@@ -1052,13 +1051,18 @@ impl Default for NewtonCGBuilder {
 /// - Problems with mixed discrete-continuous variables (after relaxation)
 ///
 /// ## Convergence Control
-/// - **Function tolerances**: `ftol_rel`, `ftol_abs` for objective convergence
-/// - **Parameter tolerances**: `xtol_rel`, `xtol_abs` for variable convergence
-/// - **Step size**: `initial_step_size` controls exploration scale
+/// - **Function tolerances**: `ftol_rel` and `ftol_abs` control objective convergence
+/// - **Parameter tolerances**: `xtol_rel` and `xtol_abs` control the final resolution
+/// - **Step size**: `initial_step_size` controls the initial exploration scale
+///
+/// The final trust-region radius is the maximum of `xtol_rel * initial_step_size`,
+/// the positive entries in `xtol_abs`, and a numerical floor of
+/// `max(sqrt(f64::EPSILON) * initial_step_size, f64::MIN_POSITIVE)`.
+/// This floor also applies when parameter tolerances are disabled.
 ///
 /// ## Performance Notes
 /// - Slower than gradient-based methods but more robust
-/// - Performance depends heavily on initial step size
+/// - Performance depends heavily on the initial trust-region radius
 /// - Best for small to medium-scale problems (< 50 variables)
 pub struct COBYLABuilder {
     max_iter: u64,
@@ -1082,11 +1086,11 @@ pub struct COBYLABuilder {
 /// // High-precision configuration for engineering optimization
 /// let config = COBYLABuilder::default()
 ///     .max_iter(1000)
-///     .initial_step_size(0.1)     // Match problem scaling
-///     .ftol_rel(1e-8)             // Tight relative tolerance
-///     .ftol_abs(1e-10)            // Tight absolute tolerance
-///     .xtol_rel(1e-6)             // Parameter convergence
-///     .xtol_abs(vec![1e-6, 1e-8]) // Per-variable absolute tolerances
+///     .initial_step_size(0.1)     // Match problem scaling.
+///     .ftol_rel(1e-8)             // Tight relative tolerance.
+///     .ftol_abs(1e-10)            // Tight absolute tolerance.
+///     .xtol_rel(1e-6)             // Request fine parameter resolution.
+///     .xtol_abs(vec![1e-6, 1e-8]) // Per-variable absolute tolerances.
 ///     .build();
 /// ```
 impl COBYLABuilder {
@@ -1109,12 +1113,12 @@ impl COBYLABuilder {
             initial_step_size: self.initial_step_size,
             ftol_rel: self.ftol_rel.unwrap_or(1e-6),
             ftol_abs: self.ftol_abs.unwrap_or(1e-8),
-            xtol_rel: self.xtol_rel.unwrap_or(0.0), // No default for x tolerances
-            xtol_abs: self.xtol_abs.unwrap_or_default(), // Empty vector means no tolerance
+            xtol_rel: self.xtol_rel.unwrap_or(0.0), // Zero disables relative parameter tolerance.
+            xtol_abs: self.xtol_abs.unwrap_or_default(), // An empty vector disables absolute tolerances.
         }
     }
 
-    /// Set the maximum number of iterations for the COBYLA local solver
+    /// Set the maximum number of objective evaluations for the COBYLA local solver
     pub fn max_iter(mut self, max_iter: u64) -> Self {
         self.max_iter = max_iter;
         self
@@ -1128,7 +1132,9 @@ impl COBYLABuilder {
 
     /// Set the relative function tolerance for the COBYLA local solver
     ///
-    /// The local solver stops when the objective function changes by less than `ftol_rel * |f(x)|`
+    /// At changes in the trust-region radius, the local solver stops when the objective
+    /// decreases by less than `ftol_rel * (|f_new| + |f_old|) / 2`.
+    /// Nonpositive values disable this convergence criterion.
     pub fn ftol_rel(mut self, ftol_rel: f64) -> Self {
         self.ftol_rel = Some(ftol_rel);
         self
@@ -1136,7 +1142,9 @@ impl COBYLABuilder {
 
     /// Set the absolute function tolerance for the COBYLA local solver
     ///
-    /// The local solver stops when the objective function changes by less than `ftol_abs`
+    /// At changes in the trust-region radius, the local solver stops when the objective
+    /// decreases by less than `ftol_abs`.
+    /// Nonpositive values disable this convergence criterion.
     pub fn ftol_abs(mut self, ftol_abs: f64) -> Self {
         self.ftol_abs = Some(ftol_abs);
         self
@@ -1144,18 +1152,20 @@ impl COBYLABuilder {
 
     /// Set the relative parameter tolerance for the COBYLA local solver
     ///
-    /// The local solver stops when all `x[i]` changes by less than `xtol_rel * x[i]`
+    /// Contributes `xtol_rel * initial_step_size` to the final trust-region radius.
+    /// The radius also accounts for absolute tolerances and a numerical floor.
+    /// Nonpositive values disable this relative tolerance.
     pub fn xtol_rel(mut self, xtol_rel: f64) -> Self {
         self.xtol_rel = Some(xtol_rel);
         self
     }
 
-    /// Set the absolute parameter tolerance for the COBYLA local solver
+    /// Set the per-variable absolute parameter tolerances for the COBYLA local solver
     ///
-    /// The local solver stops when all `x\[i\]` changes by less than `xtol_abs\[i\]`.
-    /// Each element in the vector corresponds to the tolerance for that variable.
-    /// If the vector is shorter than the number of variables, the last value is used
-    /// for remaining variables. An empty vector disables this convergence criterion.
+    /// Each element corresponds to the absolute tolerance for that variable.
+    /// A nonempty vector must contain one entry per variable. Its largest positive
+    /// entry contributes to the final trust-region radius, together with the relative
+    /// tolerance and a numerical floor. An empty vector disables absolute tolerances.
     pub fn xtol_abs(mut self, xtol_abs: Vec<f64>) -> Self {
         self.xtol_abs = Some(xtol_abs);
         self
@@ -1168,8 +1178,9 @@ impl COBYLABuilder {
 /// Default values:
 /// - `max_iter`: 300
 /// - `initial_step_size`: 0.5
-/// - Function tolerances: `ftol_abs = 1e-8`, `ftol_rel = 1e-6`
-/// - Parameter tolerances: disabled (empty vectors)
+/// - `ftol_rel`: 1e-6
+/// - `ftol_abs`: 1e-8
+/// - Parameter tolerances: disabled
 impl Default for COBYLABuilder {
     fn default() -> Self {
         COBYLABuilder {
@@ -2171,10 +2182,10 @@ mod tests_builders {
             } => {
                 assert_eq!(max_iter, 300);
                 assert_eq!(initial_step_size, 0.5);
-                assert_eq!(ftol_rel, 1e-6); // REL_TOL default
-                assert_eq!(ftol_abs, 1e-8); // ABS_TOL default
-                assert_eq!(xtol_rel, 0.0); // No default
-                assert_eq!(xtol_abs, Vec::<f64>::new()); // No default (empty vector)
+                assert_eq!(ftol_rel, 1e-6);
+                assert_eq!(ftol_abs, 1e-8);
+                assert_eq!(xtol_rel, 0.0);
+                assert!(xtol_abs.is_empty());
             }
             #[cfg_attr(not(feature = "argmin"), allow(unreachable_patterns))]
             _ => panic!("Expected COBYLA local solver"),
@@ -2184,8 +2195,15 @@ mod tests_builders {
     #[test]
     /// Test changing the parameters of COBYLA builder
     fn change_params_cobyla() {
-        let cobyla: LocalSolverConfig =
-            COBYLABuilder::default().max_iter(500).initial_step_size(0.1).ftol_rel(1e-10).build();
+        let xtol_abs = vec![1e-6, 1e-8];
+        let cobyla: LocalSolverConfig = COBYLABuilder::default()
+            .max_iter(500)
+            .initial_step_size(0.1)
+            .ftol_rel(1e-10)
+            .ftol_abs(1e-12)
+            .xtol_rel(1e-9)
+            .xtol_abs(xtol_abs.clone())
+            .build();
         match cobyla {
             LocalSolverConfig::COBYLA {
                 max_iter,
@@ -2193,14 +2211,14 @@ mod tests_builders {
                 ftol_rel,
                 ftol_abs,
                 xtol_rel,
-                xtol_abs,
+                xtol_abs: actual_xtol_abs,
             } => {
                 assert_eq!(max_iter, 500);
                 assert_eq!(initial_step_size, 0.1);
                 assert_eq!(ftol_rel, 1e-10);
-                assert_eq!(ftol_abs, 1e-8);
-                assert_eq!(xtol_rel, 0.0);
-                assert_eq!(xtol_abs, Vec::<f64>::new());
+                assert_eq!(ftol_abs, 1e-12);
+                assert_eq!(xtol_rel, 1e-9);
+                assert_eq!(actual_xtol_abs, xtol_abs);
             }
             #[cfg_attr(not(feature = "argmin"), allow(unreachable_patterns))]
             _ => panic!("Expected COBYLA local solver"),
@@ -2222,42 +2240,10 @@ mod tests_builders {
             } => {
                 assert_eq!(max_iter, 500);
                 assert_eq!(initial_step_size, 0.5);
-                assert_eq!(ftol_rel, 1e-6); // default
-                assert_eq!(ftol_abs, 1e-8); // default
-                assert_eq!(xtol_rel, 0.0); // default (no x tolerance)
-                assert_eq!(xtol_abs, Vec::<f64>::new()); // default (no x tolerance)
-            }
-            #[cfg_attr(not(feature = "argmin"), allow(unreachable_patterns))]
-            _ => panic!("Expected COBYLA local solver"),
-        }
-    }
-
-    #[test]
-    /// Test COBYLA builder with vector-based xtol_abs
-    fn test_cobyla_vector_xtol_abs() {
-        let xtol_vec = vec![1e-6, 1e-8, 1e-10];
-        let cobyla: LocalSolverConfig = COBYLABuilder::default()
-            .max_iter(1000)
-            .initial_step_size(0.1)
-            .ftol_rel(1e-8)
-            .xtol_abs(xtol_vec.clone())
-            .build();
-
-        match cobyla {
-            LocalSolverConfig::COBYLA {
-                max_iter,
-                initial_step_size,
-                ftol_rel,
-                ftol_abs,
-                xtol_rel,
-                xtol_abs,
-            } => {
-                assert_eq!(max_iter, 1000);
-                assert_eq!(initial_step_size, 0.1);
-                assert_eq!(ftol_rel, 1e-8);
-                assert_eq!(ftol_abs, 1e-8); // default
-                assert_eq!(xtol_rel, 0.0); // default
-                assert_eq!(xtol_abs, xtol_vec); // per-variable tolerances
+                assert_eq!(ftol_rel, 1e-6);
+                assert_eq!(ftol_abs, 1e-8);
+                assert_eq!(xtol_rel, 0.0);
+                assert!(xtol_abs.is_empty());
             }
             #[cfg_attr(not(feature = "argmin"), allow(unreachable_patterns))]
             _ => panic!("Expected COBYLA local solver"),

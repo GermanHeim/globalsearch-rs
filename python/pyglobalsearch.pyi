@@ -829,9 +829,9 @@ class PyCOBYLA:
     """
     Configuration for the COBYLA (Constrained Optimization BY Linear Approximations) solver.
 
-    COBYLA is a derivative-free optimization algorithm that can handle inequality constraints.
-    It's particularly useful when gradients are not available or when dealing with noisy
-    objective functions.
+    This configuration uses Basin's derivative-free COBYLA implementation. It is particularly
+    useful when gradients are unavailable or when dealing with noisy objective functions and
+    inequality constraints.
 
     Examples
     --------
@@ -854,7 +854,7 @@ class PyCOBYLA:
     **Attributes**
 
     max_iter
-        Maximum number of iterations
+        Maximum number of objective evaluations
     step_size
         Initial step size for the algorithm
     ftol_rel
@@ -1171,7 +1171,7 @@ class builders:
         --------
             >>> cobyla_config = gs.builders.cobyla(max_iter=500, step_size=0.5)
 
-        :param max_iter: Maximum number of iterations (default 300)
+        :param max_iter: Maximum number of objective evaluations (default 300)
         :type max_iter: int
         :param step_size: Initial step size (default 1.0)
         :type step_size: float

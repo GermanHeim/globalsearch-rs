@@ -32,7 +32,7 @@
 
 `globalsearch-rs`: Rust implementation of a modified version of the _OQNLP_ (_OptQuest/NLP_) algorithm with the core ideas from "Scatter Search and Local NLP Solvers: A Multistart Framework for Global Optimization" by Ugray et al. (2007). It combines scatter search metaheuristics with local minimization for global optimization of nonlinear problems.
 
-Similar to MATLAB's `GlobalSearch` \[2\], using cobyla, argmin, rayon and ndarray.
+Similar to MATLAB's `GlobalSearch` \[2\], using Basin, argmin, Rayon, and ndarray.
 
 ## Features
 
@@ -40,7 +40,7 @@ Similar to MATLAB's `GlobalSearch` \[2\], using cobyla, argmin, rayon and ndarra
 
 - 🎯 Multistart heuristic framework for global optimization
 
-- 📦 Local optimization using the cobyla \[3\] and argmin crate \[4\]
+- 📦 Local optimization using the Basin \[3\] and argmin \[4\] crates
 
 - 🚀 Parallel execution using Rayon
 
@@ -105,7 +105,7 @@ Similar to MATLAB's `GlobalSearch` \[2\], using cobyla, argmin, rayon and ndarra
    }
    ```
 
-   Depending on your choice of local solver, you might need to implement the `gradient` and `hessian` methods. Learn more about the local solver configuration in the [argmin docs](https://docs.rs/argmin/latest/argmin/solver/index.html) or the [`LocalSolverType`](https://docs.rs/globalsearch/latest/globalsearch/types/enum.LocalSolverType.html).
+   Depending on your choice of local solver, you might need to implement the `gradient` and `hessian` methods. Learn more about COBYLA in the [Basin docs](https://docs.rs/basin/latest/basin/struct.Cobyla.html), about the other solvers in the [argmin docs](https://docs.rs/argmin/latest/argmin/solver/index.html), or see [`LocalSolverType`](https://docs.rs/globalsearch/latest/globalsearch/types/enum.LocalSolverType.html).
 
    > 🔴 **Note:** If using a solver that isn't COBYLA, variable bounds are only used in the scatter search phase of the algorithm. The local solver is unconstrained (See [argmin issue #137](https://github.com/argmin-rs/argmin/issues/137)) and therefor can return solutions out of bounds. You can use OQNLP's `exclude_out_of_bounds` method to handle this if needed.
 
@@ -225,7 +225,7 @@ python/ # Python bindings
 ## Dependencies
 
 - [ndarray](https://github.com/rust-ndarray/ndarray)
-- [COBYLA](https://github.com/relf/cobyla)
+- [Basin](https://github.com/jolars/basin)
 - [argmin](https://github.com/argmin-rs/argmin) [feature: `argmin`]
 - [rayon](https://github.com/rayon-rs/rayon) [feature: `rayon`]
 - [kdam](https://github.com/clitic/kdam) [feature: `progress_bar`]
@@ -267,6 +267,6 @@ If `GlobalSearch-rs` has been significant in your research, and you would like t
 
 \[2\] GlobalSearch. The MathWorks, Inc. Available at: <https://www.mathworks.com/help/gads/globalsearch.html> (Accessed: 27 January 2025)
 
-\[3\] Rémi Lafage. cobyla - a pure Rust implementation. GitHub repository. MIT License. Available at: <https://github.com/relf/cobyla> (Accessed: 17 September 2025)
+\[3\] Johan Larsson. Basin—numerical optimization in pure Rust. Available at: <https://basin.rs> (Accessed: 7 September 2026)
 
 \[4\] Kroboth, S. argmin{}. Available at: <https://argmin-rs.org/> (Accessed: 25 January 2025)

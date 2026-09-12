@@ -139,9 +139,9 @@ pub trait Problem {
     ///
     /// Returns a `Result<Array2<f64>>` of the variable bounds for the optimization problem.
     ///
-    /// This bounds are only used in the scatter search phase of the algorithm.
-    /// The local solver is unconstrained (See [argmin issue #137](https://github.com/argmin-rs/argmin/issues/137)) and therefor can return solutions out of the bounds.
-    /// You may be able to guide your solutions to your desired bounds/constraints by using a penalty method.
+    /// COBYLA enforces these bounds during local optimization. The argmin-based
+    /// local solvers are unconstrained and can return solutions outside them; see
+    /// [argmin issue #137](https://github.com/argmin-rs/argmin/issues/137).
     fn variable_bounds(&self) -> Array2<f64>;
 
     /// Evaluates the constraints at `x`.

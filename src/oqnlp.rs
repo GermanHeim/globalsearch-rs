@@ -1585,7 +1585,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
     #[cfg(feature = "checkpointing")]
     fn maybe_save_checkpoint(&self) -> Result<(), OQNLPError> {
         if let Some(ref manager) = self.checkpoint_manager {
-            if self.current_iteration % manager.config().save_frequency == 0 {
+            if self.current_iteration.is_multiple_of(manager.config().save_frequency) {
                 let checkpoint = self.create_checkpoint();
                 let saved_path = manager.save_checkpoint(&checkpoint, self.current_iteration)?;
 

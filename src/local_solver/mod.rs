@@ -1,7 +1,7 @@
 //! # Local Solver Module
 //!
 //! This module provides a comprehensive interface to classical optimization algorithms
-//! from the `cobyla` and `argmin` crates, adapted specifically for use within the OQNLP global
+//! from the `basin` and `argmin` crates, adapted specifically for use within the OQNLP global
 //! optimization framework.
 //!
 //! ## Module Structure
@@ -33,7 +33,7 @@
 //!   - Best for: Non-smooth, noisy problems
 //!   - Requires: Only objective function
 //!
-//! - **COBYLA**: Constrained Optimization BY Linear Approximation
+//! - **COBYLA**: Basin's Constrained Optimization BY Linear Approximation
 //!   - Best for: Constrained problems without derivatives
 //!   - Requires: Objective (optional constraints support)
 //!

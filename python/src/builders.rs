@@ -833,12 +833,12 @@ fn trustregion(
 #[derive(Debug, Clone)]
 /// COBYLA (Constrained Optimization BY Linear Approximations) solver configuration.
 ///
-/// COBYLA is a derivative-free optimization algorithm that can handle inequality
-/// constraints. It works by building linear approximations to the objective function
+/// This configuration uses Basin's derivative-free COBYLA implementation, which can
+/// handle inequality constraints. It builds linear approximations to the objective function
 /// and constraints, making it suitable for problems where gradients are unavailable
 /// or unreliable.
 ///
-/// :param max_iter: Maximum number of iterations
+/// :param max_iter: Maximum number of objective evaluations
 /// :type max_iter: int
 /// :param step_size: Initial trust region radius
 /// :type step_size: float
@@ -862,9 +862,9 @@ fn trustregion(
 ///
 /// COBYLA stops when any of these conditions are met:
 ///
-/// - Maximum iterations reached
-/// - Function tolerance satisfied: \|f_new - f_old\| < ftol_abs + ftol_rel * \|f_old\|
-/// - Parameter tolerance satisfied: \|x_new - x_old\| < xtol_abs + xtol_rel * \|x_old\|
+/// - Maximum objective evaluations reached
+/// - Function tolerance satisfied
+/// - The trust-region radius reaches the resolution derived from the parameter tolerances
 ///
 /// Examples
 /// --------
@@ -876,25 +876,19 @@ fn trustregion(
 ///
 /// >>> precise = gs.builders.cobyla(
 /// ...     max_iter=1000,
-/// ...     xtol_abs=[1e-10] * n_vars  # Very tight parameter tolerance
+/// ...     xtol_abs=[1e-10] * n_vars,  # Very tight parameter tolerance.
 /// ... )
 ///
 /// For expensive function evaluations:
 ///
 /// >>> efficient = gs.builders.cobyla(
 /// ...     max_iter=100,
-/// ...     ftol_rel=1e-4,  # Looser function tolerance
-/// ...     step_size=0.1   # Smaller initial steps
-/// ... )
-///
-/// Different tolerance per variable (for scaled problems):
-///
-/// >>> scaled = gs.builders.cobyla(
-/// ...     xtol_abs=[1e-6, 1e-8, 1e-4]  # x1: 1e-6, x2: 1e-8, x3: 1e-4
+/// ...     ftol_rel=1e-4,  # Looser function tolerance.
+/// ...     step_size=0.1,  # Smaller initial steps.
 /// ... )
 pub struct PyCOBYLA {
     #[pyo3(get, set)]
-    /// Maximum number of iterations
+    /// Maximum number of objective evaluations
     ///
     /// :type: int
     pub max_iter: u64,
@@ -924,9 +918,9 @@ pub struct PyCOBYLA {
     pub xtol_rel: Option<f64>,
 
     #[pyo3(get, set)]
-    /// Absolute tolerance for parameter convergence
+    /// Per-variable absolute tolerances for parameter convergence
     ///
-    /// :type: float, optional
+    /// :type: list[float], optional
     pub xtol_abs: Option<Vec<f64>>,
 }
 
@@ -960,15 +954,12 @@ impl PyCOBYLA {
         if let Some(ftol_rel) = self.ftol_rel {
             builder = builder.ftol_rel(ftol_rel);
         }
-
         if let Some(ftol_abs) = self.ftol_abs {
             builder = builder.ftol_abs(ftol_abs);
         }
-
         if let Some(xtol_rel) = self.xtol_rel {
             builder = builder.xtol_rel(xtol_rel);
         }
-
         if let Some(xtol_abs) = &self.xtol_abs {
             builder = builder.xtol_abs(xtol_abs.clone());
         }
@@ -984,7 +975,7 @@ impl PyCOBYLA {
 /// solver in this library that can handle inequality constraints. It's also
 /// an excellent choice for derivative-free optimization.
 ///
-/// :param max_iter: Maximum number of optimization iterations
+/// :param max_iter: Maximum number of objective evaluations
 /// :type max_iter: int
 /// :param step_size: Initial trust region radius (larger = more exploration)
 /// :type step_size: float
@@ -1000,9 +991,9 @@ impl PyCOBYLA {
 /// :rtype: PyCOBYLA
 ///
 /// .. note::
-///    - If `xtol_abs` is provided, its length must match the problem dimension
+///    - If ``xtol_abs`` is provided, its length must match the problem dimension
 ///    - For constrained problems, COBYLA is currently the only supported solver
-///    - Larger `step_size` values encourage more exploration but may slow convergence
+///    - Larger ``step_size`` values encourage more exploration but may slow convergence.
 ///
 /// Examples
 /// --------
@@ -1015,13 +1006,7 @@ impl PyCOBYLA {
 /// >>> config = gs.builders.cobyla(
 /// ...     max_iter=1000,
 /// ...     step_size=0.1,
-/// ...     xtol_abs=[1e-8, 1e-8]  # Same tolerance for both variables
-/// ... )
-///
-/// Different tolerance per variable (useful for scaled problems):
-///
-/// >>> config = gs.builders.cobyla(
-/// ...     xtol_abs=[1e-6, 1e-8, 1e-4]  # x1: loose, x2: tight, x3: very loose
+/// ...     xtol_abs=[1e-8, 1e-8],  # Same tolerance for both variables.
 /// ... )
 #[pyo3(signature = (
     max_iter = 300,

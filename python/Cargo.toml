@@ -10,7 +10,7 @@ repository = "https://github.com/GermanHeim/globalsearch-rs"
 keywords = ["optimization", "math", "science"]
 categories = ["science", "mathematics"]
 publish = false
-rust-version = "1.85"
+rust-version = "1.87"
 exclude = ["/media"]
 
 [lib]

@@ -1096,7 +1096,7 @@ impl Observer {
     /// True if a callback is configured and the iteration is a multiple of
     /// the callback frequency.
     pub(crate) fn should_invoke_callback(&self, iteration: usize) -> bool {
-        self.callback.is_some() && (iteration % self.callback_frequency == 0)
+        self.callback.is_some() && iteration.is_multiple_of(self.callback_frequency)
     }
 }
 

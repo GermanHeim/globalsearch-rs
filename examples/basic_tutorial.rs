@@ -85,7 +85,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Step 2: Configure local optimization parameters
     let local_solver_config = COBYLABuilder::default()
-        .max_iter(500) // Maximum iterations for COBYLA
+        .max_iter(500) // Maximum objective evaluations for COBYLA
         .initial_step_size(0.1) // Initial step size for COBYLA
         .ftol_rel(1e-10) // Relative tolerance
         .ftol_abs(1e-12) // Absolute tolerance
