@@ -113,6 +113,7 @@ fn invalid_configurations_return_errors() {
         BasinLBFGSBuilder::new().history_size(0).build(),
         BasinLBFGSBuilder::new().tolerance_grad(-1.0).build(),
         BasinLBFGSBuilder::new().tolerance_cost(f64::NAN).build(),
+        BasinLBFGSBBuilder::new().history_size(0).build(),
         BasinLBFGSBBuilder::new().tolerance_projected_grad(f64::INFINITY).build(),
         BasinGradientDescentBuilder::new().tolerance_grad(f64::NAN).build(),
         BasinNelderMeadBuilder::new().simplex_delta(0.0).build(),
@@ -131,6 +132,38 @@ fn invalid_configurations_return_errors() {
         let error =
             LocalSolver::new(problem, name.clone(), config).solve(array![0.5, 0.5]).unwrap_err();
         assert!(matches!(error, LocalSolverError::InvalidBasinConfig { .. }), "{name:?}: {error}");
+    }
+}
+
+#[test]
+fn mismatched_solver_configuration_is_rejected_before_evaluation() {
+    use globalsearch::types::LocalSolverType;
+
+    let calls = Arc::new(AtomicU64::new(0));
+    let problem = Quadratic { bounded: false, constraints: false, calls: calls.clone() };
+    let config = BasinLBFGSBuilder::new().build();
+    let error = LocalSolver::new(problem, LocalSolverType::BasinGradientDescent, config)
+        .solve(array![0.5, 0.5])
+        .unwrap_err();
+
+    assert!(matches!(error, LocalSolverError::InvalidBasinConfig { .. }));
+    assert!(error.to_string().contains("Solver type and configuration do not match"));
+    assert_eq!(calls.load(Ordering::Relaxed), 0);
+}
+
+#[test]
+fn nelder_mead_rejects_overflowing_or_collapsed_simplexes_before_evaluation() {
+    for (start, delta) in [(f64::MAX, f64::MAX), (1e20, 0.1)] {
+        let calls = Arc::new(AtomicU64::new(0));
+        let problem = Quadratic { bounded: false, constraints: false, calls: calls.clone() };
+        let config = BasinNelderMeadBuilder::new().simplex_delta(delta).build();
+        let error = LocalSolver::new(problem, config.solver_type(), config)
+            .solve(array![start, start])
+            .unwrap_err();
+
+        assert!(matches!(error, LocalSolverError::InvalidBasinConfig { .. }));
+        assert!(error.to_string().contains("distinct finite vertices"));
+        assert_eq!(calls.load(Ordering::Relaxed), 0);
     }
 }
 
@@ -167,6 +200,7 @@ impl Problem for Fault {
             "bounds_shape" => array![[0.0, 1.0]],
             "bounds_nan" => array![[f64::NAN, 1.0], [0.0, 1.0]],
             "bounds_equal" => array![[1.0, 1.0], [0.0, 1.0]],
+            "bounds_subnormal" => array![[0.0, f64::from_bits(1)], [0.0, 1.0]],
             _ => array![[-1.0, 1.0], [-1.0, 1.0]],
         }
     }
@@ -248,6 +282,34 @@ fn bobyqa_adapts_to_a_narrow_one_dimensional_box() {
     let solution =
         LocalSolver::new(NarrowBox, config.solver_type(), config).solve(array![0.0]).unwrap();
     assert!((solution.point[0] - 4e-5).abs() < 1e-8, "{solution:?}");
+}
+
+#[test]
+fn bobyqa_rejects_bounds_that_underflow_its_radii() {
+    let config = BasinBOBYQABuilder::new().build();
+    let error = LocalSolver::new(Fault("bounds_subnormal"), config.solver_type(), config)
+        .solve(array![0.0, 0.5])
+        .unwrap_err();
+
+    assert!(matches!(error, LocalSolverError::InvalidBasinConfig { .. }));
+    assert!(error.to_string().contains("too narrow to represent positive BOBYQA radii"));
+}
+
+#[test]
+fn bobyqa_accepts_both_interpolation_set_size_limits() {
+    for interpolation_points in [5, 6] {
+        let problem = Quadratic { bounded: true, constraints: false, calls: Arc::default() };
+        let config = BasinBOBYQABuilder::new()
+            .initial_radius(0.25)
+            .interpolation_points(Some(interpolation_points))
+            .build();
+        let solution = LocalSolver::new(problem, config.solver_type(), config)
+            .solve(array![0.5, 0.5])
+            .unwrap();
+
+        assert!((solution.objective - 2.0).abs() < 1e-6, "{solution:?}");
+        assert!((&solution.point - array![1.0, 0.0]).mapv(f64::abs).sum() < 1e-4);
+    }
 }
 
 #[test]
