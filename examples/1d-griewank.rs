@@ -54,7 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut oqnlp: OQNLP<OneDGriewank> = OQNLP::new(problem.clone(), params)?;
     let solution_set: SolutionSet = oqnlp.run()?;
 
-    println!("{}", solution_set);
+    println!("{solution_set}");
 
     let modified_params = OQNLPParams {
         iterations: 200,
@@ -75,7 +75,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut modified_oqnlp: OQNLP<OneDGriewank> = OQNLP::new(problem, modified_params)?;
     let modified_solution_set: SolutionSet = modified_oqnlp.run()?;
 
-    println!("{}", modified_solution_set);
+    println!("{modified_solution_set}");
 
     Ok(())
 }

@@ -658,7 +658,7 @@ impl Observer {
     pub fn with_default_callback(self) -> Self {
         // Helper function to format array coordinates cleanly
         fn format_coords(arr: &ndarray::Array1<f64>) -> String {
-            let values: Vec<String> = arr.iter().map(|v| format!("{:.6}", v)).collect();
+            let values: Vec<String> = arr.iter().map(|v| format!("{v:.6}")).collect();
             format!("[{}]", values.join(", "))
         }
 
@@ -717,7 +717,7 @@ impl Observer {
                 };
 
                 // Print directly for real-time output in both sequential and parallel modes
-                eprintln!("{}", message);
+                eprintln!("{message}");
             }
             // Stage 2 updates (only when started)
             if let Some(stage2) = obs.stage2() {
@@ -751,18 +751,16 @@ impl Observer {
                     if should_print {
                         let message = if let Some(coords) = last_added_coords {
                             format!(
-                                "[Stage 2] Iter {} | Best: {:.6} at {} | Solutions: {} | Threshold: {:.6} | Local Calls: {} | Fn Evals: {}",
-                                current_iter, best_obj, coords, sol_size, threshold, local_calls, fn_evals
+                                "[Stage 2] Iter {current_iter} | Best: {best_obj:.6} at {coords} | Solutions: {sol_size} | Threshold: {threshold:.6} | Local Calls: {local_calls} | Fn Evals: {fn_evals}"
                             )
                         } else {
                             format!(
-                                "[Stage 2] Iter {} | Best: {:.6} | Solutions: {} | Threshold: {:.6} | Local Calls: {} | Fn Evals: {}",
-                                current_iter, best_obj, sol_size, threshold, local_calls, fn_evals
+                                "[Stage 2] Iter {current_iter} | Best: {best_obj:.6} | Solutions: {sol_size} | Threshold: {threshold:.6} | Local Calls: {local_calls} | Fn Evals: {fn_evals}"
                             )
                         };
 
                         // Print directly for real-time output in both sequential and parallel modes
-                        eprintln!("{}", message);
+                        eprintln!("{message}");
                     }
                 }
             }
@@ -785,7 +783,7 @@ impl Observer {
     pub fn with_stage1_callback(self) -> Self {
         // Helper function to format array coordinates cleanly
         fn format_coords(arr: &ndarray::Array1<f64>) -> String {
-            let values: Vec<String> = arr.iter().map(|v| format!("{:.6}", v)).collect();
+            let values: Vec<String> = arr.iter().map(|v| format!("{v:.6}")).collect();
             format!("[{}]", values.join(", "))
         }
 
@@ -862,7 +860,7 @@ impl Observer {
     pub fn with_stage2_callback(self) -> Self {
         // Helper function to format array coordinates cleanly
         fn format_coords(arr: &ndarray::Array1<f64>) -> String {
-            let values: Vec<String> = arr.iter().map(|v| format!("{:.6}", v)).collect();
+            let values: Vec<String> = arr.iter().map(|v| format!("{v:.6}")).collect();
             format!("[{}]", values.join(", "))
         }
 
@@ -1508,7 +1506,7 @@ mod tests_observers {
         assert!(best_objective < 1e-3);
 
         println!("Optimization test completed successfully!");
-        println!("Best objective found: {:.6}", best_objective);
+        println!("Best objective found: {best_objective:.6}");
         println!("Solution: {:?}", best_solution.point);
     }
 
@@ -1552,8 +1550,7 @@ mod tests_observers {
 
                         if should_print {
                             let message = format!(
-                                "[Stage 2] Iter {} | Best: {:.6} | Solutions: {} | Threshold: {:.6}",
-                                current_iter, best_obj, sol_size, threshold
+                                "[Stage 2] Iter {current_iter} | Best: {best_obj:.6} | Solutions: {sol_size} | Threshold: {threshold:.6}"
                             );
                             messages_clone.lock().unwrap().push(message);
                         }
@@ -1614,7 +1611,7 @@ mod tests_observers {
         let captured_messages = messages.lock().unwrap();
         println!("Captured {} messages:", captured_messages.len());
         for msg in captured_messages.iter() {
-            println!("  {}", msg);
+            println!("  {msg}");
         }
 
         assert_eq!(captured_messages.len(), 3, "Should have 3 messages (iterations 1, 3, and 5)");

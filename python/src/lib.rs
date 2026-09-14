@@ -3,6 +3,8 @@ mod observers;
 
 use crate::observers::PyObserver;
 use globalsearch::local_solver::builders::{
+    BasinBOBYQABuilder, BasinBoundedNelderMeadBuilder, BasinGradientDescentBuilder,
+    BasinLBFGSBBuilder, BasinLBFGSBuilder, BasinNelderMeadBuilder, BasinTrustRegionBuilder,
     COBYLABuilder, LBFGSBuilder, NelderMeadBuilder, NewtonCGBuilder, SteepestDescentBuilder,
     TrustRegionBuilder,
 };
@@ -721,26 +723,41 @@ fn optimize(
         // - Pass neither -> COBYLA with default config.
         // - Pass both -> allowed only when they agree, errors on mismatch.
         let local_solver_config = if let Some(config) = local_solver_config {
-            let (built_config, inferred_type) =
-                if let Ok(c) = config.extract::<crate::builders::PyCOBYLA>(py) {
-                    (c.to_builder().build(), LocalSolverType::COBYLA)
-                } else if let Ok(c) = config.extract::<crate::builders::PyLBFGS>(py) {
-                    (c.to_builder().build(), LocalSolverType::LBFGS)
-                } else if let Ok(c) = config.extract::<crate::builders::PyNelderMead>(py) {
-                    (c.to_builder().build(), LocalSolverType::NelderMead)
-                } else if let Ok(c) = config.extract::<crate::builders::PySteepestDescent>(py) {
-                    (c.to_builder().build(), LocalSolverType::SteepestDescent)
-                } else if let Ok(c) = config.extract::<crate::builders::PyNewtonCG>(py) {
-                    (c.to_builder().build(), LocalSolverType::NewtonCG)
-                } else if let Ok(c) = config.extract::<crate::builders::PyTrustRegion>(py) {
-                    (c.to_builder().build(), LocalSolverType::TrustRegion)
-                } else {
-                    return Err(PyValueError::new_err(
+            let (built_config, inferred_type) = if let Ok(c) =
+                config.extract::<crate::builders::PyCOBYLA>(py)
+            {
+                (c.to_builder().build(), LocalSolverType::COBYLA)
+            } else if let Ok(c) = config.extract::<crate::builders::PyLBFGS>(py) {
+                (c.to_builder().build(), LocalSolverType::LBFGS)
+            } else if let Ok(c) = config.extract::<crate::builders::PyNelderMead>(py) {
+                (c.to_builder().build(), LocalSolverType::NelderMead)
+            } else if let Ok(c) = config.extract::<crate::builders::PySteepestDescent>(py) {
+                (c.to_builder().build(), LocalSolverType::SteepestDescent)
+            } else if let Ok(c) = config.extract::<crate::builders::PyNewtonCG>(py) {
+                (c.to_builder().build(), LocalSolverType::NewtonCG)
+            } else if let Ok(c) = config.extract::<crate::builders::PyTrustRegion>(py) {
+                (c.to_builder().build(), LocalSolverType::TrustRegion)
+            } else if let Ok(c) = config.extract::<crate::builders::PyBasinLBFGS>(py) {
+                (c.to_builder().build(), LocalSolverType::BasinLBFGS)
+            } else if let Ok(c) = config.extract::<crate::builders::PyBasinGradientDescent>(py) {
+                (c.to_builder().build(), LocalSolverType::BasinGradientDescent)
+            } else if let Ok(c) = config.extract::<crate::builders::PyBasinTrustRegion>(py) {
+                (c.to_builder().build(), LocalSolverType::BasinTrustRegion)
+            } else if let Ok(c) = config.extract::<crate::builders::PyBasinNelderMead>(py) {
+                (c.to_builder().build(), LocalSolverType::BasinNelderMead)
+            } else if let Ok(c) = config.extract::<crate::builders::PyBasinLBFGSB>(py) {
+                (c.to_builder().build(), LocalSolverType::BasinLBFGSB)
+            } else if let Ok(c) = config.extract::<crate::builders::PyBasinBoundedNelderMead>(py) {
+                (c.to_builder().build(), LocalSolverType::BasinBoundedNelderMead)
+            } else if let Ok(c) = config.extract::<crate::builders::PyBasinBOBYQA>(py) {
+                (c.to_builder().build(), LocalSolverType::BasinBOBYQA)
+            } else {
+                return Err(PyValueError::new_err(
                         "local_solver_config must be one of: PyCOBYLA, PyLBFGS, PyNelderMead, \
-                         PySteepestDescent, PyNewtonCG, PyTrustRegion"
+                         PySteepestDescent, PyNewtonCG, PyTrustRegion, PyBasinLBFGS, PyBasinGradientDescent, PyBasinTrustRegion, PyBasinNelderMead, PyBasinLBFGSB, PyBasinBoundedNelderMead, PyBasinBOBYQA"
                             .to_string(),
                     ));
-                };
+            };
 
             // If a solver name was also supplied, verify it agrees with the config type.
             if let Some(name) = local_solver {
@@ -767,6 +784,17 @@ fn optimize(
                 LocalSolverType::SteepestDescent => SteepestDescentBuilder::default().build(),
                 LocalSolverType::NewtonCG => NewtonCGBuilder::default().build(),
                 LocalSolverType::TrustRegion => TrustRegionBuilder::default().build(),
+                LocalSolverType::BasinLBFGS => BasinLBFGSBuilder::default().build(),
+                LocalSolverType::BasinGradientDescent => {
+                    BasinGradientDescentBuilder::default().build()
+                }
+                LocalSolverType::BasinTrustRegion => BasinTrustRegionBuilder::default().build(),
+                LocalSolverType::BasinNelderMead => BasinNelderMeadBuilder::default().build(),
+                LocalSolverType::BasinLBFGSB => BasinLBFGSBBuilder::default().build(),
+                LocalSolverType::BasinBoundedNelderMead => {
+                    BasinBoundedNelderMeadBuilder::default().build()
+                }
+                LocalSolverType::BasinBOBYQA => BasinBOBYQABuilder::default().build(),
             }
         };
 
@@ -789,7 +817,7 @@ fn optimize(
             let cols = if rows > 0 { points[0].len() } else { 0 };
             let flat_points: Vec<f64> = points.into_iter().flatten().collect();
             let points_array = Array2::from_shape_vec((rows, cols), flat_points)
-                .map_err(|e| PyValueError::new_err(format!("Invalid points array shape: {}", e)))?;
+                .map_err(|e| PyValueError::new_err(format!("Invalid points array shape: {e}")))?;
             optimizer = optimizer
                 .with_points(points_array)
                 .map_err(|e| PyValueError::new_err(e.to_string()))?;

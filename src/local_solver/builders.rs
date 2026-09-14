@@ -35,10 +35,15 @@
 //! - [`HagerZhangBuilder`] - Hager-Zhang line search (recommended)
 //! - [`MoreThuenteBuilder`] - Moré-Thuente line search (robust)
 
+#[cfg(feature = "basin")]
+mod basin;
+#[cfg(feature = "basin")]
+pub use basin::*;
+
 #[cfg(feature = "argmin")]
 use ndarray::{Array1, array};
 
-#[cfg(feature = "argmin")]
+#[cfg(any(feature = "argmin", feature = "basin"))]
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "checkpointing", derive(serde::Serialize, serde::Deserialize))]
 /// Trust region subproblem solution methods.
@@ -73,6 +78,7 @@ pub enum TrustRegionRadiusMethod {
 /// Local solver configuration for the OQNLP algorithm
 ///
 /// This enum defines the configuration options for the local solver used in the optimizer, depending on the method used.
+#[derive(Clone)]
 pub enum LocalSolverConfig {
     #[cfg(feature = "argmin")]
     LBFGS {
@@ -186,11 +192,189 @@ pub enum LocalSolverConfig {
         /// Default is an empty vector (disabled).
         xtol_abs: Vec<f64>,
     },
+    #[cfg(feature = "basin")]
+    /// Unconstrained basin L-BFGS with the default More-Thuente line search.
+    BasinLBFGS {
+        /// Maximum number of basin executor iterations, excluding initialization.
+        max_iter: u64,
+        /// Absolute Euclidean gradient tolerance. None disables; zero requires an exact zero.
+        tolerance_grad: Option<f64>,
+        /// Absolute change in cost between iterates. Disabled by default.
+        tolerance_cost: Option<f64>,
+        /// Number of correction pairs retained by L-BFGS. Must be positive.
+        history_size: usize,
+    },
+
+    #[cfg(feature = "basin")]
+    /// Unconstrained basin gradient descent with the default More-Thuente line search and no momentum.
+    BasinGradientDescent {
+        /// Maximum number of basin executor iterations, excluding initialization.
+        max_iter: u64,
+        /// Absolute Euclidean gradient tolerance. None disables; zero requires an exact zero.
+        tolerance_grad: Option<f64>,
+        /// Absolute change in cost between iterates. Disabled by default.
+        tolerance_cost: Option<f64>,
+    },
+
+    #[cfg(feature = "basin")]
+    /// Unconstrained basin trust-region optimization using the supplied gradient and Hessian.
+    BasinTrustRegion {
+        /// Maximum number of basin executor iterations, excluding initialization.
+        max_iter: u64,
+        /// Absolute Euclidean gradient tolerance. None disables; zero requires an exact zero.
+        tolerance_grad: Option<f64>,
+        /// Trust-region subproblem method, defaulting to Steihaug.
+        trust_region_radius_method: TrustRegionRadiusMethod,
+        /// Positive initial trust-region radius.
+        radius: f64,
+        /// Maximum trust-region radius, at least the initial radius.
+        max_radius: f64,
+        /// Step acceptance threshold, in [0, 0.25).
+        eta: f64,
+    },
+
+    #[cfg(feature = "basin")]
+    /// Unconstrained basin Nelder-Mead with standard coefficients.
+    BasinNelderMead {
+        /// Maximum number of basin executor iterations, excluding initialization.
+        max_iter: u64,
+        /// Positive absolute coordinate step for the initial simplex.
+        simplex_delta: f64,
+        /// Maximum simplex distance from its best vertex in the infinity norm.
+        tolerance_simplex: Option<f64>,
+        /// Maximum absolute cost difference from the best simplex vertex. Enabled simplex tests combine with AND.
+        tolerance_cost: Option<f64>,
+    },
+
+    #[cfg(feature = "basin")]
+    /// Box-constrained basin L-BFGS-B with the default More-Thuente line search.
+    BasinLBFGSB {
+        /// Maximum number of basin executor iterations, excluding initialization.
+        max_iter: u64,
+        /// Absolute projected-gradient infinity-norm tolerance. None disables.
+        tolerance_projected_grad: Option<f64>,
+        /// Absolute change in cost between iterates. Disabled by default.
+        tolerance_cost: Option<f64>,
+        /// Number of correction pairs retained by L-BFGS. Must be positive.
+        history_size: usize,
+    },
+
+    #[cfg(feature = "basin")]
+    /// Box-constrained basin Nelder-Mead with projected trial vertices and standard coefficients.
+    BasinBoundedNelderMead {
+        /// Maximum number of basin executor iterations, excluding initialization.
+        max_iter: u64,
+        /// Positive absolute coordinate step for the initial simplex.
+        simplex_delta: f64,
+        /// Maximum simplex distance from its best vertex in the infinity norm.
+        tolerance_simplex: Option<f64>,
+        /// Maximum absolute cost difference from the best simplex vertex. Enabled simplex tests combine with AND.
+        tolerance_cost: Option<f64>,
+    },
+
+    #[cfg(feature = "basin")]
+    /// Box-constrained basin BOBYQA. Basin reduces the radii automatically for narrow boxes.
+    BasinBOBYQA {
+        /// Maximum number of basin executor iterations, excluding initialization.
+        max_iter: u64,
+        /// Positive initial trust-region radius, larger than the final radius.
+        initial_radius: f64,
+        /// Positive final trust-region radius.
+        final_radius: f64,
+        /// Interpolation-set size, between 2n+1 and (n+1)(n+2)/2. None selects 2n+1.
+        interpolation_points: Option<usize>,
+    },
 }
 
 impl std::fmt::Debug for LocalSolverConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            #[cfg(feature = "basin")]
+            Self::BasinLBFGS { max_iter, tolerance_grad, tolerance_cost, history_size } => f
+                .debug_struct("BasinLBFGS")
+                .field("max_iter", max_iter)
+                .field("tolerance_grad", tolerance_grad)
+                .field("tolerance_cost", tolerance_cost)
+                .field("history_size", history_size)
+                .finish(),
+
+            #[cfg(feature = "basin")]
+            Self::BasinGradientDescent { max_iter, tolerance_grad, tolerance_cost } => f
+                .debug_struct("BasinGradientDescent")
+                .field("max_iter", max_iter)
+                .field("tolerance_grad", tolerance_grad)
+                .field("tolerance_cost", tolerance_cost)
+                .finish(),
+
+            #[cfg(feature = "basin")]
+            Self::BasinTrustRegion {
+                max_iter,
+                tolerance_grad,
+                trust_region_radius_method,
+                radius,
+                max_radius,
+                eta,
+            } => f
+                .debug_struct("BasinTrustRegion")
+                .field("max_iter", max_iter)
+                .field("tolerance_grad", tolerance_grad)
+                .field("trust_region_radius_method", trust_region_radius_method)
+                .field("radius", radius)
+                .field("max_radius", max_radius)
+                .field("eta", eta)
+                .finish(),
+
+            #[cfg(feature = "basin")]
+            Self::BasinNelderMead {
+                max_iter,
+                simplex_delta,
+                tolerance_simplex,
+                tolerance_cost,
+            } => f
+                .debug_struct("BasinNelderMead")
+                .field("max_iter", max_iter)
+                .field("simplex_delta", simplex_delta)
+                .field("tolerance_simplex", tolerance_simplex)
+                .field("tolerance_cost", tolerance_cost)
+                .finish(),
+
+            #[cfg(feature = "basin")]
+            Self::BasinLBFGSB {
+                max_iter,
+                tolerance_projected_grad,
+                tolerance_cost,
+                history_size,
+            } => f
+                .debug_struct("BasinLBFGSB")
+                .field("max_iter", max_iter)
+                .field("tolerance_projected_grad", tolerance_projected_grad)
+                .field("tolerance_cost", tolerance_cost)
+                .field("history_size", history_size)
+                .finish(),
+
+            #[cfg(feature = "basin")]
+            Self::BasinBoundedNelderMead {
+                max_iter,
+                simplex_delta,
+                tolerance_simplex,
+                tolerance_cost,
+            } => f
+                .debug_struct("BasinBoundedNelderMead")
+                .field("max_iter", max_iter)
+                .field("simplex_delta", simplex_delta)
+                .field("tolerance_simplex", tolerance_simplex)
+                .field("tolerance_cost", tolerance_cost)
+                .finish(),
+
+            #[cfg(feature = "basin")]
+            Self::BasinBOBYQA { max_iter, initial_radius, final_radius, interpolation_points } => f
+                .debug_struct("BasinBOBYQA")
+                .field("max_iter", max_iter)
+                .field("initial_radius", initial_radius)
+                .field("final_radius", final_radius)
+                .field("interpolation_points", interpolation_points)
+                .finish(),
+
             #[cfg(feature = "argmin")]
             LocalSolverConfig::LBFGS { .. } => f.debug_struct("LBFGS").finish_non_exhaustive(),
             #[cfg(feature = "argmin")]
@@ -229,96 +413,49 @@ impl std::fmt::Debug for LocalSolverConfig {
     }
 }
 
-impl Clone for LocalSolverConfig {
-    fn clone(&self) -> Self {
-        match self {
-            #[cfg(feature = "argmin")]
-            LocalSolverConfig::LBFGS {
-                max_iter,
-                tolerance_grad,
-                tolerance_cost,
-                history_size,
-                l1_coefficient,
-                line_search_params,
-            } => LocalSolverConfig::LBFGS {
-                max_iter: *max_iter,
-                tolerance_grad: *tolerance_grad,
-                tolerance_cost: *tolerance_cost,
-                history_size: *history_size,
-                l1_coefficient: *l1_coefficient,
-                line_search_params: line_search_params.clone(),
-            },
-            #[cfg(feature = "argmin")]
-            LocalSolverConfig::NelderMead {
-                simplex_delta,
-                sd_tolerance,
-                max_iter,
-                alpha,
-                gamma,
-                rho,
-                sigma,
-            } => LocalSolverConfig::NelderMead {
-                simplex_delta: *simplex_delta,
-                sd_tolerance: *sd_tolerance,
-                max_iter: *max_iter,
-                alpha: *alpha,
-                gamma: *gamma,
-                rho: *rho,
-                sigma: *sigma,
-            },
-            #[cfg(feature = "argmin")]
-            LocalSolverConfig::SteepestDescent { max_iter, line_search_params } => {
-                LocalSolverConfig::SteepestDescent {
-                    max_iter: *max_iter,
-                    line_search_params: line_search_params.clone(),
-                }
-            }
-            #[cfg(feature = "argmin")]
-            LocalSolverConfig::TrustRegion {
-                trust_region_radius_method,
-                max_iter,
-                radius,
-                max_radius,
-                eta,
-            } => LocalSolverConfig::TrustRegion {
-                trust_region_radius_method: trust_region_radius_method.clone(),
-                max_iter: *max_iter,
-                radius: *radius,
-                max_radius: *max_radius,
-                eta: *eta,
-            },
-            #[cfg(feature = "argmin")]
-            LocalSolverConfig::NewtonCG {
-                max_iter,
-                curvature_threshold,
-                tolerance,
-                line_search_params,
-            } => LocalSolverConfig::NewtonCG {
-                max_iter: *max_iter,
-                curvature_threshold: *curvature_threshold,
-                tolerance: *tolerance,
-                line_search_params: line_search_params.clone(),
-            },
-            LocalSolverConfig::COBYLA {
-                max_iter,
-                initial_step_size,
-                ftol_rel,
-                ftol_abs,
-                xtol_rel,
-                xtol_abs,
-            } => LocalSolverConfig::COBYLA {
-                max_iter: *max_iter,
-                initial_step_size: *initial_step_size,
-                ftol_rel: *ftol_rel,
-                ftol_abs: *ftol_abs,
-                xtol_rel: *xtol_rel,
-                xtol_abs: xtol_abs.clone(),
-            },
-        }
-    }
-}
-
 impl LocalSolverConfig {
+    #[cfg(feature = "basin")]
+    /// Unconstrained basin L-BFGS with the default More-Thuente line search.
+    pub fn basin_lbfgs() -> BasinLBFGSBuilder {
+        BasinLBFGSBuilder::default()
+    }
+
+    #[cfg(feature = "basin")]
+    /// Unconstrained basin gradient descent with the default More-Thuente line search and no momentum.
+    pub fn basin_gradient_descent() -> BasinGradientDescentBuilder {
+        BasinGradientDescentBuilder::default()
+    }
+
+    #[cfg(feature = "basin")]
+    /// Unconstrained basin trust-region optimization using the supplied gradient and Hessian.
+    pub fn basin_trust_region() -> BasinTrustRegionBuilder {
+        BasinTrustRegionBuilder::default()
+    }
+
+    #[cfg(feature = "basin")]
+    /// Unconstrained basin Nelder-Mead with standard coefficients.
+    pub fn basin_nelder_mead() -> BasinNelderMeadBuilder {
+        BasinNelderMeadBuilder::default()
+    }
+
+    #[cfg(feature = "basin")]
+    /// Box-constrained basin L-BFGS-B with the default More-Thuente line search.
+    pub fn basin_lbfgsb() -> BasinLBFGSBBuilder {
+        BasinLBFGSBBuilder::default()
+    }
+
+    #[cfg(feature = "basin")]
+    /// Box-constrained basin Nelder-Mead with projected trial vertices and standard coefficients.
+    pub fn basin_bounded_nelder_mead() -> BasinBoundedNelderMeadBuilder {
+        BasinBoundedNelderMeadBuilder::default()
+    }
+
+    #[cfg(feature = "basin")]
+    /// Box-constrained basin BOBYQA. Basin reduces the radii automatically for narrow boxes.
+    pub fn basin_bobyqa() -> BasinBOBYQABuilder {
+        BasinBOBYQABuilder::default()
+    }
+
     #[cfg(feature = "argmin")]
     pub fn lbfgs() -> LBFGSBuilder {
         LBFGSBuilder::default()
@@ -351,6 +488,24 @@ impl LocalSolverConfig {
     /// Returns the corresponding LocalSolverType for this configuration
     pub fn solver_type(&self) -> crate::types::LocalSolverType {
         match self {
+            #[cfg(feature = "basin")]
+            Self::BasinLBFGS { .. } => crate::types::LocalSolverType::BasinLBFGS,
+            #[cfg(feature = "basin")]
+            Self::BasinGradientDescent { .. } => {
+                crate::types::LocalSolverType::BasinGradientDescent
+            }
+            #[cfg(feature = "basin")]
+            Self::BasinTrustRegion { .. } => crate::types::LocalSolverType::BasinTrustRegion,
+            #[cfg(feature = "basin")]
+            Self::BasinNelderMead { .. } => crate::types::LocalSolverType::BasinNelderMead,
+            #[cfg(feature = "basin")]
+            Self::BasinLBFGSB { .. } => crate::types::LocalSolverType::BasinLBFGSB,
+            #[cfg(feature = "basin")]
+            Self::BasinBoundedNelderMead { .. } => {
+                crate::types::LocalSolverType::BasinBoundedNelderMead
+            }
+            #[cfg(feature = "basin")]
+            Self::BasinBOBYQA { .. } => crate::types::LocalSolverType::BasinBOBYQA,
             #[cfg(feature = "argmin")]
             LocalSolverConfig::LBFGS { .. } => crate::types::LocalSolverType::LBFGS,
             #[cfg(feature = "argmin")]
@@ -2187,7 +2342,10 @@ mod tests_builders {
                 assert_eq!(xtol_rel, 0.0);
                 assert!(xtol_abs.is_empty());
             }
-            #[cfg_attr(not(feature = "argmin"), allow(unreachable_patterns))]
+            #[cfg_attr(
+                not(any(feature = "argmin", feature = "basin")),
+                allow(unreachable_patterns)
+            )]
             _ => panic!("Expected COBYLA local solver"),
         }
     }
@@ -2220,7 +2378,10 @@ mod tests_builders {
                 assert_eq!(xtol_rel, 1e-9);
                 assert_eq!(actual_xtol_abs, xtol_abs);
             }
-            #[cfg_attr(not(feature = "argmin"), allow(unreachable_patterns))]
+            #[cfg_attr(
+                not(any(feature = "argmin", feature = "basin")),
+                allow(unreachable_patterns)
+            )]
             _ => panic!("Expected COBYLA local solver"),
         }
     }
@@ -2245,7 +2406,10 @@ mod tests_builders {
                 assert_eq!(xtol_rel, 0.0);
                 assert!(xtol_abs.is_empty());
             }
-            #[cfg_attr(not(feature = "argmin"), allow(unreachable_patterns))]
+            #[cfg_attr(
+                not(any(feature = "argmin", feature = "basin")),
+                allow(unreachable_patterns)
+            )]
             _ => panic!("Expected COBYLA local solver"),
         }
     }

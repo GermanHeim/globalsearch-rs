@@ -339,7 +339,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!();
     println!("Optimization Results:");
-    println!("{}", solution_set);
+    println!("{solution_set}");
 
     // Analyze the best solution in detail
     if let Some(best_solution) = solution_set.solutions.first() {
@@ -353,7 +353,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("θ₂ (secondary reaction rate):   {:.6}", theta_opt[1]);
         println!("θ₃ (additional cracking rate):  {:.6}", theta_opt[2]);
         println!();
-        println!("Sum of Squared Residuals: {:.8}", ssr_min);
+        println!("Sum of Squared Residuals: {ssr_min:.8}");
         println!("Root Mean Square Error:   {:.6}", (ssr_min / (21.0 * 2.0)).sqrt());
 
         // Validate solution by comparing with experimental data
@@ -389,8 +389,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     if i % 3 == 0 || i < 3 || i >= problem.experimental_data.times.len() - 3 {
                         println!(
-                            "{:.3}\t{:.4}\t{:.4}\t{:.4}\t{:.4}\t{:.4}\t{:.4}",
-                            t, exp_y1, mod_y1, err_y1, exp_y2, mod_y2, err_y2
+                            "{t:.3}\t{exp_y1:.4}\t{mod_y1:.4}\t{err_y1:.4}\t{exp_y2:.4}\t{mod_y2:.4}\t{err_y2:.4}"
                         );
                     }
                 }
@@ -398,19 +397,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("...\t(intermediate points omitted)\t...");
                 println!();
                 println!("Maximum Errors:");
-                println!("- Gas oil (y₁):      {:.6}", max_error_y1);
-                println!("- Gas/byproducts (y₂): {:.6}", max_error_y2);
+                println!("- Gas oil (y₁):      {max_error_y1:.6}");
+                println!("- Gas/byproducts (y₂): {max_error_y2:.6}");
 
                 let conversion_rate = theta_opt[0] / (theta_opt[0] + theta_opt[2]);
                 println!("Primary conversion efficiency: {:.1}%", conversion_rate * 100.0);
 
                 if theta_opt[1] > 0.0 {
                     let residence_time = 1.0 / theta_opt[1];
-                    println!("Gas/byproducts residence time: {:.3} time units", residence_time);
+                    println!("Gas/byproducts residence time: {residence_time:.3} time units");
                 }
             }
             Err(e) => {
-                println!("Error in solution validation: {}", e);
+                println!("Error in solution validation: {e}");
             }
         }
 
@@ -446,8 +445,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 println!();
                 println!("Objective Function Comparison:");
-                println!("GAMS SSR:     {:.8}", gams_ssr);
-                println!("Rust SSR:     {:.8}", rust_ssr);
+                println!("GAMS SSR:     {gams_ssr:.8}");
+                println!("Rust SSR:     {rust_ssr:.8}");
                 println!(
                     "Improvement:  {:.6}% ({} SSR)",
                     ssr_improvement.abs(),
@@ -465,7 +464,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             Err(e) => {
-                println!("Error evaluating GAMS solution: {:?}", e);
+                println!("Error evaluating GAMS solution: {e:?}");
             }
         }
     }

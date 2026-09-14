@@ -883,7 +883,199 @@ class PyCOBYLA:
         xtol_abs: Optional[List[float]] = None,
     ) -> None: ...
 
+class PyBasinLBFGS:
+    """Unconstrained basin L-BFGS with the default More-Thuente line search."""
+    max_iter: int
+    tolerance_grad: Optional[float]
+    tolerance_cost: Optional[float]
+    history_size: int
+
+    def __init__(
+        self,
+        max_iter: int = 1000,
+        tolerance_grad: Optional[float] = 1e-6,
+        tolerance_cost: Optional[float] = None,
+        history_size: int = 10,
+    ) -> None: ...
+
+class PyBasinGradientDescent:
+    """Unconstrained basin gradient descent with the default More-Thuente line search and no momentum."""
+    max_iter: int
+    tolerance_grad: Optional[float]
+    tolerance_cost: Optional[float]
+
+    def __init__(
+        self,
+        max_iter: int = 1000,
+        tolerance_grad: Optional[float] = 1e-6,
+        tolerance_cost: Optional[float] = None,
+    ) -> None: ...
+
+class PyBasinTrustRegion:
+    """Unconstrained basin trust-region optimization using the supplied gradient and Hessian."""
+    max_iter: int
+    tolerance_grad: Optional[float]
+    trust_region_radius_method: PyTrustRegionRadiusMethod
+    radius: float
+    max_radius: float
+    eta: float
+
+    def __init__(
+        self,
+        max_iter: int = 1000,
+        tolerance_grad: Optional[float] = 1e-6,
+        trust_region_radius_method: PyTrustRegionRadiusMethod = PyTrustRegionRadiusMethod.steihaug(),
+        radius: float = 1.0,
+        max_radius: float = 100.0,
+        eta: float = 0.125,
+    ) -> None: ...
+
+class PyBasinNelderMead:
+    """Unconstrained basin Nelder-Mead with standard coefficients."""
+    max_iter: int
+    simplex_delta: float
+    tolerance_simplex: Optional[float]
+    tolerance_cost: Optional[float]
+
+    def __init__(
+        self,
+        max_iter: int = 1000,
+        simplex_delta: float = 0.1,
+        tolerance_simplex: Optional[float] = 1e-6,
+        tolerance_cost: Optional[float] = 1e-8,
+    ) -> None: ...
+
+class PyBasinLBFGSB:
+    """Box-constrained basin L-BFGS-B with the default More-Thuente line search."""
+    max_iter: int
+    tolerance_projected_grad: Optional[float]
+    tolerance_cost: Optional[float]
+    history_size: int
+
+    def __init__(
+        self,
+        max_iter: int = 1000,
+        tolerance_projected_grad: Optional[float] = 1e-6,
+        tolerance_cost: Optional[float] = None,
+        history_size: int = 10,
+    ) -> None: ...
+
+class PyBasinBoundedNelderMead:
+    """Box-constrained basin Nelder-Mead with projected trial vertices and standard coefficients."""
+    max_iter: int
+    simplex_delta: float
+    tolerance_simplex: Optional[float]
+    tolerance_cost: Optional[float]
+
+    def __init__(
+        self,
+        max_iter: int = 1000,
+        simplex_delta: float = 0.1,
+        tolerance_simplex: Optional[float] = 1e-6,
+        tolerance_cost: Optional[float] = 1e-8,
+    ) -> None: ...
+
+class PyBasinBOBYQA:
+    """Box-constrained basin BOBYQA. Basin reduces the radii automatically for narrow boxes."""
+    max_iter: int
+    initial_radius: float
+    final_radius: float
+    interpolation_points: Optional[int]
+
+    def __init__(
+        self,
+        max_iter: int = 1000,
+        initial_radius: float = 1.0,
+        final_radius: float = 1e-6,
+        interpolation_points: Optional[int] = None,
+    ) -> None: ...
+
 class builders:
+    PyBasinLBFGS: type[PyBasinLBFGS]
+
+    @staticmethod
+    def basin_lbfgs(
+        max_iter: int = 1000,
+        tolerance_grad: Optional[float] = 1e-6,
+        tolerance_cost: Optional[float] = None,
+        history_size: int = 10,
+    ) -> PyBasinLBFGS:
+        """Unconstrained basin L-BFGS with the default More-Thuente line search."""
+        ...
+
+    PyBasinGradientDescent: type[PyBasinGradientDescent]
+
+    @staticmethod
+    def basin_gradient_descent(
+        max_iter: int = 1000,
+        tolerance_grad: Optional[float] = 1e-6,
+        tolerance_cost: Optional[float] = None,
+    ) -> PyBasinGradientDescent:
+        """Unconstrained basin gradient descent with the default More-Thuente line search and no momentum."""
+        ...
+
+    PyBasinTrustRegion: type[PyBasinTrustRegion]
+
+    @staticmethod
+    def basin_trust_region(
+        max_iter: int = 1000,
+        tolerance_grad: Optional[float] = 1e-6,
+        trust_region_radius_method: PyTrustRegionRadiusMethod = PyTrustRegionRadiusMethod.steihaug(),
+        radius: float = 1.0,
+        max_radius: float = 100.0,
+        eta: float = 0.125,
+    ) -> PyBasinTrustRegion:
+        """Unconstrained basin trust-region optimization using the supplied gradient and Hessian."""
+        ...
+
+    PyBasinNelderMead: type[PyBasinNelderMead]
+
+    @staticmethod
+    def basin_nelder_mead(
+        max_iter: int = 1000,
+        simplex_delta: float = 0.1,
+        tolerance_simplex: Optional[float] = 1e-6,
+        tolerance_cost: Optional[float] = 1e-8,
+    ) -> PyBasinNelderMead:
+        """Unconstrained basin Nelder-Mead with standard coefficients."""
+        ...
+
+    PyBasinLBFGSB: type[PyBasinLBFGSB]
+
+    @staticmethod
+    def basin_lbfgsb(
+        max_iter: int = 1000,
+        tolerance_projected_grad: Optional[float] = 1e-6,
+        tolerance_cost: Optional[float] = None,
+        history_size: int = 10,
+    ) -> PyBasinLBFGSB:
+        """Box-constrained basin L-BFGS-B with the default More-Thuente line search."""
+        ...
+
+    PyBasinBoundedNelderMead: type[PyBasinBoundedNelderMead]
+
+    @staticmethod
+    def basin_bounded_nelder_mead(
+        max_iter: int = 1000,
+        simplex_delta: float = 0.1,
+        tolerance_simplex: Optional[float] = 1e-6,
+        tolerance_cost: Optional[float] = 1e-8,
+    ) -> PyBasinBoundedNelderMead:
+        """Box-constrained basin Nelder-Mead with projected trial vertices and standard coefficients."""
+        ...
+
+    PyBasinBOBYQA: type[PyBasinBOBYQA]
+
+    @staticmethod
+    def basin_bobyqa(
+        max_iter: int = 1000,
+        initial_radius: float = 1.0,
+        final_radius: float = 1e-6,
+        interpolation_points: Optional[int] = None,
+    ) -> PyBasinBOBYQA:
+        """Box-constrained basin BOBYQA. Basin reduces the radii automatically for narrow boxes."""
+        ...
+
     @staticmethod
     def hagerzhang(
         delta: float = 0.1,
@@ -1623,6 +1815,13 @@ def optimize(
             PyNewtonCG,
             PyTrustRegion,
             PyCOBYLA,
+            PyBasinLBFGS,
+            PyBasinGradientDescent,
+            PyBasinTrustRegion,
+            PyBasinNelderMead,
+            PyBasinLBFGSB,
+            PyBasinBoundedNelderMead,
+            PyBasinBOBYQA,
         ]
     ] = None,
     seed: Optional[int] = 0,
@@ -1693,7 +1892,7 @@ def optimize(
     :param local_solver_config: Custom configuration for the local solver. The solver type is inferred
                                from the config object's type (e.g. ``PyCOBYLA``, ``PyLBFGS``).
                                When passed alongside ``local_solver``, both must refer to the same solver type.
-    :type local_solver_config: Union[PyLBFGS, PyNelderMead, PySteepestDescent, PyNewtonCG, PyTrustRegion, PyCOBYLA], optional
+    :type local_solver_config: Union[PyLBFGS, PyNelderMead, PySteepestDescent, PyNewtonCG, PyTrustRegion, PyCOBYLA, PyBasinLBFGS, PyBasinGradientDescent, PyBasinTrustRegion, PyBasinNelderMead, PyBasinLBFGSB, PyBasinBoundedNelderMead, PyBasinBOBYQA], optional
     :param seed: Random seed for reproducible results (0 by default)
     :type seed: int
     :param target_objective: Stop optimization when this objective value is reached (None by default = no target)

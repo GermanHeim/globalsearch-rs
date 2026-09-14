@@ -116,7 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Step 5: Analyze the results
     println!("Optimization completed!");
-    println!("{}", solution_set);
+    println!("{solution_set}");
 
     if let Some(best) = solution_set.best_solution() {
         println!("Detailed Analysis:");
@@ -128,8 +128,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         println!("Distance from global minimum (1, 1):");
         let distance = ((x_opt - 1.0).powi(2) + (y_opt - 1.0).powi(2)).sqrt();
-        println!("  Euclidean distance: {:.6}", distance);
-        println!("  Error in objective: {:.8}", f_opt);
+        println!("  Euclidean distance: {distance:.6}");
+        println!("  Error in objective: {f_opt:.8}");
         println!();
 
         // Evaluate how good the solution is

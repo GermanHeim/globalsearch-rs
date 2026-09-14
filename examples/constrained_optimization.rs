@@ -134,8 +134,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!();
         println!("Detailed Solution Analysis:");
         println!("==========================");
-        println!("Optimal point: ({:.6}, {:.6})", x_opt, y_opt);
-        println!("Objective value: {:.8}", f_opt);
+        println!("Optimal point: ({x_opt:.6}, {y_opt:.6})");
+        println!("Objective value: {f_opt:.8}");
 
         // Check constraints manually
         let (constraint_values, all_satisfied) = evaluate_constraints(&best.point);
@@ -160,10 +160,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Analyze the solution quality
             let distance_from_unconstrained =
                 ((x_opt - 1.0).powi(2) + (y_opt - 1.0).powi(2)).sqrt();
-            println!(
-                "Distance from unconstrained optimum (1,1): {:.6}",
-                distance_from_unconstrained
-            );
+            println!("Distance from unconstrained optimum (1,1): {distance_from_unconstrained:.6}");
 
             // Check if we're at a constraint boundary (active constraints)
             println!();
@@ -192,7 +189,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "- Theoretical optimum: ({:.3}, {:.3}) with f = {:.6}",
                 theoretical_opt.0, theoretical_opt.1, theoretical_f
             );
-            println!("- Error from theoretical optimum: {:.8}", error);
+            println!("- Error from theoretical optimum: {error:.8}");
 
             if error < 1e-3 {
                 println!("Found theoretical optimum");

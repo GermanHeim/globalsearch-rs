@@ -155,3 +155,32 @@ If `PyGlobalSearch` has been significant in your research, and you would like to
 \[1\] Zsolt Ugray, Leon Lasdon, John Plummer, Fred Glover, James Kelly, Rafael Martí, (2007) Scatter Search and Local NLP Solvers: A Multistart Framework for Global Optimization. INFORMS Journal on Computing 19(3):328-340. <http://dx.doi.org/10.1287/ijoc.1060.0175>
 
 \[2\] GlobalSearch. The MathWorks, Inc. Available at: <https://www.mathworks.com/help/gads/globalsearch.html> (Accessed: 27 January 2025)
+
+## Basin local solvers
+
+Python builds include Basin and argmin. Existing solver names keep their current
+implementations; select a Basin method explicitly, for example:
+
+```python
+config = gs.builders.basin_lbfgsb(max_iter=500, tolerance_projected_grad=1e-8)
+result = gs.optimize(problem, params, local_solver_config=config)
+result = gs.optimize(problem, params, local_solver="basin_bobyqa")
+```
+
+The new names are `basin_lbfgs`, `basin_gradient_descent`, `basin_trust_region`,
+`basin_nelder_mead`, `basin_lbfgsb`, `basin_bounded_nelder_mead`, and
+`basin_bobyqa`. Each has a factory under `gs.builders` and a matching configuration
+class, such as `gs.builders.PyBasinLBFGSB`. Names are case-insensitive and also
+accept hyphens or compact spelling. A supplied solver name must match the
+configuration's inferred solver type.
+
+L-BFGS-B, bounded Nelder-Mead, and BOBYQA enforce box bounds during local search.
+The other new methods are unconstrained. All seven reject nonempty nonlinear
+constraints; use `cobyla` for those problems. L-BFGS, L-BFGS-B, and gradient
+descent require a gradient; trust region also requires a Hessian.
+
+`max_iter` counts executor iterations for the new methods and defaults to 1,000.
+Optional tolerances use `None` to disable and zero for an exact threshold.
+Invalid settings and callback failures raise `ValueError`. See the
+[backend guide](../README.md#choosing-a-local-solver-backend) for numerical
+defaults, stopping criteria, and the available settings.

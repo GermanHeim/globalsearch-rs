@@ -139,8 +139,9 @@ pub trait Problem {
     ///
     /// Returns a `Result<Array2<f64>>` of the variable bounds for the optimization problem.
     ///
-    /// COBYLA enforces these bounds during local optimization. The argmin-based
-    /// local solvers are unconstrained and can return solutions outside them; see
+    /// COBYLA and the Basin L-BFGS-B, bounded Nelder-Mead, and BOBYQA solvers
+    /// enforce these bounds during local optimization. Other local solvers are
+    /// unconstrained and can return solutions outside them; see
     /// [argmin issue #137](https://github.com/argmin-rs/argmin/issues/137).
     fn variable_bounds(&self) -> Array2<f64>;
 
@@ -155,6 +156,8 @@ pub trait Problem {
     /// - **Negative**: constraint violated
     ///
     /// The default implementation returns an empty array (no constraints).
+    /// The optional Basin solvers reject nonempty nonlinear constraints; use
+    /// COBYLA when nonlinear constraints are present.
     ///
     /// # Examples
     ///
