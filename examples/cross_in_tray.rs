@@ -120,7 +120,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut oqnlp: OQNLP<CrossInTray> = OQNLP::new(problem.clone(), params)?.verbose();
     let solution_set: SolutionSet = oqnlp.run()?;
 
-    println!("{}", solution_set);
+    println!("{solution_set}");
 
     Ok(())
 }

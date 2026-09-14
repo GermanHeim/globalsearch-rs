@@ -61,7 +61,7 @@ impl Problem for DummyProblem {
     }
 
     fn variable_bounds(&self) -> Array2<f64> {
-        Array2::from_shape_vec((self.dims, 2), vec![-1.0, 1.0].repeat(self.dims)).unwrap()
+        Array2::from_shape_vec((self.dims, 2), [-1.0, 1.0].repeat(self.dims)).unwrap()
     }
 }
 

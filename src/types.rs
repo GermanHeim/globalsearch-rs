@@ -771,7 +771,7 @@ impl fmt::Display for OQNLPCheckpoint {
         writeln!(f, "  Seed: {}", self.params.seed)?;
 
         if let Some(target) = self.target_objective {
-            writeln!(f, "  Target objective: {:.8e}", target)?;
+            writeln!(f, "  Target objective: {target:.8e}")?;
         } else {
             writeln!(f, "  Target objective: None")?;
         }
@@ -847,9 +847,9 @@ mod tests_types {
             Array1::from_vec(vec![LocalSolution { point: array![1.0], objective: -1.0 }]);
         let solution_set: SolutionSet = SolutionSet { solutions };
 
-        println!("{}", solution_set);
+        println!("{solution_set}");
 
-        let display_output: String = format!("{}", solution_set);
+        let display_output: String = format!("{solution_set}");
         assert!(display_output.contains("Solution Set"));
         assert!(display_output.contains("Total solutions: 1"));
         assert!(display_output.contains("Best objective value"));
@@ -862,7 +862,7 @@ mod tests_types {
         let solutions: Array1<LocalSolution> = Array1::from_vec(vec![]);
         let solution_set: SolutionSet = SolutionSet { solutions };
 
-        let display_output: String = format!("{}", solution_set);
+        let display_output: String = format!("{solution_set}");
         assert!(display_output.contains("Solution Set"));
         assert!(display_output.contains("Total solutions: 0"));
     }
@@ -997,7 +997,7 @@ mod tests_types {
             timestamp: "2025-07-27T12:00:00Z".to_string(),
         };
 
-        let display_output = format!("{}", checkpoint);
+        let display_output = format!("{checkpoint}");
 
         // Check that display output contains expected elements
         assert!(display_output.contains("OQNLP Checkpoint"));
@@ -1113,7 +1113,7 @@ mod tests_types {
             timestamp: "2025-07-27T10:00:00Z".to_string(),
         };
 
-        let display_output = format!("{}", checkpoint);
+        let display_output = format!("{checkpoint}");
 
         // Check that display output handles no solutions case
         assert!(display_output.contains("OQNLP Checkpoint"));

@@ -789,7 +789,7 @@ fn optimize(
             let cols = if rows > 0 { points[0].len() } else { 0 };
             let flat_points: Vec<f64> = points.into_iter().flatten().collect();
             let points_array = Array2::from_shape_vec((rows, cols), flat_points)
-                .map_err(|e| PyValueError::new_err(format!("Invalid points array shape: {}", e)))?;
+                .map_err(|e| PyValueError::new_err(format!("Invalid points array shape: {e}")))?;
             optimizer = optimizer
                 .with_points(points_array)
                 .map_err(|e| PyValueError::new_err(e.to_string()))?;

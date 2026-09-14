@@ -101,7 +101,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let solution_set = oqnlp.run()?;
 
     println!("\nOptimization Complete");
-    println!("{}", solution_set);
+    println!("{solution_set}");
 
     Ok(())
 }

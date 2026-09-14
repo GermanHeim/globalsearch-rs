@@ -94,7 +94,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let result = oqnlp.run()?;
     println!("Initial optimization completed!");
-    println!("{}", result);
+    println!("{result}");
 
     // Continue optimization with more iterations to find additional solutions
     let extended_params = OQNLPParams {
@@ -125,7 +125,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let final_result = continued_oqnlp.run()?;
         println!("Extended optimization completed!");
-        println!("{}", final_result)
+        println!("{final_result}")
     } else {
         println!("No checkpoint found to continue from!");
     }

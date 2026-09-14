@@ -2095,8 +2095,7 @@ mod tests_local_solvers {
             local_solver.solve_with_tracking(initial_point.clone(), true).unwrap();
         assert!(
             eval_count > 0,
-            "COBYLA should track function evaluations when enabled, got {}",
-            eval_count
+            "COBYLA should track function evaluations when enabled, got {eval_count}"
         );
         assert!(eval_count <= 100, "COBYLA exceeded its evaluation budget: {eval_count}");
         assert!(res.objective < 0.0);
@@ -2105,8 +2104,7 @@ mod tests_local_solvers {
         let (res2, eval_count2) = local_solver.solve_with_tracking(initial_point, false).unwrap();
         assert_eq!(
             eval_count2, 0,
-            "COBYLA should return 0 evaluations when tracking disabled, got {}",
-            eval_count2
+            "COBYLA should return 0 evaluations when tracking disabled, got {eval_count2}"
         );
         assert!(res2.objective < 0.0);
     }

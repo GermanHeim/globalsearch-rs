@@ -1428,9 +1428,7 @@ mod tests_scatter_search {
             for value in problem.constraints(point).unwrap() {
                 assert!(
                     value >= -1e-10,
-                    "Constraint violated: point = {:?}, constraint value = {}",
-                    point,
-                    value
+                    "Constraint violated: point = {point:?}, constraint value = {value}"
                 );
             }
         }
@@ -1440,9 +1438,7 @@ mod tests_scatter_search {
             let sum = point[0] + point[1];
             assert!(
                 sum <= 1.5 + 1e-10,
-                "Direct constraint check failed: x + y = {} > 1.5 for point {:?}",
-                sum,
-                point
+                "Direct constraint check failed: x + y = {sum} > 1.5 for point {point:?}"
             );
         }
     }

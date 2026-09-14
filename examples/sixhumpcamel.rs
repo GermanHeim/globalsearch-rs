@@ -56,7 +56,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut oqnlp: OQNLP<SixHumpCamel> = OQNLP::new(problem, params)?.verbose();
     let solution_set: SolutionSet = oqnlp.run()?;
 
-    println!("{}", solution_set);
+    println!("{solution_set}");
 
     Ok(())
 }

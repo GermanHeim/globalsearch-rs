@@ -963,7 +963,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
             if let (Some(max_secs), Some(start)) = (self.max_time, start_timer) {
                 if start.elapsed().as_secs_f64() > max_secs {
                     if self.verbose {
-                        println!("Timeout reached after {} seconds", max_secs);
+                        println!("Timeout reached after {max_secs} seconds");
                     }
                     break;
                 }
@@ -1414,8 +1414,7 @@ impl<P: Problem + Clone + Send + Sync> OQNLP<P> {
 
                         if self.verbose {
                             println!(
-                                "Keeping original reference set size of {} points despite smaller population_size parameter",
-                                old_population_size
+                                "Keeping original reference set size of {old_population_size} points despite smaller population_size parameter"
                             );
                         }
                     }

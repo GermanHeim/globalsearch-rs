@@ -455,7 +455,7 @@ mod tests_checkpointing {
             .filter_map(|e| e.ok())
             .filter(|e| {
                 if let Some(filename) = e.file_name().to_str() {
-                    let pattern = format!("{}_", prefix);
+                    let pattern = format!("{prefix}_");
                     if filename.starts_with(&pattern) && filename.ends_with(".bin") {
                         let iteration_str = &filename[pattern.len()..filename.len() - 4];
                         iteration_str.parse::<usize>().is_ok()
@@ -630,8 +630,7 @@ mod tests_checkpointing {
         let filename = latest_path.file_name().unwrap().to_str().unwrap();
         assert!(
             filename.contains("000010"),
-            "Expected filename to contain '000010', got: {}",
-            filename
+            "Expected filename to contain '000010', got: {filename}"
         );
 
         // Test loading the latest checkpoint
