@@ -458,7 +458,7 @@ impl fmt::Display for SolutionSet {
 #[cfg_attr(feature = "checkpointing", derive(serde::Serialize, serde::Deserialize))]
 /// Local solver implementation types for the OQNLP algorithm
 ///
-/// This enum defines the types of local solvers that can be used in the OQNLP algorithm, including L-BFGS, Nelder-Mead, and Gradient Descent (argmin's implementations).
+/// This enum defines the types of local solvers that can be used in the OQNLP algorithm, including argmin methods, COBYLA, and explicitly named optional Basin methods.
 pub enum LocalSolverType {
     /// L-BFGS local solver
     ///
@@ -494,6 +494,33 @@ pub enum LocalSolverType {
     ///
     /// Requires only `CostFunction`
     COBYLA,
+    #[cfg(feature = "basin")]
+    /// Unconstrained basin L-BFGS with the default More-Thuente line search.
+    BasinLBFGS,
+
+    #[cfg(feature = "basin")]
+    /// Unconstrained basin gradient descent with the default More-Thuente line search and no momentum.
+    BasinGradientDescent,
+
+    #[cfg(feature = "basin")]
+    /// Unconstrained basin trust-region optimization using the supplied gradient and Hessian.
+    BasinTrustRegion,
+
+    #[cfg(feature = "basin")]
+    /// Unconstrained basin Nelder-Mead with standard coefficients.
+    BasinNelderMead,
+
+    #[cfg(feature = "basin")]
+    /// Box-constrained basin L-BFGS-B with the default More-Thuente line search.
+    BasinLBFGSB,
+
+    #[cfg(feature = "basin")]
+    /// Box-constrained basin Nelder-Mead with projected trial vertices and standard coefficients.
+    BasinBoundedNelderMead,
+
+    #[cfg(feature = "basin")]
+    /// Box-constrained basin BOBYQA. Basin reduces the radii automatically for narrow boxes.
+    BasinBOBYQA,
 }
 
 impl LocalSolverType {
@@ -502,6 +529,19 @@ impl LocalSolverType {
     /// This method is used to convert a string to a `LocalSolverType` enum.
     /// It is used to set the local solver type for the Python bindings.
     pub fn from_string(s: &str) -> Result<Self, &'static str> {
+        #[cfg(feature = "basin")]
+        if s.to_ascii_lowercase().starts_with("basin") {
+            return match s.to_ascii_lowercase().replace(['-', '_'], "").as_str() {
+                "basinlbfgs" => Ok(Self::BasinLBFGS),
+                "basingradientdescent" => Ok(Self::BasinGradientDescent),
+                "basintrustregion" => Ok(Self::BasinTrustRegion),
+                "basinneldermead" => Ok(Self::BasinNelderMead),
+                "basinlbfgsb" => Ok(Self::BasinLBFGSB),
+                "basinboundedneldermead" => Ok(Self::BasinBoundedNelderMead),
+                "basinbobyqa" => Ok(Self::BasinBOBYQA),
+                _ => Err("Invalid solver type."),
+            };
+        }
         match s.to_lowercase().as_str() {
             #[cfg(feature = "argmin")]
             "lbfgs" => Ok(Self::LBFGS),

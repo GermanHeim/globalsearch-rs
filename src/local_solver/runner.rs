@@ -90,6 +90,10 @@ use thiserror::Error;
 #[derive(Error, Debug, PartialEq)]
 /// Local solver error enum
 pub enum LocalSolverError {
+    #[cfg(feature = "basin")]
+    #[error("Local Solver Error: Invalid {solver_type} configuration. {reason}")]
+    InvalidBasinConfig { solver_type: String, reason: String },
+
     #[cfg(feature = "argmin")]
     #[error("Local Solver Error: Invalid LocalSolverConfig for L-BFGS solver. {reason}")]
     InvalidLBFGSConfig { reason: String },
@@ -307,6 +311,21 @@ impl<P: Problem> LocalSolver<P> {
         track_evaluations: bool,
     ) -> Result<(LocalSolution, u64), LocalSolverError> {
         match self.local_solver_type {
+            #[cfg(feature = "basin")]
+            LocalSolverType::BasinLBFGS
+            | LocalSolverType::BasinGradientDescent
+            | LocalSolverType::BasinTrustRegion
+            | LocalSolverType::BasinNelderMead
+            | LocalSolverType::BasinLBFGSB
+            | LocalSolverType::BasinBoundedNelderMead
+            | LocalSolverType::BasinBOBYQA => super::basin::solve(
+                &self.problem,
+                initial_point,
+                &self.local_solver_config,
+                &self.local_solver_type,
+                track_evaluations,
+            ),
+
             #[cfg(feature = "argmin")]
             LocalSolverType::LBFGS => {
                 self.solve_lbfgs(initial_point, &self.local_solver_config, track_evaluations)
@@ -1109,7 +1128,10 @@ impl<P: Problem> LocalSolver<P> {
         solver_config: &LocalSolverConfig,
         track_evaluations: bool,
     ) -> Result<(LocalSolution, u64), LocalSolverError> {
-        #[cfg_attr(not(feature = "argmin"), allow(irrefutable_let_patterns))]
+        #[cfg_attr(
+            not(any(feature = "argmin", feature = "basin")),
+            allow(irrefutable_let_patterns)
+        )]
         if let LocalSolverConfig::COBYLA {
             max_iter,
             initial_step_size,

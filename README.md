@@ -105,9 +105,9 @@ Similar to MATLAB's `GlobalSearch` \[2\], using Basin, argmin, Rayon, and ndarra
    }
    ```
 
-   Depending on your choice of local solver, you might need to implement the `gradient` and `hessian` methods. Learn more about COBYLA in the [Basin docs](https://docs.rs/basin/latest/basin/struct.Cobyla.html), about the other solvers in the [argmin docs](https://docs.rs/argmin/latest/argmin/solver/index.html), or see [`LocalSolverType`](https://docs.rs/globalsearch/latest/globalsearch/types/enum.LocalSolverType.html).
+   Depending on your choice of local solver, you might need to implement the `gradient` and `hessian` methods. Learn more in the [Basin docs](https://docs.rs/basin/1.11.0/basin/) and [argmin docs](https://docs.rs/argmin/latest/argmin/solver/index.html), or see [`LocalSolverType`](https://docs.rs/globalsearch/latest/globalsearch/types/enum.LocalSolverType.html).
 
-   > 🔴 **Note:** If using a solver that isn't COBYLA, variable bounds are only used in the scatter search phase of the algorithm. The local solver is unconstrained (See [argmin issue #137](https://github.com/argmin-rs/argmin/issues/137)) and therefor can return solutions out of bounds. You can use OQNLP's `exclude_out_of_bounds` method to handle this if needed.
+   > **Bounds:** COBYLA, Basin L-BFGS-B, Basin bounded Nelder-Mead, and Basin BOBYQA enforce variable bounds during local optimization. Other local solvers use bounds only during scatter search and can return points outside them. Use `exclude_out_of_bounds` to filter those solutions if needed. Only COBYLA supports nonlinear constraints.
 
 2. Set OQNLP parameters
 
@@ -222,10 +222,95 @@ src/
 python/ # Python bindings
 ```
 
+## Choosing a local-solver backend
+
+The default `argmin` feature provides the existing L-BFGS, Nelder-Mead, steepest
+descent, trust-region, and Newton-CG solvers. COBYLA always uses Basin and remains
+the default local solver, including when all default features are disabled.
+
+Enable the `basin` feature for additional, explicitly named Basin solvers:
+
+```toml
+[dependencies]
+globalsearch = { version = "0.6", default-features = false, features = ["basin"] }
+```
+
+Keep default features enabled to use both backends in the same application.
+Enabling `basin` does not change existing argmin solver selections. Both paths
+use the existing `Problem` trait and ndarray arrays. Rust 1.87 is required.
+
+| Rust builder | Python factory / solver name | Derivatives | Local constraints |
+| --- | --- | --- | --- |
+| `BasinLBFGSBuilder` | `basin_lbfgs` | Gradient | None |
+| `BasinGradientDescentBuilder` | `basin_gradient_descent` | Gradient | None |
+| `BasinTrustRegionBuilder` | `basin_trust_region` | Gradient and Hessian | None |
+| `BasinNelderMeadBuilder` | `basin_nelder_mead` | None | None |
+| `BasinLBFGSBBuilder` | `basin_lbfgsb` | Gradient | Box bounds |
+| `BasinBoundedNelderMeadBuilder` | `basin_bounded_nelder_mead` | None | Box bounds |
+| `BasinBOBYQABuilder` | `basin_bobyqa` | None | Box bounds |
+| `COBYLABuilder` | `cobyla` | None | Box bounds and nonlinear inequalities |
+
+```rust
+use globalsearch::local_solver::builders::BasinLBFGSBBuilder;
+use globalsearch::types::OQNLPParams;
+
+let params = OQNLPParams {
+    local_solver_config: BasinLBFGSBBuilder::default()
+        .max_iter(500)
+        .tolerance_projected_grad(1e-8)
+        .history_size(10)
+        .build(),
+    ..OQNLPParams::default()
+};
+```
+
+The seven new solvers reject problems with nonempty nonlinear constraints and
+report that COBYLA is required. They propagate callback errors and require
+analytic derivatives where listed. Configuration errors are returned when the
+local solve starts. The bounded methods project infeasible starting points
+before callbacks; bounded Nelder-Mead initializes its simplex toward the box
+interior. Projection can still collapse vertices during later Nelder-Mead steps.
+
+New Basin builders default to 1,000 executor iterations. Initialization and line
+searches can evaluate the objective multiple times per iteration. COBYLA retains
+its existing interpretation of `max_iter` as an objective-evaluation budget.
+Gradient tolerances default to `1e-6` (Euclidean norm for unconstrained methods,
+projected-gradient infinity norm for L-BFGS-B). Optional tolerances accept `None`
+to disable or zero for an exact threshold. Cost-change stopping is disabled by
+default for L-BFGS, L-BFGS-B, and gradient descent. They use Basin's default
+More–Thuente line search; argmin line-search configurations do not apply.
+
+Nelder-Mead uses standard coefficients, an absolute simplex step of `0.1`, and
+requires both simplex-size (`1e-6`, infinity norm) and simplex-cost (`1e-8`)
+tolerances when both are enabled. Trust region defaults to Steihaug, initial
+radius `1`, maximum radius `100`, and acceptance threshold `0.125`; Cauchy is
+also available. BOBYQA defaults to initial radius `1`, final radius `1e-6`, and
+`2n+1` interpolation points. It automatically reduces radii for narrow boxes.
+Its interpolation count must lie in `[2n+1, (n+1)(n+2)/2]`.
+
+Python distributions include both backends. For example:
+
+```python
+config = gs.builders.basin_lbfgsb(max_iter=500, tolerance_projected_grad=1e-8)
+result = gs.optimize(problem, params, local_solver_config=config)
+# Or select default settings by name:
+result = gs.optimize(problem, params, local_solver="basin_bobyqa")
+```
+
+Names are case-insensitive and accept underscores, hyphens, or compact spelling.
+When both a name and a configuration are provided, they must select the same
+solver. The configuration classes are available as `gs.builders.PyBasinLBFGS`,
+`PyBasinLBFGSB`, and corresponding names for the other methods.
+
+Checkpoint files retain the existing enum encoding when enabling the `basin`
+feature with the same argmin feature setting. Reading a checkpoint containing a
+Basin solver requires enabling that feature. Checkpoints are not portable across
+changes to the argmin feature setting.
+
 ## Dependencies
 
 - [ndarray](https://github.com/rust-ndarray/ndarray)
-- [Basin](https://github.com/jolars/basin)
+- [Basin](https://github.com/jolars/basin) [COBYLA always available; other solvers: `basin` feature]
 - [argmin](https://github.com/argmin-rs/argmin) [feature: `argmin`]
 - [rayon](https://github.com/rayon-rs/rayon) [feature: `rayon`]
 - [kdam](https://github.com/clitic/kdam) [feature: `progress_bar`]

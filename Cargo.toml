@@ -28,6 +28,7 @@ basin = { version = "1.11.0", default-features = false }
 [features]
 default = ["argmin"]
 argmin = ["dep:argmin", "dep:argmin-math"]
+basin = []
 rayon = ["dep:rayon"]
 progress_bar = ["dep:kdam"]
 checkpointing = ["dep:serde", "dep:bincode", "dep:chrono", "ndarray/serde"]
@@ -72,3 +73,15 @@ required-features = ["argmin"]
 [[example]]
 name = "sixhumpcamel"
 required-features = ["argmin"]
+
+[[example]]
+name = "checkpointing_example"
+required-features = ["argmin", "checkpointing"]
+
+[[example]]
+name = "extended_checkpointing"
+required-features = ["argmin", "checkpointing"]
+
+[[example]]
+name = "checkpointing_population_size_expansion"
+required-features = ["argmin", "checkpointing"]

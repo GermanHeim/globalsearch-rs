@@ -8,40 +8,30 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
-
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          - ""
+          - "--no-default-features"
+          - "--no-default-features --features basin"
+          - "--features basin"
+          - "--features rayon"
+          - "--features checkpointing"
+          - "--no-default-features --features basin,rayon,checkpointing"
+          - "--all-features"
     steps:
       - uses: actions/checkout@v7
       - uses: Swatinem/rust-cache@v2
       - uses: dtolnay/rust-toolchain@stable
-      - name: Build
-        run: cargo build --verbose
-      - name: Run tests
-        run: cargo test --verbose
-      - name: Run tests without default features (no argmin)
-        run: cargo test --no-default-features --verbose
-      - name: Run tests with rayon
-        run: cargo test --features rayon --verbose
-      - name: Run tests with checkpointing
-        run: cargo test --features checkpointing --verbose
-
-  clippy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
-      - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+      - name: Test
+        run: cargo test --locked ${{ matrix.features }}
       - name: Clippy
-        run: cargo clippy --verbose -- -D warnings
-      - name: Clippy without default features (no argmin)
-        run: cargo clippy --no-default-features --verbose -- -D warnings
-      - name: Clippy with rayon
-        run: cargo clippy --features "rayon" --verbose -- -D warnings
-      - name: Clippy with checkpointing
-        run: cargo clippy --features "checkpointing" --verbose -- -D warnings
+        run: cargo clippy --locked ${{ matrix.features }} -- -D warnings
 
   fmt:
     runs-on: ubuntu-latest
@@ -52,3 +42,22 @@ jobs:
           components: rustfmt
       - name: Check formatting
         run: cargo fmt --all -- --check
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build documentation
+        run: cargo doc --locked --all-features --no-deps
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@1.87.0
+      - name: Test basin on the minimum supported Rust version
+        run: cargo test --locked --no-default-features --features basin,rayon,checkpointing --lib --test basin_solvers

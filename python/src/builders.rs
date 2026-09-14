@@ -1,3 +1,6 @@
+mod basin;
+pub use basin::*;
+
 use globalsearch::local_solver::builders::{
     COBYLABuilder, HagerZhangBuilder, LBFGSBuilder, LineSearchParams, MoreThuenteBuilder,
     NelderMeadBuilder, NewtonCGBuilder, SteepestDescentBuilder, TrustRegionBuilder,
@@ -1032,6 +1035,7 @@ fn cobyla(
 
 /// Initialize the builders module
 pub fn init_module(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    basin::register(m)?;
     m.add_class::<PyLineSearchParams>()?;
 
     m.add_class::<PyHagerZhang>()?;

@@ -75,5 +75,11 @@
 //! };
 //! ```
 
+//! The optional `basin` feature adds explicitly named Basin builders for
+//! L-BFGS, gradient descent, trust region, Nelder-Mead, L-BFGS-B, bounded
+//! Nelder-Mead, and BOBYQA. Existing builders retain their implementations.
 pub mod builders;
 pub mod runner;
+
+#[cfg(feature = "basin")]
+mod basin;
