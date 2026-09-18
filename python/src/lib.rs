@@ -516,6 +516,7 @@ impl Clone for PyProblem {
 impl PyProblem {
     #[new]
     #[pyo3(signature = (objective, variable_bounds, gradient=None, hessian=None, constraints=None, linear_inequalities=None, linear_equalities=None, nonlinear_equalities=None, constraint_jacobian=None))]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
         objective: Py<pyo3::PyAny>,
