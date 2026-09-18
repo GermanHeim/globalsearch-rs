@@ -85,19 +85,11 @@ def test_different_seeds():
 
 def test_convergence_tolerance():
     """Test that optimization respects different tolerance settings."""
-    # Create line search params for both configs
-    loose_morethuente = gs.builders.PyMoreThuente(c1=1e-4, c2=0.9)
-    tight_morethuente = gs.builders.PyMoreThuente(c1=1e-4, c2=0.9)
-
-    loose_line_search = gs.builders.PyLineSearchParams(loose_morethuente)
-    tight_line_search = gs.builders.PyLineSearchParams(tight_morethuente)
-
     loose_lbfgs = gs.builders.PyLBFGS(
         max_iter=300,
         tolerance_grad=1e-4,  # Loose tolerance
         tolerance_cost=1e-8,
         history_size=10,
-        line_search_params=loose_line_search,
     )
     result_loose = gs.optimize(
         problem_grad, params, local_solver="LBFGS", local_solver_config=loose_lbfgs
@@ -108,7 +100,6 @@ def test_convergence_tolerance():
         tolerance_grad=1e-10,  # Tight tolerance
         tolerance_cost=1e-12,
         history_size=10,
-        line_search_params=tight_line_search,
     )
     result_tight = gs.optimize(
         problem_grad, params, local_solver="LBFGS", local_solver_config=tight_lbfgs

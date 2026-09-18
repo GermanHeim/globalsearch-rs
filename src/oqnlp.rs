@@ -28,8 +28,8 @@
 //! - **Multi-modal Optimization**: Can find multiple local optima simultaneously
 //!
 //! ### Local Refinement
-//! - **Gradient-Based Methods**: L-BFGS, trust region, Newton-CG for smooth problems
-//! - **Derivative-Free Methods**: Nelder-Mead, COBYLA for non-smooth problems
+//! - **Gradient-Based Methods**: L-BFGS, gradient descent, trust region for smooth problems
+//! - **Derivative-Free Methods**: Nelder-Mead, BOBYQA, COBYLA for non-smooth problems
 //! - **Flexible Configuration**: Easily switch between different local solvers
 //!
 //! ### Robustness Features

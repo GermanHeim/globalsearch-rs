@@ -1,5 +1,3 @@
-#![cfg(feature = "basin")]
-
 use globalsearch::local_solver::builders::*;
 use globalsearch::local_solver::runner::{LocalSolver, LocalSolverError};
 use globalsearch::problem::Problem;
@@ -44,14 +42,14 @@ impl Problem for Quadratic {
 
 fn configs() -> Vec<(LocalSolverConfig, bool)> {
     vec![
-        (BasinLBFGSBuilder::default().build(), false),
-        (BasinGradientDescentBuilder::default().build(), false),
-        (BasinTrustRegionBuilder::default().build(), false),
-        (BasinTrustRegionBuilder::default().method(TrustRegionRadiusMethod::Cauchy).build(), false),
-        (BasinNelderMeadBuilder::default().build(), false),
-        (BasinLBFGSBBuilder::default().build(), true),
-        (BasinBoundedNelderMeadBuilder::default().build(), true),
-        (BasinBOBYQABuilder::default().build(), true),
+        (LBFGSBuilder::default().build(), false),
+        (GradientDescentBuilder::default().build(), false),
+        (TrustRegionBuilder::default().build(), false),
+        (TrustRegionBuilder::default().method(TrustRegionRadiusMethod::Cauchy).build(), false),
+        (NelderMeadBuilder::default().build(), false),
+        (LBFGSBBuilder::default().build(), true),
+        (BoundedNelderMeadBuilder::default().build(), true),
+        (BOBYQABuilder::default().build(), true),
     ]
 }
 
@@ -91,7 +89,7 @@ fn nonlinear_constraints_are_rejected_before_objective_evaluation() {
         let problem = Quadratic { bounded, constraints: true, calls: calls.clone() };
         let solver = LocalSolver::new(problem, config.solver_type(), config);
         let error = solver.solve(array![0.5, 0.5]).unwrap_err();
-        assert!(matches!(error, LocalSolverError::InvalidBasinConfig { .. }));
+        assert!(matches!(error, LocalSolverError::InvalidConfig { .. }));
         assert!(error.to_string().contains("COBYLA"));
         assert_eq!(calls.load(Ordering::Relaxed), 0);
     }
@@ -99,7 +97,7 @@ fn nonlinear_constraints_are_rejected_before_objective_evaluation() {
 
 #[test]
 fn iteration_limit_returns_a_finite_initial_solution() {
-    let config = BasinLBFGSBuilder::default().max_iter(0).build();
+    let config = LBFGSBuilder::default().max_iter(0).build();
     let problem = Quadratic { bounded: false, constraints: false, calls: Arc::default() };
     let solution =
         LocalSolver::new(problem, config.solver_type(), config).solve(array![0.5, 0.5]).unwrap();
@@ -110,28 +108,28 @@ fn iteration_limit_returns_a_finite_initial_solution() {
 #[test]
 fn invalid_configurations_return_errors() {
     let configs = [
-        BasinLBFGSBuilder::new().history_size(0).build(),
-        BasinLBFGSBuilder::new().tolerance_grad(-1.0).build(),
-        BasinLBFGSBuilder::new().tolerance_cost(f64::NAN).build(),
-        BasinLBFGSBBuilder::new().history_size(0).build(),
-        BasinLBFGSBBuilder::new().tolerance_projected_grad(f64::INFINITY).build(),
-        BasinGradientDescentBuilder::new().tolerance_grad(f64::NAN).build(),
-        BasinNelderMeadBuilder::new().simplex_delta(0.0).build(),
-        BasinBoundedNelderMeadBuilder::new().tolerance_simplex(-1.0).build(),
-        BasinTrustRegionBuilder::new().radius(-1.0).build(),
-        BasinTrustRegionBuilder::new().radius(2.0).max_radius(1.0).build(),
-        BasinTrustRegionBuilder::new().eta(0.25).build(),
-        BasinBOBYQABuilder::new().initial_radius(0.0).build(),
-        BasinBOBYQABuilder::new().final_radius(2.0).build(),
-        BasinBOBYQABuilder::new().interpolation_points(Some(4)).build(),
-        BasinBOBYQABuilder::new().interpolation_points(Some(7)).build(),
+        LBFGSBuilder::new().history_size(0).build(),
+        LBFGSBuilder::new().tolerance_grad(-1.0).build(),
+        LBFGSBuilder::new().tolerance_cost(f64::NAN).build(),
+        LBFGSBBuilder::new().history_size(0).build(),
+        LBFGSBBuilder::new().tolerance_projected_grad(f64::INFINITY).build(),
+        GradientDescentBuilder::new().tolerance_grad(f64::NAN).build(),
+        NelderMeadBuilder::new().simplex_delta(0.0).build(),
+        BoundedNelderMeadBuilder::new().tolerance_simplex(-1.0).build(),
+        TrustRegionBuilder::new().radius(-1.0).build(),
+        TrustRegionBuilder::new().radius(2.0).max_radius(1.0).build(),
+        TrustRegionBuilder::new().eta(0.25).build(),
+        BOBYQABuilder::new().initial_radius(0.0).build(),
+        BOBYQABuilder::new().final_radius(2.0).build(),
+        BOBYQABuilder::new().interpolation_points(Some(4)).build(),
+        BOBYQABuilder::new().interpolation_points(Some(7)).build(),
     ];
     for config in configs {
         let problem = Quadratic { bounded: false, constraints: false, calls: Arc::default() };
         let name = config.solver_type();
         let error =
             LocalSolver::new(problem, name.clone(), config).solve(array![0.5, 0.5]).unwrap_err();
-        assert!(matches!(error, LocalSolverError::InvalidBasinConfig { .. }), "{name:?}: {error}");
+        assert!(matches!(error, LocalSolverError::InvalidConfig { .. }), "{name:?}: {error}");
     }
 }
 
@@ -141,12 +139,12 @@ fn mismatched_solver_configuration_is_rejected_before_evaluation() {
 
     let calls = Arc::new(AtomicU64::new(0));
     let problem = Quadratic { bounded: false, constraints: false, calls: calls.clone() };
-    let config = BasinLBFGSBuilder::new().build();
-    let error = LocalSolver::new(problem, LocalSolverType::BasinGradientDescent, config)
+    let config = LBFGSBuilder::new().build();
+    let error = LocalSolver::new(problem, LocalSolverType::GradientDescent, config)
         .solve(array![0.5, 0.5])
         .unwrap_err();
 
-    assert!(matches!(error, LocalSolverError::InvalidBasinConfig { .. }));
+    assert!(matches!(error, LocalSolverError::InvalidConfig { .. }));
     assert!(error.to_string().contains("Solver type and configuration do not match"));
     assert_eq!(calls.load(Ordering::Relaxed), 0);
 }
@@ -156,12 +154,12 @@ fn nelder_mead_rejects_overflowing_or_collapsed_simplexes_before_evaluation() {
     for (start, delta) in [(f64::MAX, f64::MAX), (1e20, 0.1)] {
         let calls = Arc::new(AtomicU64::new(0));
         let problem = Quadratic { bounded: false, constraints: false, calls: calls.clone() };
-        let config = BasinNelderMeadBuilder::new().simplex_delta(delta).build();
+        let config = NelderMeadBuilder::new().simplex_delta(delta).build();
         let error = LocalSolver::new(problem, config.solver_type(), config)
             .solve(array![start, start])
             .unwrap_err();
 
-        assert!(matches!(error, LocalSolverError::InvalidBasinConfig { .. }));
+        assert!(matches!(error, LocalSolverError::InvalidConfig { .. }));
         assert!(error.to_string().contains("distinct finite vertices"));
         assert_eq!(calls.load(Ordering::Relaxed), 0);
     }
@@ -219,12 +217,12 @@ impl Problem for Fault {
 #[test]
 fn callbacks_and_bad_derivative_shapes_propagate_without_panicking() {
     let cases = [
-        ("objective", BasinNelderMeadBuilder::new().build(), "objective failure"),
-        ("constraints", BasinLBFGSBBuilder::new().build(), "constraint failure"),
-        ("gradient", BasinLBFGSBuilder::new().build(), "Gradient not implemented"),
-        ("gradient_shape", BasinGradientDescentBuilder::new().build(), "Gradient must"),
-        ("hessian", BasinTrustRegionBuilder::new().build(), "Hessian not implemented"),
-        ("hessian_shape", BasinTrustRegionBuilder::new().build(), "Hessian must"),
+        ("objective", NelderMeadBuilder::new().build(), "objective failure"),
+        ("constraints", LBFGSBBuilder::new().build(), "constraint failure"),
+        ("gradient", LBFGSBuilder::new().build(), "Gradient not implemented"),
+        ("gradient_shape", GradientDescentBuilder::new().build(), "Gradient must"),
+        ("hessian", TrustRegionBuilder::new().build(), "Hessian not implemented"),
+        ("hessian_shape", TrustRegionBuilder::new().build(), "Hessian must"),
     ];
     for (fault, config, message) in cases {
         let error = LocalSolver::new(Fault(fault), config.solver_type(), config)
@@ -242,7 +240,7 @@ fn invalid_bounds_and_starts_return_errors() {
             let error = LocalSolver::new(Fault(fault), config.solver_type(), config.clone())
                 .solve(array![0.5, 0.5])
                 .unwrap_err();
-            assert!(matches!(error, LocalSolverError::InvalidBasinConfig { .. }));
+            assert!(matches!(error, LocalSolverError::InvalidConfig { .. }));
         }
     }
     for (config, _) in configs() {
@@ -250,14 +248,14 @@ fn invalid_bounds_and_starts_return_errors() {
             let error = LocalSolver::new(Fault(""), config.solver_type(), config.clone())
                 .solve(start)
                 .unwrap_err();
-            assert!(matches!(error, LocalSolverError::InvalidBasinConfig { .. }));
+            assert!(matches!(error, LocalSolverError::InvalidConfig { .. }));
         }
     }
 }
 
 #[test]
 fn infinite_objective_is_not_a_solution() {
-    let config = BasinNelderMeadBuilder::new().max_iter(0).build();
+    let config = NelderMeadBuilder::new().max_iter(0).build();
     let error = LocalSolver::new(Fault("infinite"), config.solver_type(), config)
         .solve(array![0.5, 0.5])
         .unwrap_err();
@@ -278,7 +276,7 @@ impl Problem for NarrowBox {
 
 #[test]
 fn bobyqa_adapts_to_a_narrow_one_dimensional_box() {
-    let config = BasinBOBYQABuilder::new().final_radius(1e-10).build();
+    let config = BOBYQABuilder::new().final_radius(1e-10).build();
     let solution =
         LocalSolver::new(NarrowBox, config.solver_type(), config).solve(array![0.0]).unwrap();
     assert!((solution.point[0] - 4e-5).abs() < 1e-8, "{solution:?}");
@@ -286,12 +284,12 @@ fn bobyqa_adapts_to_a_narrow_one_dimensional_box() {
 
 #[test]
 fn bobyqa_rejects_bounds_that_underflow_its_radii() {
-    let config = BasinBOBYQABuilder::new().build();
+    let config = BOBYQABuilder::new().build();
     let error = LocalSolver::new(Fault("bounds_subnormal"), config.solver_type(), config)
         .solve(array![0.0, 0.5])
         .unwrap_err();
 
-    assert!(matches!(error, LocalSolverError::InvalidBasinConfig { .. }));
+    assert!(matches!(error, LocalSolverError::InvalidConfig { .. }));
     assert!(error.to_string().contains("too narrow to represent positive BOBYQA radii"));
 }
 
@@ -299,7 +297,7 @@ fn bobyqa_rejects_bounds_that_underflow_its_radii() {
 fn bobyqa_accepts_both_interpolation_set_size_limits() {
     for interpolation_points in [5, 6] {
         let problem = Quadratic { bounded: true, constraints: false, calls: Arc::default() };
-        let config = BasinBOBYQABuilder::new()
+        let config = BOBYQABuilder::new()
             .initial_radius(0.25)
             .interpolation_points(Some(interpolation_points))
             .build();
@@ -319,14 +317,17 @@ fn solver_names_are_unambiguous() {
         let name = config.solver_type();
         let compact = format!("{name:?}");
         assert_eq!(LocalSolverType::from_string(&compact), Ok(name.clone()));
-        let underscored = compact.replacen("Basin", "basin_", 1);
-        assert_eq!(LocalSolverType::from_string(&underscored), Ok(name.clone()));
         assert_eq!(
-            LocalSolverType::from_string(&underscored.replace('_', "-").to_uppercase()),
-            Ok(name)
+            LocalSolverType::from_string(&compact.replace('_', "-").to_lowercase()),
+            Ok(name.clone())
         );
+        // Legacy `basin_` prefix is no longer accepted.
+        let prefixed = format!("basin_{compact}");
+        assert!(LocalSolverType::from_string(&prefixed).is_err());
     }
-    assert!(LocalSolverType::from_string("basin_newton_cg").is_err());
+    assert!(LocalSolverType::from_string("basin_lbfgs").is_err());
+    assert!(LocalSolverType::from_string("steepest_descent").is_err());
+    assert!(LocalSolverType::from_string("newton_cg").is_err());
 }
 
 #[test]
@@ -376,8 +377,9 @@ fn serialized_configs_preserve_behavior() {
 #[cfg(feature = "checkpointing")]
 #[test]
 fn existing_cobyla_encoding_is_unchanged() {
-    // This fixture is the pre-basin-feature legacy encoding for these explicit settings.
-    let mut bytes = if cfg!(feature = "argmin") { 5_u32 } else { 0_u32 }.to_le_bytes().to_vec();
+    // COBYLA is the first variant, so its encoding is stable now that the
+    // backend set is fixed.
+    let mut bytes = 0_u32.to_le_bytes().to_vec();
     bytes.extend_from_slice(&123_u64.to_le_bytes());
     for value in [0.5_f64, 1e-6, 1e-8, 0.0] {
         bytes.extend_from_slice(&value.to_le_bytes());
@@ -461,7 +463,7 @@ fn trust_region_accepts_nonstandard_hessian_layout() {
             array![[-5.0, 5.0], [-5.0, 5.0]]
         }
     }
-    let config = BasinTrustRegionBuilder::new().build();
+    let config = TrustRegionBuilder::new().build();
     let solution = LocalSolver::new(StridedHessian, config.solver_type(), config)
         .solve(array![3.0, -2.0])
         .unwrap();
@@ -471,11 +473,8 @@ fn trust_region_accepts_nonstandard_hessian_layout() {
 #[test]
 fn a_positive_iteration_limit_is_respected() {
     let calls = Arc::new(AtomicU64::new(0));
-    let config = BasinGradientDescentBuilder::new()
-        .max_iter(1)
-        .tolerance_grad(None)
-        .tolerance_cost(None)
-        .build();
+    let config =
+        GradientDescentBuilder::new().max_iter(1).tolerance_grad(None).tolerance_cost(None).build();
     let problem = Quadratic { bounded: false, constraints: false, calls: calls.clone() };
     let (solution, count) = LocalSolver::new(problem, config.solver_type(), config)
         .solve_with_tracking(array![10.0, 10.0], true)
@@ -490,7 +489,7 @@ fn a_positive_iteration_limit_is_respected() {
 
 #[test]
 fn solver_failure_termination_is_reported() {
-    let config = BasinLBFGSBuilder::new().build();
+    let config = LBFGSBuilder::new().build();
     let error = LocalSolver::new(Fault("overflow_gradient"), config.solver_type(), config)
         .solve(array![0.5, 0.5])
         .unwrap_err();

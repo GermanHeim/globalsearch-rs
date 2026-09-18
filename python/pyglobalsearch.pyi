@@ -351,6 +351,19 @@ class PyProblem:
     - **constraints**: ``List[(x: NDArray[np.float64]) -> float]``
         List of constraint functions where ``constraint(x) >= 0`` means satisfied
 
+    - **linear_inequalities**: ``Tuple[NDArray[np.float64], NDArray[np.float64]]``
+        ``(A, b)`` with ``A x <= b``; ``A`` has shape ``(m, n)``, ``b`` length ``m``
+
+    - **linear_equalities**: ``Tuple[NDArray[np.float64], NDArray[np.float64]]``
+        ``(A, b)`` with ``A x == b``; ``A`` has shape ``(m, n)``, ``b`` length ``m``
+
+    - **nonlinear_equalities**: ``List[(x: NDArray[np.float64]) -> float]``
+        List of equality functions where ``h(x) == 0`` means satisfied
+
+    - **constraint_jacobian**: ``(x: NDArray[np.float64]) -> NDArray[np.float64]``
+        Jacobian of the nonlinear blocks with shape ``(n_eq + n_ineq, n_vars)``;
+        equality rows first, then inequality rows
+
     - **variable_bounds**: ``NDArray[np.float64]`` *or* ``() -> NDArray[np.float64]``
         Array of shape ``(n_vars, 2)`` with ``[lower, upper]`` bounds per variable,
         or a zero-argument callable returning such an array.
@@ -361,10 +374,15 @@ class PyProblem:
 
     - **COBYLA**: Only objective and bounds required (derivative-free)
     - **NelderMead**: Only objective and bounds required (derivative-free)
+    - **BoundedNelderMead**: Only objective and bounds required (derivative-free)
+    - **BOBYQA**: Only objective and bounds required (derivative-free)
     - **LBFGS**: Requires objective, bounds, and gradient
-    - **SteepestDescent**: Requires objective, bounds, and gradient
-    - **NewtonCG**: Requires objective, bounds, gradient, and Hessian
+    - **LBFGSB**: Requires objective, bounds, and gradient
+    - **GradientDescent**: Requires objective, bounds, and gradient
     - **TrustRegion**: Requires objective, bounds, gradient, and Hessian
+    - **SLSQP**: Requires objective, bounds, gradient, and constraint_jacobian when constrained
+    - **Barrier**: Requires objective, bounds, gradient, and linear_inequalities
+    - **AugmentedLagrangian**: Requires objective, bounds, gradient, and linear_equalities
 
     **Examples**
 
@@ -388,11 +406,18 @@ class PyProblem:
         ...     return np.array([[2.0, 0.0], [0.0, 2.0]])
         >>> problem = PyProblem(objective, bounds, gradient=gradient, hessian=hessian)
 
-    Constrained problem (use with COBYLA)::
+    Constrained problem (use with COBYLA or SLSQP)::
 
         >>> def constraint(x):
         ...     return x[0] + x[1] - 1  # Constraint: x[0] + x[1] >= 1
         >>> problem = PyProblem(objective, bounds, constraints=[constraint])
+
+    Linearly constrained problem (use with SLSQP, Barrier, or AugmentedLagrangian)::
+
+        >>> import numpy as np
+        >>> A = np.array([[1.0, 1.0]])
+        >>> b = np.array([1.0])  # x[0] + x[1] <= 1
+        >>> problem = PyProblem(objective, bounds, linear_inequalities=(A, b))
 
     Multiple constraints::
 
@@ -416,6 +441,10 @@ class PyProblem:
     gradient: Optional[Callable[[NDArray[np.float64]], NDArray[np.float64]]]
     hessian: Optional[Callable[[NDArray[np.float64]], NDArray[np.float64]]]
     constraints: Optional[List[Callable[[NDArray[np.float64]], float]]]
+    linear_inequalities: Optional[Tuple[NDArray[np.float64], NDArray[np.float64]]]
+    linear_equalities: Optional[Tuple[NDArray[np.float64], NDArray[np.float64]]]
+    nonlinear_equalities: Optional[List[Callable[[NDArray[np.float64]], float]]]
+    constraint_jacobian: Optional[Callable[[NDArray[np.float64]], NDArray[np.float64]]]
     def __init__(
         self,
         objective: Callable[[NDArray[np.float64]], float],
@@ -423,6 +452,10 @@ class PyProblem:
         gradient: Optional[Callable[[NDArray[np.float64]], NDArray[np.float64]]] = None,
         hessian: Optional[Callable[[NDArray[np.float64]], NDArray[np.float64]]] = None,
         constraints: Optional[List[Callable[[NDArray[np.float64]], float]]] = None,
+        linear_inequalities: Optional[Tuple[NDArray[np.float64], NDArray[np.float64]]] = None,
+        linear_equalities: Optional[Tuple[NDArray[np.float64], NDArray[np.float64]]] = None,
+        nonlinear_equalities: Optional[List[Callable[[NDArray[np.float64]], float]]] = None,
+        constraint_jacobian: Optional[Callable[[NDArray[np.float64]], NDArray[np.float64]]] = None,
     ) -> None:
         """
         Initialize an optimization problem.
@@ -433,7 +466,7 @@ class PyProblem:
         if the local solver requires them (see class docstring for solver requirements).
 
         The constraints are optional and should be provided as a list of constraint
-        functions if the local solver supports constraints (e.g., COBYLA).
+        functions if the local solver supports constraints (e.g., COBYLA, SLSQP).
 
         :param objective: Function that computes the objective value to be minimized
         :type objective: Callable[[NDArray[np.float64]], float]
@@ -451,147 +484,9 @@ class PyProblem:
         """
         ...
 
-class PyLineSearchMethod:
-    """
-    Base class for line search methods.
-
-    Line search methods are used in gradient-based optimization algorithms
-    to determine the step size along the search direction. This class provides
-    factory methods for creating specific line search configurations.
-
-    Available methods:
-        - Hager-Zhang: Robust line search with strong Wolfe conditions
-        - More-Thuente: Efficient line search with cubic interpolation
-
-    Examples
-    --------
-        # Using factory methods
-        hz_method = PyLineSearchMethod.hagerzhang()
-        mt_method = PyLineSearchMethod.morethunte()
-    """
-    @staticmethod
-    def hagerzhang() -> "PyLineSearchMethod": ...
-    @staticmethod
-    def morethunte() -> "PyLineSearchMethod": ...
-
-class HagerZhang(PyLineSearchMethod):
-    """
-    Hager-Zhang line search configuration.
-
-    Implements the Hager-Zhang line search algorithm, which is a robust
-    line search method that satisfies the strong Wolfe conditions and
-    provides good performance for gradient-based optimization methods.
-
-    Examples
-    --------
-        >>> hagerzhang_config = HagerZhang(delta=0.05, sigma=0.95)
-    """
-
-    delta: float
-    sigma: float
-    epsilon: float
-    theta: float
-    gamma: float
-    eta: float
-    bounds: List[float]
-    def __init__(
-        self,
-        delta: float = 0.1,
-        sigma: float = 0.9,
-        epsilon: float = 1e-6,
-        theta: float = 0.5,
-        gamma: float = 0.66,
-        eta: float = 0.01,
-        bounds: List[float] = [1.490116119384766e-8, 10e20],
-    ) -> None:
-        """
-        Initialize Hager-Zhang line search configuration.
-
-        :param delta: Armijo parameter for sufficient decrease condition (default 0.1)
-        :type delta: float
-        :param sigma: Wolfe parameter for curvature condition (default 0.9)
-        :type sigma: float
-        :param epsilon: Tolerance for the line search termination (default 1e-6)
-        :type epsilon: float
-        :param theta: Parameter controlling the bracketing phase (default 0.5)
-        :type theta: float
-        :param gamma: Expansion factor for the bracketing phase (default 0.66)
-        :type gamma: float
-        :param eta: Contraction factor for the sectioning phase (default 0.01)
-        :type eta: float
-        :param bounds: Step size bounds [min, max] (default [1.49e-8, 1e20])
-        :type bounds: List[float]
-        """
-        ...
-
-class MoreThuente(PyLineSearchMethod):
-    """
-    More-Thuente line search configuration.
-
-    Implements the More-Thuente line search algorithm, which uses cubic
-    interpolation to efficiently find step sizes that satisfy the Wolfe
-    conditions. This method is widely used in optimization algorithms.
-
-    Examples
-    --------
-        >>> morethuente_config = MoreThuente(c1=1e-3, c2=0.8)
-    """
-
-    c1: float
-    c2: float
-    width_tolerance: float
-    bounds: List[float]
-    def __init__(
-        self,
-        c1: float = 1e-4,
-        c2: float = 0.9,
-        width_tolerance: float = 1e-10,
-        bounds: List[float] = [1.490116119384766e-8, 10e20],
-    ) -> None:
-        """
-        Initialize More-Thuente line search configuration.
-
-        :param c1: Armijo parameter for sufficient decrease condition (default 1e-4)
-        :type c1: float
-        :param c2: Wolfe parameter for curvature condition (default 0.9)
-        :type c2: float
-        :param width_tolerance: Tolerance for the interval width (default 1e-10)
-        :type width_tolerance: float
-        :param bounds: Step size bounds [min, max] (default [1.49e-8, 1e20])
-        :type bounds: List[float]
-        """
-        ...
-
-class PyLineSearchParams(PyLineSearchMethod):
-    """
-    Wrapper for line search parameters.
-
-    This class provides a unified interface for different line search
-    parameter configurations (HagerZhang or MoreThuente).
-
-    Examples
-    --------
-        >>> hagerzhang_params = HagerZhang(delta=0.1)
-        >>> line_search = PyLineSearchParams(hagerzhang_params)
-    """
-
-    params: Union[HagerZhang, MoreThuente]
-    def __init__(self, params: Union[HagerZhang, MoreThuente]) -> None:
-        """
-        Initialize line search parameters wrapper.
-
-        :param params: Line search configuration (HagerZhang or MoreThuente)
-        :type params: Union[HagerZhang, MoreThuente]
-        """
-        ...
-
 class PyLBFGS:
     """
-    Configuration for the L-BFGS (Limited-memory BFGS) solver.
-
-    L-BFGS is a quasi-Newton optimization method that approximates the
-    Broyden-Fletcher-Goldfarb-Shanno (BFGS) algorithm using limited memory.
-    It's efficient for large-scale optimization problems requiring gradients.
+    Configuration for the L-BFGS solver (Basin-backed, unconstrained).
 
     Examples
     --------
@@ -599,166 +494,53 @@ class PyLBFGS:
     """
 
     max_iter: int
-    tolerance_grad: float
-    tolerance_cost: float
+    tolerance_grad: Optional[float]
+    tolerance_cost: Optional[float]
     history_size: int
-    l1_coefficient: Optional[float]
-    line_search_params: Union[
-        PyLineSearchMethod, HagerZhang, MoreThuente, PyLineSearchParams
-    ]
     def __init__(
         self,
-        max_iter: int = 300,
-        tolerance_grad: float = 1.490116119384766e-8,
-        tolerance_cost: float = 2.220446049250313e-16,
+        max_iter: int = 1000,
+        tolerance_grad: Optional[float] = 1e-6,
+        tolerance_cost: Optional[float] = None,
         history_size: int = 10,
-        l1_coefficient: Optional[float] = None,
-        line_search_params: Union[
-            PyLineSearchMethod, HagerZhang, MoreThuente, PyLineSearchParams
-        ] = MoreThuente(),
     ) -> None:
         """
         Initialize L-BFGS solver configuration.
-
-        :param max_iter: Maximum number of iterations (default 300)
-        :type max_iter: int
-        :param tolerance_grad: Gradient tolerance for convergence (default 1.49e-8)
-        :type tolerance_grad: float
-        :param tolerance_cost: Cost function tolerance for convergence (default 2.22e-16)
-        :type tolerance_cost: float
-        :param history_size: Number of previous gradients to store (default 10)
-        :type history_size: int
-        :param l1_coefficient: L1 regularization coefficient (optional)
-        :type l1_coefficient: Optional[float]
-        :param line_search_params: Line search configuration (default MoreThuente)
-        :type line_search_params: Union[PyLineSearchMethod, HagerZhang, MoreThuente, PyLineSearchParams]
         """
+        ...
+
+class PyGradientDescent:
+    """
+    Configuration for the gradient descent solver (Basin-backed, unconstrained).
+    """
+
+    max_iter: int
+    tolerance_grad: Optional[float]
+    tolerance_cost: Optional[float]
+    def __init__(
+        self,
+        max_iter: int = 1000,
+        tolerance_grad: Optional[float] = 1e-6,
+        tolerance_cost: Optional[float] = None,
+    ) -> None:
         ...
 
 class PyNelderMead:
     """
-    Configuration for the Nelder-Mead simplex solver.
-
-    Nelder-Mead is a derivative-free optimization method that uses a simplex
-    (a geometric figure with n+1 vertices in n dimensions) to iteratively
-    search for the minimum. It's particularly useful when gradients are not available.
-
-    Examples
-    --------
-        >>> nelder_mead_config = PyNelderMead(max_iter=1000, alpha=1.5)
+    Configuration for the Nelder-Mead simplex solver (Basin-backed, unconstrained).
     """
 
+    max_iter: int
     simplex_delta: float
-    sd_tolerance: float
-    max_iter: int
-    alpha: float
-    gamma: float
-    rho: float
-    sigma: float
+    tolerance_simplex: Optional[float]
+    tolerance_cost: Optional[float]
     def __init__(
         self,
+        max_iter: int = 1000,
         simplex_delta: float = 0.1,
-        sd_tolerance: float = 2.220446049250313e-16,
-        max_iter: int = 300,
-        alpha: float = 1.0,
-        gamma: float = 2.0,
-        rho: float = 0.5,
-        sigma: float = 0.5,
+        tolerance_simplex: Optional[float] = 1e-6,
+        tolerance_cost: Optional[float] = 1e-8,
     ) -> None:
-        """
-        Initialize Nelder-Mead solver configuration.
-
-        :param simplex_delta: Initial simplex size (default 0.1)
-        :type simplex_delta: float
-        :param sd_tolerance: Standard deviation tolerance for convergence (default 2.22e-16)
-        :type sd_tolerance: float
-        :param max_iter: Maximum number of iterations (default 300)
-        :type max_iter: int
-        :param alpha: Reflection coefficient (default 1.0)
-        :type alpha: float
-        :param gamma: Expansion coefficient (default 2.0)
-        :type gamma: float
-        :param rho: Contraction coefficient (default 0.5)
-        :type rho: float
-        :param sigma: Shrink coefficient (default 0.5)
-        :type sigma: float
-        """
-        ...
-
-class PySteepestDescent:
-    """
-    Configuration for the steepest descent (gradient descent) solver.
-
-    Steepest descent is a first-order optimization algorithm that iteratively
-    moves in the direction of steepest descent (negative gradient) to find
-    local minima. It requires gradient information.
-
-    Examples
-    --------
-        >>> steepest_config = PySteepestDescent(max_iter=1000)
-    """
-
-    max_iter: int
-    line_search_params: Union[
-        PyLineSearchMethod, HagerZhang, MoreThuente, PyLineSearchParams
-    ]
-    def __init__(
-        self,
-        max_iter: int = 300,
-        line_search_params: Union[
-            PyLineSearchMethod, HagerZhang, MoreThuente, PyLineSearchParams
-        ] = PyLineSearchMethod.morethunte(),
-    ) -> None:
-        """
-        Initialize steepest descent solver configuration.
-
-        :param max_iter: Maximum number of iterations (default 300)
-        :type max_iter: int
-        :param line_search_params: Line search configuration (default MoreThuente)
-        :type line_search_params: Union[PyLineSearchMethod, HagerZhang, MoreThuente, PyLineSearchParams]
-        """
-        ...
-
-class PyNewtonCG:
-    """
-    Configuration for the Newton-CG (Newton Conjugate Gradient) solver.
-
-    Newton-CG is a second-order optimization method that uses the conjugate
-    gradient algorithm to approximately solve the Newton step. It's efficient
-    for problems where the Hessian is large but can be computed or approximated.
-
-    Examples
-    --------
-        >>> newton_cg_config = PyNewtonCG(max_iter=500, tolerance=1e-10)
-    """
-
-    max_iter: int
-    curvature_tolerance: float
-    tolerance: float
-    line_search_params: Union[
-        PyLineSearchMethod, HagerZhang, MoreThuente, PyLineSearchParams
-    ]
-    def __init__(
-        self,
-        max_iter: int = 300,
-        curvature_tolerance: float = 0.0,
-        tolerance: float = 1.490116119384766e-8,
-        line_search_params: Union[
-            PyLineSearchMethod, HagerZhang, MoreThuente, PyLineSearchParams
-        ] = PyLineSearchMethod.morethunte(),
-    ) -> None:
-        """
-        Initialize Newton-CG solver configuration.
-
-        :param max_iter: Maximum number of iterations (default 300)
-        :type max_iter: int
-        :param curvature_tolerance: Tolerance for negative curvature detection (default 0.0)
-        :type curvature_tolerance: float
-        :param tolerance: Convergence tolerance for the Newton step (default 1.49e-8)
-        :type tolerance: float
-        :param line_search_params: Line search configuration (default MoreThuente)
-        :type line_search_params: Union[PyLineSearchMethod, HagerZhang, MoreThuente, PyLineSearchParams]
-        """
         ...
 
 class PyTrustRegionRadiusMethod:
@@ -784,45 +566,24 @@ class PyTrustRegionRadiusMethod:
 
 class PyTrustRegion:
     """
-    Configuration for the trust region optimization solver.
-
-    Trust region methods solve optimization problems by restricting steps to
-    within a "trust region" where the quadratic model is considered reliable.
-    The method adjusts the trust region size based on the agreement between
-    the model and the actual function.
-
-    Examples
-    --------
-        >>> trustregion_config = PyTrustRegion(radius=2.0, max_radius=50.0)
+    Configuration for the trust region optimization solver (Basin-backed).
     """
 
-    trust_region_radius_method: PyTrustRegionRadiusMethod
     max_iter: int
+    tolerance_grad: Optional[float]
+    trust_region_radius_method: PyTrustRegionRadiusMethod
     radius: float
     max_radius: float
     eta: float
     def __init__(
         self,
-        trust_region_radius_method: PyTrustRegionRadiusMethod = PyTrustRegionRadiusMethod.cauchy(),
-        max_iter: int = 300,
+        max_iter: int = 1000,
+        tolerance_grad: Optional[float] = 1e-6,
+        trust_region_radius_method: PyTrustRegionRadiusMethod = PyTrustRegionRadiusMethod.steihaug(),
         radius: float = 1.0,
         max_radius: float = 100.0,
         eta: float = 0.125,
     ) -> None:
-        """
-        Initialize trust region solver configuration.
-
-        :param trust_region_radius_method: Method for computing trust region radius (default Cauchy)
-        :type trust_region_radius_method: PyTrustRegionRadiusMethod
-        :param max_iter: Maximum number of iterations (default 300)
-        :type max_iter: int
-        :param radius: Initial trust region radius (default 1.0)
-        :type radius: float
-        :param max_radius: Maximum allowed trust region radius (default 100.0)
-        :type max_radius: float
-        :param eta: Threshold for accepting/rejecting steps (default 0.125)
-        :type eta: float
-        """
         ...
 
 class PyCOBYLA:
@@ -883,69 +644,7 @@ class PyCOBYLA:
         xtol_abs: Optional[List[float]] = None,
     ) -> None: ...
 
-class PyBasinLBFGS:
-    """Unconstrained basin L-BFGS with the default More-Thuente line search."""
-    max_iter: int
-    tolerance_grad: Optional[float]
-    tolerance_cost: Optional[float]
-    history_size: int
-
-    def __init__(
-        self,
-        max_iter: int = 1000,
-        tolerance_grad: Optional[float] = 1e-6,
-        tolerance_cost: Optional[float] = None,
-        history_size: int = 10,
-    ) -> None: ...
-
-class PyBasinGradientDescent:
-    """Unconstrained basin gradient descent with the default More-Thuente line search and no momentum."""
-    max_iter: int
-    tolerance_grad: Optional[float]
-    tolerance_cost: Optional[float]
-
-    def __init__(
-        self,
-        max_iter: int = 1000,
-        tolerance_grad: Optional[float] = 1e-6,
-        tolerance_cost: Optional[float] = None,
-    ) -> None: ...
-
-class PyBasinTrustRegion:
-    """Unconstrained basin trust-region optimization using the supplied gradient and Hessian."""
-    max_iter: int
-    tolerance_grad: Optional[float]
-    trust_region_radius_method: PyTrustRegionRadiusMethod
-    radius: float
-    max_radius: float
-    eta: float
-
-    def __init__(
-        self,
-        max_iter: int = 1000,
-        tolerance_grad: Optional[float] = 1e-6,
-        trust_region_radius_method: PyTrustRegionRadiusMethod = PyTrustRegionRadiusMethod.steihaug(),
-        radius: float = 1.0,
-        max_radius: float = 100.0,
-        eta: float = 0.125,
-    ) -> None: ...
-
-class PyBasinNelderMead:
-    """Unconstrained basin Nelder-Mead with standard coefficients."""
-    max_iter: int
-    simplex_delta: float
-    tolerance_simplex: Optional[float]
-    tolerance_cost: Optional[float]
-
-    def __init__(
-        self,
-        max_iter: int = 1000,
-        simplex_delta: float = 0.1,
-        tolerance_simplex: Optional[float] = 1e-6,
-        tolerance_cost: Optional[float] = 1e-8,
-    ) -> None: ...
-
-class PyBasinLBFGSB:
+class PyLBFGSB:
     """Box-constrained basin L-BFGS-B with the default More-Thuente line search."""
     max_iter: int
     tolerance_projected_grad: Optional[float]
@@ -960,7 +659,7 @@ class PyBasinLBFGSB:
         history_size: int = 10,
     ) -> None: ...
 
-class PyBasinBoundedNelderMead:
+class PyBoundedNelderMead:
     """Box-constrained basin Nelder-Mead with projected trial vertices and standard coefficients."""
     max_iter: int
     simplex_delta: float
@@ -975,7 +674,7 @@ class PyBasinBoundedNelderMead:
         tolerance_cost: Optional[float] = 1e-8,
     ) -> None: ...
 
-class PyBasinBOBYQA:
+class PyBOBYQA:
     """Box-constrained basin BOBYQA. Basin reduces the radii automatically for narrow boxes."""
     max_iter: int
     initial_radius: float
@@ -990,360 +689,179 @@ class PyBasinBOBYQA:
         interpolation_points: Optional[int] = None,
     ) -> None: ...
 
+class PySLSQP:
+    """Gradient-based SLSQP with box, linear, and nonlinear constraints."""
+    max_iter: int
+    accuracy: Optional[float]
+    max_subproblem_iter: Optional[int]
+
+    def __init__(
+        self,
+        max_iter: int = 1000,
+        accuracy: Optional[float] = 1e-6,
+        max_subproblem_iter: Optional[int] = None,
+    ) -> None: ...
+
+class PyBarrier:
+    """Log-barrier method over a BFGS inner solver for linear inequalities ``A x <= b``."""
+    max_iter: int
+    mu0: float
+    reduction: float
+    duality_gap_tol: float
+    inner_max_iter: int
+
+    def __init__(
+        self,
+        max_iter: int = 100,
+        mu0: float = 1.0,
+        reduction: float = 10.0,
+        duality_gap_tol: float = 1e-8,
+        inner_max_iter: int = 50,
+    ) -> None: ...
+
+class PyAugmentedLagrangian:
+    """Augmented-Lagrangian method over a BFGS inner solver for linear equalities ``A x = b``."""
+    max_iter: int
+    rho0: float
+    rho_increase: float
+    feasibility_decrease: float
+    feasibility_tol: float
+    inner_max_iter: int
+
+    def __init__(
+        self,
+        max_iter: int = 100,
+        rho0: float = 10.0,
+        rho_increase: float = 10.0,
+        feasibility_decrease: float = 0.25,
+        feasibility_tol: float = 1e-8,
+        inner_max_iter: int = 50,
+    ) -> None: ...
+
 class builders:
-    PyBasinLBFGS: type[PyBasinLBFGS]
+    PyLBFGS: type[PyLBFGS]
 
     @staticmethod
-    def basin_lbfgs(
+    def lbfgs(
         max_iter: int = 1000,
         tolerance_grad: Optional[float] = 1e-6,
         tolerance_cost: Optional[float] = None,
         history_size: int = 10,
-    ) -> PyBasinLBFGS:
-        """Unconstrained basin L-BFGS with the default More-Thuente line search."""
+    ) -> PyLBFGS:
+        """Unconstrained L-BFGS with the default More-Thuente line search."""
         ...
 
-    PyBasinGradientDescent: type[PyBasinGradientDescent]
+    PyGradientDescent: type[PyGradientDescent]
 
     @staticmethod
-    def basin_gradient_descent(
+    def gradient_descent(
         max_iter: int = 1000,
         tolerance_grad: Optional[float] = 1e-6,
         tolerance_cost: Optional[float] = None,
-    ) -> PyBasinGradientDescent:
-        """Unconstrained basin gradient descent with the default More-Thuente line search and no momentum."""
+    ) -> PyGradientDescent:
+        """Unconstrained gradient descent with the default More-Thuente line search and no momentum."""
         ...
 
-    PyBasinTrustRegion: type[PyBasinTrustRegion]
+    PyTrustRegion: type[PyTrustRegion]
 
     @staticmethod
-    def basin_trust_region(
+    def trust_region(
         max_iter: int = 1000,
         tolerance_grad: Optional[float] = 1e-6,
         trust_region_radius_method: PyTrustRegionRadiusMethod = PyTrustRegionRadiusMethod.steihaug(),
         radius: float = 1.0,
         max_radius: float = 100.0,
         eta: float = 0.125,
-    ) -> PyBasinTrustRegion:
-        """Unconstrained basin trust-region optimization using the supplied gradient and Hessian."""
+    ) -> PyTrustRegion:
+        """Unconstrained trust-region optimization using the supplied gradient and Hessian."""
         ...
 
-    PyBasinNelderMead: type[PyBasinNelderMead]
+    PyNelderMead: type[PyNelderMead]
 
     @staticmethod
-    def basin_nelder_mead(
+    def nelder_mead(
         max_iter: int = 1000,
         simplex_delta: float = 0.1,
         tolerance_simplex: Optional[float] = 1e-6,
         tolerance_cost: Optional[float] = 1e-8,
-    ) -> PyBasinNelderMead:
-        """Unconstrained basin Nelder-Mead with standard coefficients."""
+    ) -> PyNelderMead:
+        """Unconstrained Nelder-Mead with standard coefficients."""
         ...
 
-    PyBasinLBFGSB: type[PyBasinLBFGSB]
+    PyLBFGSB: type[PyLBFGSB]
 
     @staticmethod
-    def basin_lbfgsb(
+    def lbfgsb(
         max_iter: int = 1000,
         tolerance_projected_grad: Optional[float] = 1e-6,
         tolerance_cost: Optional[float] = None,
         history_size: int = 10,
-    ) -> PyBasinLBFGSB:
-        """Box-constrained basin L-BFGS-B with the default More-Thuente line search."""
+    ) -> PyLBFGSB:
+        """Box-constrained L-BFGS-B with the default More-Thuente line search."""
         ...
 
-    PyBasinBoundedNelderMead: type[PyBasinBoundedNelderMead]
+    PyBoundedNelderMead: type[PyBoundedNelderMead]
 
     @staticmethod
-    def basin_bounded_nelder_mead(
+    def bounded_nelder_mead(
         max_iter: int = 1000,
         simplex_delta: float = 0.1,
         tolerance_simplex: Optional[float] = 1e-6,
         tolerance_cost: Optional[float] = 1e-8,
-    ) -> PyBasinBoundedNelderMead:
-        """Box-constrained basin Nelder-Mead with projected trial vertices and standard coefficients."""
+    ) -> PyBoundedNelderMead:
+        """Box-constrained Nelder-Mead with projected trial vertices and standard coefficients."""
         ...
 
-    PyBasinBOBYQA: type[PyBasinBOBYQA]
+    PyBOBYQA: type[PyBOBYQA]
 
     @staticmethod
-    def basin_bobyqa(
+    def bobyqa(
         max_iter: int = 1000,
         initial_radius: float = 1.0,
         final_radius: float = 1e-6,
         interpolation_points: Optional[int] = None,
-    ) -> PyBasinBOBYQA:
-        """Box-constrained basin BOBYQA. Basin reduces the radii automatically for narrow boxes."""
+    ) -> PyBOBYQA:
+        """Box-constrained BOBYQA. Basin reduces the radii automatically for narrow boxes."""
         ...
+
+    PySLSQP: type[PySLSQP]
 
     @staticmethod
-    def hagerzhang(
-        delta: float = 0.1,
-        sigma: float = 0.9,
-        epsilon: float = 1e-6,
-        theta: float = 0.5,
-        gamma: float = 0.66,
-        eta: float = 0.01,
-        bounds: List[float] = [1.490116119384766e-8, 10e20],
-    ) -> HagerZhang:
-        """
-        Create a Hager-Zhang line search configuration.
-
-        This builder function allows easy creation of a Hager-Zhang line search
-        configuration with custom parameters for gradient-based optimization methods.
-
-        Examples
-        --------
-            >>> hagerzhang_config = gs.builders.hagerzhang(delta=0.05, sigma=0.95)
-
-        :param delta: Armijo parameter for sufficient decrease condition (default 0.1)
-        :type delta: float
-        :param sigma: Wolfe parameter for curvature condition (default 0.9)
-        :type sigma: float
-        :param epsilon: Tolerance for the line search termination (default 1e-6)
-        :type epsilon: float
-        :param theta: Parameter controlling the bracketing phase (default 0.5)
-        :type theta: float
-        :param gamma: Expansion factor for the bracketing phase (default 0.66)
-        :type gamma: float
-        :param eta: Contraction factor for the sectioning phase (default 0.01)
-        :type eta: float
-        :param bounds: Step size bounds [min, max] (default [1.49e-8, 1e20])
-        :type bounds: List[float]
-        :return: Configured Hager-Zhang line search
-        :rtype: HagerZhang
-        """
+    def slsqp(
+        max_iter: int = 1000,
+        accuracy: Optional[float] = 1e-6,
+        max_subproblem_iter: Optional[int] = None,
+    ) -> PySLSQP:
+        """Gradient-based SLSQP with box, linear, and nonlinear constraints."""
         ...
+
+    PyBarrier: type[PyBarrier]
+
     @staticmethod
-    def morethuente(
-        c1: float = 1e-4,
-        c2: float = 0.9,
-        width_tolerance: float = 1e-10,
-        bounds: List[float] = [1.490116119384766e-8, 1e20],
-    ) -> MoreThuente:
-        """
-        Create a Moré-Thuente line search configuration.
-
-        This builder function allows easy creation of a Moré-Thuente line search
-        configuration with custom parameters for gradient-based optimization methods.
-
-        Examples
-        --------
-            >>> morethuente_config = gs.builders.morethuente(c1=1e-3, c2=0.8)
-
-        :param c1: Armijo parameter for sufficient decrease condition (default 1e-4)
-        :type c1: float
-        :param c2: Wolfe parameter for curvature condition (default 0.9)
-        :type c2: float
-        :param width_tolerance: Tolerance for the interval width (default 1e-10)
-        :type width_tolerance: float
-        :param bounds: Step size bounds [min, max] (default [1.49e-8, 1e20])
-        :type bounds: List[float]
-        :return: Configured Moré-Thuente line search
-        :rtype: MoreThuente
-        """
+    def barrier(
+        max_iter: int = 100,
+        mu0: float = 1.0,
+        reduction: float = 10.0,
+        duality_gap_tol: float = 1e-8,
+        inner_max_iter: int = 50,
+    ) -> PyBarrier:
+        """Log-barrier method over a BFGS inner solver for linear inequalities ``A x <= b``."""
         ...
+
+    PyAugmentedLagrangian: type[PyAugmentedLagrangian]
+
     @staticmethod
-    def lbfgs(
-        max_iter: int = 300,
-        tolerance_grad: float = 1.490116119384766e-8,
-        tolerance_cost: float = 2.220446049250313e-16,
-        history_size: int = 10,
-        line_search_params: Union[
-            PyLineSearchMethod, HagerZhang, MoreThuente, "PyLineSearchParams"
-        ] = MoreThuente(),
-        l1_coefficient: Optional[float] = None,
-    ) -> "PyLBFGS":
-        """
-        Create an L-BFGS solver configuration.
-
-        This builder function allows easy creation of an L-BFGS (Limited-memory
-        Broyden-Fletcher-Goldfarb-Shanno) configuration with custom parameters.
-
-        Examples
-        --------
-            >>> lbfgs_config = gs.builders.lbfgs(max_iter=500, history_size=20)
-
-        :param max_iter: Maximum number of iterations (default 300)
-        :type max_iter: int
-        :param tolerance_grad: Gradient tolerance for convergence (default 1.49e-8)
-        :type tolerance_grad: float
-        :param tolerance_cost: Cost function tolerance for convergence (default 2.22e-16)
-        :type tolerance_cost: float
-        :param history_size: Number of previous gradients to store (default 10)
-        :type history_size: int
-        :param line_search_params: Line search configuration (default MoreThuente)
-        :type line_search_params: Union[PyLineSearchMethod, HagerZhang, MoreThuente, PyLineSearchParams]
-        :param l1_coefficient: L1 regularization coefficient (optional)
-        :type l1_coefficient: float
-        :return: Configured L-BFGS solver
-        :rtype: PyLBFGS
-        """
+    def augmented_lagrangian(
+        max_iter: int = 100,
+        rho0: float = 10.0,
+        rho_increase: float = 10.0,
+        feasibility_decrease: float = 0.25,
+        feasibility_tol: float = 1e-8,
+        inner_max_iter: int = 50,
+    ) -> PyAugmentedLagrangian:
+        """Augmented-Lagrangian method over a BFGS inner solver for linear equalities ``A x = b``."""
         ...
-    @staticmethod
-    def nelder_mead(
-        simplex_delta: float = 0.1,
-        sd_tolerance: float = 2.220446049250313e-16,
-        max_iter: int = 300,
-        alpha: float = 1.0,
-        gamma: float = 2.0,
-        rho: float = 0.5,
-        sigma: float = 0.5,
-    ) -> "PyNelderMead":
-        """
-        Create a Nelder-Mead solver configuration.
 
-        This builder function allows easy creation of a Nelder-Mead simplex algorithm
-        configuration.
-
-        Examples
-        --------
-            >>> nelder_mead_config = gs.builders.nelder_mead(max_iter=1000, alpha=1.5)
-
-        :param simplex_delta: Initial simplex size (default 0.1)
-        :type simplex_delta: float
-        :param sd_tolerance: Standard deviation tolerance for convergence (default 2.22e-16)
-        :type sd_tolerance: float
-        :param max_iter: Maximum number of iterations (default 300)
-        :type max_iter: int
-        :param alpha: Reflection coefficient (default 1.0)
-        :type alpha: float
-        :param gamma: Expansion coefficient (default 2.0)
-        :type gamma: float
-        :param rho: Contraction coefficient (default 0.5)
-        :type rho: float
-        :param sigma: Shrink coefficient (default 0.5)
-        :type sigma: float
-        :return: Configured Nelder-Mead solver
-        :rtype: PyNelderMead
-        """
-        ...
-    @staticmethod
-    def neldermead(
-        simplex_delta: float = 0.1,
-        sd_tolerance: float = 2.220446049250313e-16,
-        max_iter: int = 300,
-        alpha: float = 1.0,
-        gamma: float = 2.0,
-        rho: float = 0.5,
-        sigma: float = 0.5,
-    ) -> "PyNelderMead":
-        """
-        Create a Nelder-Mead solver configuration.
-
-        This builder function allows easy creation of a Nelder-Mead simplex algorithm
-        configuration.
-
-        Examples
-        --------
-            >>> neldermead_config = gs.builders.neldermead(max_iter=1000, alpha=1.5)
-
-        :param simplex_delta: Initial simplex size (default 0.1)
-        :type simplex_delta: float
-        :param sd_tolerance: Standard deviation tolerance for convergence (default 2.22e-16)
-        :type sd_tolerance: float
-        :param max_iter: Maximum number of iterations (default 300)
-        :type max_iter: int
-        :param alpha: Reflection coefficient (default 1.0)
-        :type alpha: float
-        :param gamma: Expansion coefficient (default 2.0)
-        :type gamma: float
-        :param rho: Contraction coefficient (default 0.5)
-        :type rho: float
-        :param sigma: Shrink coefficient (default 0.5)
-        :type sigma: float
-        :return: Configured Nelder-Mead solver
-        :rtype: PyNelderMead
-        """
-        ...
-    @staticmethod
-    def steepest_descent(
-        max_iter: int = 300,
-        line_search_params: Union[
-            PyLineSearchMethod, HagerZhang, MoreThuente, "PyLineSearchParams"
-        ] = PyLineSearchMethod.morethunte(),
-    ) -> "PySteepestDescent":
-        """
-        Create a steepest descent solver configuration.
-
-        This builder function allows easy creation of a steepest descent (gradient descent)
-        configuration.
-
-        Examples
-        --------
-            >>> steepest_config = gs.builders.steepest_descent(max_iter=1000)
-
-        :param max_iter: Maximum number of iterations (default 300)
-        :type max_iter: int
-        :param line_search_params: Line search configuration (default MoreThuente)
-        :type line_search_params: Union[PyLineSearchMethod, HagerZhang, MoreThuente, PyLineSearchParams]
-        :return: Configured steepest descent solver
-        :rtype: PySteepestDescent
-        """
-        ...
-    @staticmethod
-    def newton_cg(
-        max_iter: int = 300,
-        curvature_tolerance: float = 0.0,
-        tolerance: float = 1.490116119384766e-8,
-        line_search_params: Union[
-            PyLineSearchMethod, HagerZhang, MoreThuente, "PyLineSearchParams"
-        ] = PyLineSearchMethod.morethunte(),
-    ) -> "PyNewtonCG":
-        """
-        Create a Newton-CG solver configuration.
-
-        This builder function allows easy creation of a Newton-CG (Newton Conjugate Gradient)
-        configuration.
-
-        Examples
-        --------
-            >>> newton_cg_config = gs.builders.newton_cg(max_iter=500, tolerance=1e-10)
-
-        :param max_iter: Maximum number of iterations (default 300)
-        :type max_iter: int
-        :param curvature_tolerance: Tolerance for negative curvature detection (default 0.0)
-        :type curvature_tolerance: float
-        :param tolerance: Convergence tolerance for the Newton step (default 1.49e-8)
-        :type tolerance: float
-        :param line_search_params: Line search configuration (default MoreThuente)
-        :type line_search_params: Union[PyLineSearchMethod, HagerZhang, MoreThuente, PyLineSearchParams]
-        :return: Configured Newton-CG solver
-        :rtype: PyNewtonCG
-        """
-        ...
-    @staticmethod
-    def trustregion(
-        trust_region_radius_method: PyTrustRegionRadiusMethod = PyTrustRegionRadiusMethod.cauchy(),
-        max_iter: int = 300,
-        radius: float = 1.0,
-        max_radius: float = 100.0,
-        eta: float = 0.125,
-    ) -> PyTrustRegion:
-        """
-        Create a trust region solver configuration.
-
-        This builder function allows easy creation of a trust region method
-        configuration.
-
-        Examples
-        --------
-            >>> trustregion_config = gs.builders.trustregion(radius=2.0, max_radius=50.0)
-
-        :param trust_region_radius_method: Method for computing trust region radius (default Cauchy)
-        :type trust_region_radius_method: PyTrustRegionRadiusMethod
-        :param max_iter: Maximum number of iterations (default 300)
-        :type max_iter: int
-        :param radius: Initial trust region radius (default 1.0)
-        :type radius: float
-        :param max_radius: Maximum allowed trust region radius (default 100.0)
-        :type max_radius: float
-        :param eta: Threshold for accepting/rejecting steps (default 0.125)
-        :type eta: float
-        :return: Configured trust region solver
-        :rtype: PyTrustRegion
-        """
-        ...
     @staticmethod
     def cobyla(
         max_iter: int = 300,
@@ -1383,14 +901,15 @@ class builders:
         ...
 
     # Aliases to global class definitions
-    PyHagerZhang: Type[HagerZhang]
-    PyMoreThuente: Type[MoreThuente]
-    PyLineSearchParams: Type[PyLineSearchParams]
-
     PyLBFGS: Type[PyLBFGS]
+    PyGradientDescent: Type[PyGradientDescent]
     PyNelderMead: Type[PyNelderMead]
-    PySteepestDescent: Type[PySteepestDescent]
-    PyNewtonCG: Type[PyNewtonCG]
+    PyLBFGSB: Type[PyLBFGSB]
+    PyBoundedNelderMead: Type[PyBoundedNelderMead]
+    PyBOBYQA: Type[PyBOBYQA]
+    PySLSQP: Type[PySLSQP]
+    PyBarrier: Type[PyBarrier]
+    PyAugmentedLagrangian: Type[PyAugmentedLagrangian]
     PyTrustRegionRadiusMethod: Type[PyTrustRegionRadiusMethod]
     PyTrustRegion: Type[PyTrustRegion]
     PyCOBYLA: Type[PyCOBYLA]
@@ -1810,18 +1329,16 @@ def optimize(
     local_solver_config: Optional[
         Union[
             PyLBFGS,
-            PyNelderMead,
-            PySteepestDescent,
-            PyNewtonCG,
+            PyGradientDescent,
             PyTrustRegion,
+            PyNelderMead,
+            PyLBFGSB,
+            PyBoundedNelderMead,
+            PyBOBYQA,
             PyCOBYLA,
-            PyBasinLBFGS,
-            PyBasinGradientDescent,
-            PyBasinTrustRegion,
-            PyBasinNelderMead,
-            PyBasinLBFGSB,
-            PyBasinBoundedNelderMead,
-            PyBasinBOBYQA,
+            PySLSQP,
+            PyBarrier,
+            PyAugmentedLagrangian,
         ]
     ] = None,
     seed: Optional[int] = 0,
@@ -1886,13 +1403,15 @@ def optimize(
     :type params: PyOQNLPParams
     :param local_solver: Local optimization algorithm to use with its default configuration.
                         One of: ``"COBYLA"`` (default when neither argument is given), ``"LBFGS"``,
-                        ``"NewtonCG"``, ``"TrustRegion"``, ``"NelderMead"``, ``"SteepestDescent"``.
+                        ``"LBFGSB"``, ``"GradientDescent"``, ``"TrustRegion"``, ``"NelderMead"``,
+                        ``"BoundedNelderMead"``, ``"BOBYQA"``, ``"SLSQP"``, ``"Barrier"``,
+                        ``"AugmentedLagrangian"``.
                         When passed alongside ``local_solver_config``, must match the config type.
     :type local_solver: str, optional
     :param local_solver_config: Custom configuration for the local solver. The solver type is inferred
-                               from the config object's type (e.g. ``PyCOBYLA``, ``PyLBFGS``).
+                               from the config object's type (e.g. ``PyCOBYLA``, ``PyLBFGS``, ``PySLSQP``).
                                When passed alongside ``local_solver``, both must refer to the same solver type.
-    :type local_solver_config: Union[PyLBFGS, PyNelderMead, PySteepestDescent, PyNewtonCG, PyTrustRegion, PyCOBYLA, PyBasinLBFGS, PyBasinGradientDescent, PyBasinTrustRegion, PyBasinNelderMead, PyBasinLBFGSB, PyBasinBoundedNelderMead, PyBasinBOBYQA], optional
+    :type local_solver_config: Union[PyLBFGS, PyGradientDescent, PyTrustRegion, PyNelderMead, PyLBFGSB, PyBoundedNelderMead, PyBOBYQA, PyCOBYLA, PySLSQP, PyBarrier, PyAugmentedLagrangian], optional
     :param seed: Random seed for reproducible results (0 by default)
     :type seed: int
     :param target_objective: Stop optimization when this objective value is reached (None by default = no target)

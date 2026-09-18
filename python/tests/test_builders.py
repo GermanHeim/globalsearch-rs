@@ -43,17 +43,11 @@ problem_full = gs.PyProblem(
 
 def test_builders_lbfgs():
     """Test LBFGS created using builders module."""
-    # Create line search params first
-    morethuente = gs.builders.morethuente(
-        c1=1e-5, c2=0.85, width_tolerance=1e-11, bounds=[1e-10, 1e10]
-    )
-
     lbfgs_config = gs.builders.lbfgs(
         max_iter=80,
         tolerance_grad=1e-7,
         tolerance_cost=1e-14,
         history_size=6,
-        line_search_params=morethuente,
     )
     result = gs.optimize(
         problem_grad, params, local_solver="LBFGS", local_solver_config=lbfgs_config
@@ -64,14 +58,11 @@ def test_builders_lbfgs():
 
 def test_builders_nelder_mead():
     """Test NelderMead created using builders module."""
-    nelder_mead_config = gs.builders.neldermead(
-        simplex_delta=0.08,
-        sd_tolerance=1e-10,
+    nelder_mead_config = gs.builders.nelder_mead(
         max_iter=250,
-        alpha=1.2,
-        gamma=2.2,
-        rho=0.4,
-        sigma=0.4,
+        simplex_delta=0.08,
+        tolerance_simplex=1e-10,
+        tolerance_cost=1e-12,
     )
     result = gs.optimize(
         problem,
@@ -85,7 +76,7 @@ def test_builders_nelder_mead():
 
 def test_builders_trustregion():
     """Test TrustRegion created using builders module."""
-    trustregion_config = gs.builders.trustregion(
+    trustregion_config = gs.builders.trust_region(
         trust_region_radius_method=gs.builders.PyTrustRegionRadiusMethod.steihaug(),
         max_iter=120,
         radius=0.8,
@@ -102,24 +93,13 @@ def test_builders_trustregion():
     assert abs(result[0].fun()) < 1e-6
 
 
-def test_builders_hagerzhang():
-    """Test HagerZhang line search created using builders module."""
-    hagerzhang_config = gs.builders.hagerzhang(
-        delta=0.08,
-        sigma=0.92,
-        epsilon=1e-7,
-        theta=0.45,
-        gamma=0.68,
-        eta=0.015,
-        bounds=[1e-12, 1e12],
-    )
-
+def test_builders_lbfgs_tolerances():
+    """Test LBFGS created using builders module with custom tolerances."""
     lbfgs_config = gs.builders.lbfgs(
         max_iter=100,
         tolerance_grad=1e-8,
         tolerance_cost=1e-12,
         history_size=10,
-        line_search_params=hagerzhang_config,
     )
     result = gs.optimize(
         problem_grad, params, local_solver="LBFGS", local_solver_config=lbfgs_config

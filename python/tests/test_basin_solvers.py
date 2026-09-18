@@ -6,13 +6,13 @@ import pyglobalsearch as gs
 
 
 SOLVERS = [
-    ("basin_lbfgs", "PyBasinLBFGS", False),
-    ("basin_gradient_descent", "PyBasinGradientDescent", False),
-    ("basin_trust_region", "PyBasinTrustRegion", False),
-    ("basin_nelder_mead", "PyBasinNelderMead", False),
-    ("basin_lbfgsb", "PyBasinLBFGSB", True),
-    ("basin_bounded_nelder_mead", "PyBasinBoundedNelderMead", True),
-    ("basin_bobyqa", "PyBasinBOBYQA", True),
+    ("lbfgs", "PyLBFGS", False),
+    ("gradient_descent", "PyGradientDescent", False),
+    ("trust_region", "PyTrustRegion", False),
+    ("nelder_mead", "PyNelderMead", False),
+    ("lbfgsb", "PyLBFGSB", True),
+    ("bounded_nelder_mead", "PyBoundedNelderMead", True),
+    ("bobyqa", "PyBOBYQA", True),
 ]
 
 
@@ -68,45 +68,45 @@ def test_rejects_nonlinear_constraints(name, cls, bounded):
 
 def test_mismatched_backend_is_rejected():
     with pytest.raises(ValueError, match="does not match"):
-        gs.optimize(problem(), params(), local_solver="LBFGS",
-                    local_solver_config=gs.builders.basin_lbfgs())
+        gs.optimize(problem(), params(), local_solver="COBYLA",
+                    local_solver_config=gs.builders.lbfgs())
 
 
 def test_invalid_settings_and_mutation():
-    config = gs.builders.basin_lbfgs(tolerance_cost=None)
+    config = gs.builders.lbfgs(tolerance_cost=None)
     config.history_size = 0
     with pytest.raises(ValueError, match="history_size"):
         gs.optimize(problem(), params(), local_solver_config=config)
     with pytest.raises(ValueError, match="tolerance_grad"):
-        gs.optimize(problem(), params(), local_solver_config=gs.builders.basin_lbfgs(tolerance_grad=-1))
+        gs.optimize(problem(), params(), local_solver_config=gs.builders.lbfgs(tolerance_grad=-1))
 
 
 def test_default_and_optional_settings():
-    config = gs.builders.PyBasinLBFGS()
+    config = gs.builders.PyLBFGS()
     assert config.max_iter == 1000
     assert config.history_size == 10
     assert config.tolerance_grad == 1e-6
     assert config.tolerance_cost is None
-    assert gs.builders.basin_lbfgs(tolerance_grad=None).tolerance_grad is None
-    assert gs.builders.basin_lbfgs(tolerance_grad=0.0).tolerance_grad == 0.0
-    assert gs.builders.basin_bobyqa().interpolation_points is None
+    assert gs.builders.lbfgs(tolerance_grad=None).tolerance_grad is None
+    assert gs.builders.lbfgs(tolerance_grad=0.0).tolerance_grad == 0.0
+    assert gs.builders.bobyqa().interpolation_points is None
 
 
 def test_missing_gradient_and_callback_errors():
     p = gs.PyProblem(lambda x: float(x @ x), lambda: np.array([[-1.0, 1.0]]))
     with pytest.raises(ValueError, match="[Gg]radient"):
-        gs.optimize(p, params(), local_solver="basin_lbfgs")
+        gs.optimize(p, params(), local_solver="lbfgs")
 
     def broken(x):
         raise ValueError("basin callback failure")
 
     p = gs.PyProblem(broken, lambda: np.array([[-1.0, 1.0]]))
     with pytest.raises(ValueError, match="basin callback failure"):
-        gs.optimize(p, params(), local_solver="basin_nelder_mead")
+        gs.optimize(p, params(), local_solver="nelder_mead")
 
 
-def test_basin_trust_region_cauchy():
-    config = gs.builders.basin_trust_region(
+def test_trust_region_cauchy():
+    config = gs.builders.trust_region(
         trust_region_radius_method=gs.builders.PyTrustRegionRadiusMethod.cauchy()
     )
     assert gs.optimize(problem(), params(), local_solver_config=config)[0].fun() < 1e-8

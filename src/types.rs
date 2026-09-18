@@ -41,8 +41,6 @@ use thiserror::Error;
 #[cfg(feature = "checkpointing")]
 use std::path::PathBuf;
 
-// TODO: Implement SR1 when it is fixed in argmin (https://github.com/argmin-rs/argmin/issues/221)
-// Or add it now and print a warning that it is not working as expected in some cases
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "checkpointing", derive(serde::Serialize, serde::Deserialize))]
@@ -458,69 +456,50 @@ impl fmt::Display for SolutionSet {
 #[cfg_attr(feature = "checkpointing", derive(serde::Serialize, serde::Deserialize))]
 /// Local solver implementation types for the OQNLP algorithm
 ///
-/// This enum defines the types of local solvers that can be used in the OQNLP algorithm, including argmin methods, COBYLA, and explicitly named optional Basin methods.
+/// This enum defines the types of local solvers that can be used in the OQNLP algorithm.
 pub enum LocalSolverType {
-    /// L-BFGS local solver
-    ///
-    /// Requires `CostFunction` and `Gradient`
-    #[cfg(feature = "argmin")]
-    LBFGS,
-
-    /// Nelder-Mead local solver
-    ///
-    /// Requires `CostFunction`
-    #[cfg(feature = "argmin")]
-    NelderMead,
-
-    /// Steepest Descent local solver
-    ///
-    /// Requires `CostFunction` and `Gradient`
-    #[cfg(feature = "argmin")]
-    SteepestDescent,
-
-    /// Trust Region local solver
-    ///
-    /// Requires `CostFunction`, `Gradient` and `Hessian`
-    #[cfg(feature = "argmin")]
-    TrustRegion,
-
-    /// Newton-Conjugate-Gradient method local solver
-    ///
-    /// Requires `CostFunction`, `Gradient` and `Hessian`
-    #[cfg(feature = "argmin")]
-    NewtonCG,
-
     /// COBYLA (Constrained Optimization BY Linear Approximations) local solver
     ///
     /// Requires only `CostFunction`
     COBYLA,
-    #[cfg(feature = "basin")]
-    /// Unconstrained basin L-BFGS with the default More-Thuente line search.
-    BasinLBFGS,
+    /// Unconstrained L-BFGS with the default More-Thuente line search.
+    LBFGS,
 
-    #[cfg(feature = "basin")]
-    /// Unconstrained basin gradient descent with the default More-Thuente line search and no momentum.
-    BasinGradientDescent,
+    /// Unconstrained gradient descent with the default More-Thuente line search and no momentum.
+    GradientDescent,
 
-    #[cfg(feature = "basin")]
-    /// Unconstrained basin trust-region optimization using the supplied gradient and Hessian.
-    BasinTrustRegion,
+    /// Unconstrained trust-region optimization using the supplied gradient and Hessian.
+    TrustRegion,
 
-    #[cfg(feature = "basin")]
-    /// Unconstrained basin Nelder-Mead with standard coefficients.
-    BasinNelderMead,
+    /// Unconstrained Nelder-Mead with standard coefficients.
+    NelderMead,
 
-    #[cfg(feature = "basin")]
-    /// Box-constrained basin L-BFGS-B with the default More-Thuente line search.
-    BasinLBFGSB,
+    /// Box-constrained L-BFGS-B with the default More-Thuente line search.
+    LBFGSB,
 
-    #[cfg(feature = "basin")]
-    /// Box-constrained basin Nelder-Mead with projected trial vertices and standard coefficients.
-    BasinBoundedNelderMead,
+    /// Box-constrained Nelder-Mead with projected trial vertices and standard coefficients.
+    BoundedNelderMead,
 
-    #[cfg(feature = "basin")]
-    /// Box-constrained basin BOBYQA. Basin reduces the radii automatically for narrow boxes.
-    BasinBOBYQA,
+    /// Box-constrained BOBYQA. Basin reduces the radii automatically for narrow boxes.
+    BOBYQA,
+
+    /// Gradient-based SLSQP for smooth problems with box, linear, and
+    /// nonlinear constraints (equalities and inequalities).
+    ///
+    /// Requires `gradient` and `constraint_jacobian`.
+    SLSQP,
+
+    /// Log-barrier method over a gradient-based inner solver for problems
+    /// with linear inequality constraints (`A x <= b`).
+    ///
+    /// Requires `gradient` and `linear_inequalities`.
+    Barrier,
+
+    /// Augmented-Lagrangian method over a gradient-based inner solver for
+    /// problems with linear equality constraints (`A x = b`).
+    ///
+    /// Requires `gradient` and `linear_equalities`.
+    AugmentedLagrangian,
 }
 
 impl LocalSolverType {
@@ -528,36 +507,25 @@ impl LocalSolverType {
     ///
     /// This method is used to convert a string to a `LocalSolverType` enum.
     /// It is used to set the local solver type for the Python bindings.
+    ///
+    /// Names are case-insensitive and accept underscores, hyphens, or compact
+    /// spelling.
     pub fn from_string(s: &str) -> Result<Self, &'static str> {
-        #[cfg(feature = "basin")]
-        if s.to_ascii_lowercase().starts_with("basin") {
-            return match s.to_ascii_lowercase().replace(['-', '_'], "").as_str() {
-                "basinlbfgs" => Ok(Self::BasinLBFGS),
-                "basingradientdescent" => Ok(Self::BasinGradientDescent),
-                "basintrustregion" => Ok(Self::BasinTrustRegion),
-                "basinneldermead" => Ok(Self::BasinNelderMead),
-                "basinlbfgsb" => Ok(Self::BasinLBFGSB),
-                "basinboundedneldermead" => Ok(Self::BasinBoundedNelderMead),
-                "basinbobyqa" => Ok(Self::BasinBOBYQA),
-                _ => Err("Invalid solver type."),
-            };
-        }
-        match s.to_lowercase().as_str() {
-            #[cfg(feature = "argmin")]
+        let normalized = s.to_ascii_lowercase().replace(['-', '_'], "");
+        match normalized.as_str() {
             "lbfgs" => Ok(Self::LBFGS),
-            #[cfg(feature = "argmin")]
-            "nelder-mead" => Ok(Self::NelderMead),
-            #[cfg(feature = "argmin")]
-            "neldermead" => Ok(Self::NelderMead),
-            #[cfg(feature = "argmin")]
-            "steepestdescent" => Ok(Self::SteepestDescent),
-            #[cfg(feature = "argmin")]
+            "gradientdescent" => Ok(Self::GradientDescent),
             "trustregion" => Ok(Self::TrustRegion),
-            #[cfg(feature = "argmin")]
-            "newton-cg" => Ok(Self::NewtonCG),
-            #[cfg(feature = "argmin")]
-            "newtoncg" => Ok(Self::NewtonCG),
+            "neldermead" => Ok(Self::NelderMead),
+            "lbfgsb" => Ok(Self::LBFGSB),
+            "boundedneldermead" => Ok(Self::BoundedNelderMead),
+            "bobyqa" => Ok(Self::BOBYQA),
             "cobyla" => Ok(Self::COBYLA),
+            "slsqp" => Ok(Self::SLSQP),
+            "barrier" | "barriermethod" => Ok(Self::Barrier),
+            "augmentedlagrangian" | "augmentedlagrangianmethod" | "alm" => {
+                Ok(Self::AugmentedLagrangian)
+            }
             _ => Err("Invalid solver type."),
         }
     }
@@ -636,6 +604,10 @@ pub enum EvaluationError {
     /// Error when the number of constraint values changes between evaluations
     #[error("Constraint dimension mismatch: expected {expected} values, got {actual}")]
     ConstraintDimensionMismatch { expected: usize, actual: usize },
+
+    /// Error when the constraint Jacobian is not implemented
+    #[error("Constraint Jacobian not implemented and needed for local solver (e.g. SLSQP)")]
+    ConstraintJacobianNotImplemented,
 }
 
 #[cfg(feature = "checkpointing")]
@@ -923,22 +895,23 @@ mod tests_types {
         assert_eq!(params.local_solver_type(), LocalSolverType::COBYLA);
     }
 
-    #[cfg(feature = "argmin")]
     #[test]
     /// Test that `OQNLPParams::local_solver_type()` correctly infers the solver type
-    /// for each argmin config variant
-    fn test_oqnlp_params_local_solver_type_argmin_variants() {
+    /// for each config variant
+    fn test_oqnlp_params_local_solver_type_variants() {
         use crate::local_solver::builders::{
-            LBFGSBuilder, NelderMeadBuilder, NewtonCGBuilder, SteepestDescentBuilder,
-            TrustRegionBuilder,
+            BOBYQABuilder, BoundedNelderMeadBuilder, GradientDescentBuilder, LBFGSBBuilder,
+            LBFGSBuilder, NelderMeadBuilder, TrustRegionBuilder,
         };
 
         let cases: &[(LocalSolverType, crate::local_solver::builders::LocalSolverConfig)] = &[
             (LocalSolverType::LBFGS, LBFGSBuilder::default().build()),
             (LocalSolverType::NelderMead, NelderMeadBuilder::default().build()),
-            (LocalSolverType::SteepestDescent, SteepestDescentBuilder::default().build()),
+            (LocalSolverType::GradientDescent, GradientDescentBuilder::default().build()),
             (LocalSolverType::TrustRegion, TrustRegionBuilder::default().build()),
-            (LocalSolverType::NewtonCG, NewtonCGBuilder::default().build()),
+            (LocalSolverType::LBFGSB, LBFGSBBuilder::default().build()),
+            (LocalSolverType::BoundedNelderMead, BoundedNelderMeadBuilder::default().build()),
+            (LocalSolverType::BOBYQA, BOBYQABuilder::default().build()),
         ];
 
         for (expected_type, config) in cases {
@@ -958,18 +931,28 @@ mod tests_types {
         assert_eq!(params.local_solver_type(), LocalSolverType::COBYLA);
     }
 
-    #[cfg(feature = "argmin")]
     #[test]
     /// Test the from_string method for the LocalSolverType enum
     fn test_local_solver_type_from_string() {
         assert_eq!(LocalSolverType::from_string("LBFGS"), Ok(LocalSolverType::LBFGS));
         assert_eq!(LocalSolverType::from_string("Nelder-Mead"), Ok(LocalSolverType::NelderMead));
         assert_eq!(
-            LocalSolverType::from_string("SteepestDescent"),
-            Ok(LocalSolverType::SteepestDescent)
+            LocalSolverType::from_string("GradientDescent"),
+            Ok(LocalSolverType::GradientDescent)
         );
         assert_eq!(LocalSolverType::from_string("TrustRegion"), Ok(LocalSolverType::TrustRegion));
-        assert_eq!(LocalSolverType::from_string("NewtonCG"), Ok(LocalSolverType::NewtonCG));
+        assert_eq!(LocalSolverType::from_string("LBFGSB"), Ok(LocalSolverType::LBFGSB));
+        assert_eq!(LocalSolverType::from_string("BOBYQA"), Ok(LocalSolverType::BOBYQA));
+        assert_eq!(LocalSolverType::from_string("COBYLA"), Ok(LocalSolverType::COBYLA));
+        assert_eq!(LocalSolverType::from_string("SLSQP"), Ok(LocalSolverType::SLSQP));
+        assert_eq!(LocalSolverType::from_string("slsqp"), Ok(LocalSolverType::SLSQP));
+        assert_eq!(LocalSolverType::from_string("Barrier"), Ok(LocalSolverType::Barrier));
+        assert_eq!(LocalSolverType::from_string("barrier-method"), Ok(LocalSolverType::Barrier));
+        assert_eq!(
+            LocalSolverType::from_string("AugmentedLagrangian"),
+            Ok(LocalSolverType::AugmentedLagrangian)
+        );
+        assert_eq!(LocalSolverType::from_string("alm"), Ok(LocalSolverType::AugmentedLagrangian));
         assert_eq!(LocalSolverType::from_string("Invalid"), Err("Invalid solver type."));
     }
 

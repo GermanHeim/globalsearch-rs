@@ -11,7 +11,7 @@
 /// References:
 ///
 /// Molga, M., & Smutnicki, C. Test functions for optimization needs (April 3, 2005), pp. 15-16. Retrieved January 2025, from https://robertmarks.org/Classes/ENGR5358/Papers/functions.pdf
-use globalsearch::local_solver::builders::{HagerZhangBuilder, LBFGSBuilder};
+use globalsearch::local_solver::builders::LBFGSBuilder;
 use globalsearch::problem::Problem;
 use globalsearch::{
     oqnlp::OQNLP,
@@ -19,9 +19,6 @@ use globalsearch::{
 };
 use ndarray::{Array1, Array2, array};
 
-/// IMPORTANT: For some reason, this example doesn't work using steepest descent or LBFGS.
-/// The local solver gets stuck trying to minimize in the stage 1 if I don't pass HagerZhangBuilder (default is MoreThuente).
-/// We have to check this implementation. I believe this is a problem with the implementation of argmin.
 
 #[derive(Debug, Clone)]
 pub struct ThreeDAckley {
@@ -86,9 +83,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         threshold_factor: 0.2,
         distance_factor: 0.75,
         population_size: 150,
-        local_solver_config: LBFGSBuilder::default()
-            .line_search_params(HagerZhangBuilder::default().build())
-            .build(),
+        local_solver_config: LBFGSBuilder::default().max_iter(500).build(),
         seed: 0,
     };
 

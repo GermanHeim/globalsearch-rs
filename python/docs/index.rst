@@ -23,8 +23,8 @@ The OQNLP algorithm combines scatter search metaheuristics with local optimizati
 Key Features
 ------------
 
-- **Multiple Solvers**: COBYLA, L-BFGS, Newton-CG, Trust Region, Nelder-Mead, Steepest Descent
-- **Constraint Support**: Inequality constraints via COBYLA solver  
+- **Multiple Solvers**: COBYLA, L-BFGS, Gradient Descent, Trust Region, Nelder-Mead, L-BFGS-B, Bounded Nelder-Mead, BOBYQA, SLSQP, Barrier, AugmentedLagrangian
+- **Constraint Support**: Nonlinear constraints via COBYLA (derivative-free) and SLSQP (gradient-based); linear inequalities via Barrier; linear equalities via AugmentedLagrangian  
 - **Gradient Support**: Optional gradient and Hessian functions for faster convergence
 - **Flexible Configuration**: Builder pattern for detailed solver customization
 - **Performance**: Built in Rust for speed with Python convenience

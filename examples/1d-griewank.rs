@@ -10,7 +10,7 @@
 /// References:
 ///
 /// Molga, M., & Smutnicki, C. Test functions for optimization needs (April 3, 2005), pp. 11-12. Retrieved January 2025, from https://robertmarks.org/Classes/ENGR5358/Papers/functions.pdf
-use globalsearch::local_solver::builders::{HagerZhangBuilder, LBFGSBuilder};
+use globalsearch::local_solver::builders::LBFGSBuilder;
 use globalsearch::problem::Problem;
 use globalsearch::{
     oqnlp::OQNLP,
@@ -65,7 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         local_solver_config: LBFGSBuilder::default()
             .max_iter(100)
             .history_size(15)
-            .line_search_params(HagerZhangBuilder::default().build())
+            .tolerance_grad(1e-8)
             .build(),
         seed: 0,
     };

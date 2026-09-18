@@ -1,13 +1,13 @@
-//! Python configurations for the optional basin solvers.
+//! Python configurations for the Basin-backed local solvers.
 
 use super::PyTrustRegionRadiusMethod;
 use globalsearch::local_solver::builders::*;
 use pyo3::prelude::*;
 
-/// Unconstrained basin L-BFGS with the default More-Thuente line search.
+/// Unconstrained L-BFGS with the default More-Thuente line search.
 #[pyclass(from_py_object)]
 #[derive(Debug, Clone)]
-pub struct PyBasinLBFGS {
+pub struct PyLBFGS {
     /// Maximum number of basin executor iterations, excluding initialization.
     #[pyo3(get, set)]
     pub max_iter: u64,
@@ -23,7 +23,7 @@ pub struct PyBasinLBFGS {
 }
 
 #[pymethods]
-impl PyBasinLBFGS {
+impl PyLBFGS {
     #[new]
     #[pyo3(signature = (max_iter = 1000, tolerance_grad = Some(1e-6), tolerance_cost = None, history_size = 10))]
     fn new(
@@ -36,9 +36,9 @@ impl PyBasinLBFGS {
     }
 }
 
-impl PyBasinLBFGS {
-    pub fn to_builder(&self) -> BasinLBFGSBuilder {
-        BasinLBFGSBuilder::default()
+impl PyLBFGS {
+    pub fn to_builder(&self) -> LBFGSBuilder {
+        LBFGSBuilder::default()
             .max_iter(self.max_iter)
             .tolerance_grad(self.tolerance_grad)
             .tolerance_cost(self.tolerance_cost)
@@ -46,22 +46,22 @@ impl PyBasinLBFGS {
     }
 }
 
-/// Unconstrained basin L-BFGS with the default More-Thuente line search.
+/// Unconstrained L-BFGS with the default More-Thuente line search.
 #[pyfunction]
 #[pyo3(signature = (max_iter = 1000, tolerance_grad = Some(1e-6), tolerance_cost = None, history_size = 10))]
-pub fn basin_lbfgs(
+pub fn lbfgs(
     max_iter: u64,
     tolerance_grad: Option<f64>,
     tolerance_cost: Option<f64>,
     history_size: usize,
-) -> PyBasinLBFGS {
-    PyBasinLBFGS::new(max_iter, tolerance_grad, tolerance_cost, history_size)
+) -> PyLBFGS {
+    PyLBFGS::new(max_iter, tolerance_grad, tolerance_cost, history_size)
 }
 
-/// Unconstrained basin gradient descent with the default More-Thuente line search and no momentum.
+/// Unconstrained gradient descent with the default More-Thuente line search and no momentum.
 #[pyclass(from_py_object)]
 #[derive(Debug, Clone)]
-pub struct PyBasinGradientDescent {
+pub struct PyGradientDescent {
     /// Maximum number of basin executor iterations, excluding initialization.
     #[pyo3(get, set)]
     pub max_iter: u64,
@@ -74,7 +74,7 @@ pub struct PyBasinGradientDescent {
 }
 
 #[pymethods]
-impl PyBasinGradientDescent {
+impl PyGradientDescent {
     #[new]
     #[pyo3(signature = (max_iter = 1000, tolerance_grad = Some(1e-6), tolerance_cost = None))]
     fn new(max_iter: u64, tolerance_grad: Option<f64>, tolerance_cost: Option<f64>) -> Self {
@@ -82,30 +82,30 @@ impl PyBasinGradientDescent {
     }
 }
 
-impl PyBasinGradientDescent {
-    pub fn to_builder(&self) -> BasinGradientDescentBuilder {
-        BasinGradientDescentBuilder::default()
+impl PyGradientDescent {
+    pub fn to_builder(&self) -> GradientDescentBuilder {
+        GradientDescentBuilder::default()
             .max_iter(self.max_iter)
             .tolerance_grad(self.tolerance_grad)
             .tolerance_cost(self.tolerance_cost)
     }
 }
 
-/// Unconstrained basin gradient descent with the default More-Thuente line search and no momentum.
+/// Unconstrained gradient descent with the default More-Thuente line search and no momentum.
 #[pyfunction]
 #[pyo3(signature = (max_iter = 1000, tolerance_grad = Some(1e-6), tolerance_cost = None))]
-pub fn basin_gradient_descent(
+pub fn gradient_descent(
     max_iter: u64,
     tolerance_grad: Option<f64>,
     tolerance_cost: Option<f64>,
-) -> PyBasinGradientDescent {
-    PyBasinGradientDescent::new(max_iter, tolerance_grad, tolerance_cost)
+) -> PyGradientDescent {
+    PyGradientDescent::new(max_iter, tolerance_grad, tolerance_cost)
 }
 
-/// Unconstrained basin trust-region optimization using the supplied gradient and Hessian.
+/// Unconstrained trust-region optimization using the supplied gradient and Hessian.
 #[pyclass(from_py_object)]
 #[derive(Debug, Clone)]
-pub struct PyBasinTrustRegion {
+pub struct PyTrustRegion {
     /// Maximum number of basin executor iterations, excluding initialization.
     #[pyo3(get, set)]
     pub max_iter: u64,
@@ -127,7 +127,7 @@ pub struct PyBasinTrustRegion {
 }
 
 #[pymethods]
-impl PyBasinTrustRegion {
+impl PyTrustRegion {
     #[new]
     #[pyo3(signature = (max_iter = 1000, tolerance_grad = Some(1e-6), trust_region_radius_method = PyTrustRegionRadiusMethod::Steihaug, radius = 1.0, max_radius = 100.0, eta = 0.125))]
     fn new(
@@ -142,9 +142,9 @@ impl PyBasinTrustRegion {
     }
 }
 
-impl PyBasinTrustRegion {
-    pub fn to_builder(&self) -> BasinTrustRegionBuilder {
-        BasinTrustRegionBuilder::default()
+impl PyTrustRegion {
+    pub fn to_builder(&self) -> TrustRegionBuilder {
+        TrustRegionBuilder::default()
             .max_iter(self.max_iter)
             .tolerance_grad(self.tolerance_grad)
             .method(self.trust_region_radius_method.clone().into())
@@ -154,18 +154,18 @@ impl PyBasinTrustRegion {
     }
 }
 
-/// Unconstrained basin trust-region optimization using the supplied gradient and Hessian.
+/// Unconstrained trust-region optimization using the supplied gradient and Hessian.
 #[pyfunction]
 #[pyo3(signature = (max_iter = 1000, tolerance_grad = Some(1e-6), trust_region_radius_method = PyTrustRegionRadiusMethod::Steihaug, radius = 1.0, max_radius = 100.0, eta = 0.125))]
-pub fn basin_trust_region(
+pub fn trust_region(
     max_iter: u64,
     tolerance_grad: Option<f64>,
     trust_region_radius_method: PyTrustRegionRadiusMethod,
     radius: f64,
     max_radius: f64,
     eta: f64,
-) -> PyBasinTrustRegion {
-    PyBasinTrustRegion::new(
+) -> PyTrustRegion {
+    PyTrustRegion::new(
         max_iter,
         tolerance_grad,
         trust_region_radius_method,
@@ -175,10 +175,10 @@ pub fn basin_trust_region(
     )
 }
 
-/// Unconstrained basin Nelder-Mead with standard coefficients.
+/// Unconstrained Nelder-Mead with standard coefficients.
 #[pyclass(from_py_object)]
 #[derive(Debug, Clone)]
-pub struct PyBasinNelderMead {
+pub struct PyNelderMead {
     /// Maximum number of basin executor iterations, excluding initialization.
     #[pyo3(get, set)]
     pub max_iter: u64,
@@ -194,7 +194,7 @@ pub struct PyBasinNelderMead {
 }
 
 #[pymethods]
-impl PyBasinNelderMead {
+impl PyNelderMead {
     #[new]
     #[pyo3(signature = (max_iter = 1000, simplex_delta = 0.1, tolerance_simplex = Some(1e-6), tolerance_cost = Some(1e-8)))]
     fn new(
@@ -207,9 +207,9 @@ impl PyBasinNelderMead {
     }
 }
 
-impl PyBasinNelderMead {
-    pub fn to_builder(&self) -> BasinNelderMeadBuilder {
-        BasinNelderMeadBuilder::default()
+impl PyNelderMead {
+    pub fn to_builder(&self) -> NelderMeadBuilder {
+        NelderMeadBuilder::default()
             .max_iter(self.max_iter)
             .simplex_delta(self.simplex_delta)
             .tolerance_simplex(self.tolerance_simplex)
@@ -217,22 +217,22 @@ impl PyBasinNelderMead {
     }
 }
 
-/// Unconstrained basin Nelder-Mead with standard coefficients.
+/// Unconstrained Nelder-Mead with standard coefficients.
 #[pyfunction]
 #[pyo3(signature = (max_iter = 1000, simplex_delta = 0.1, tolerance_simplex = Some(1e-6), tolerance_cost = Some(1e-8)))]
-pub fn basin_nelder_mead(
+pub fn nelder_mead(
     max_iter: u64,
     simplex_delta: f64,
     tolerance_simplex: Option<f64>,
     tolerance_cost: Option<f64>,
-) -> PyBasinNelderMead {
-    PyBasinNelderMead::new(max_iter, simplex_delta, tolerance_simplex, tolerance_cost)
+) -> PyNelderMead {
+    PyNelderMead::new(max_iter, simplex_delta, tolerance_simplex, tolerance_cost)
 }
 
-/// Box-constrained basin L-BFGS-B with the default More-Thuente line search.
+/// Box-constrained L-BFGS-B with the default More-Thuente line search.
 #[pyclass(from_py_object)]
 #[derive(Debug, Clone)]
-pub struct PyBasinLBFGSB {
+pub struct PyLBFGSB {
     /// Maximum number of basin executor iterations, excluding initialization.
     #[pyo3(get, set)]
     pub max_iter: u64,
@@ -248,7 +248,7 @@ pub struct PyBasinLBFGSB {
 }
 
 #[pymethods]
-impl PyBasinLBFGSB {
+impl PyLBFGSB {
     #[new]
     #[pyo3(signature = (max_iter = 1000, tolerance_projected_grad = Some(1e-6), tolerance_cost = None, history_size = 10))]
     fn new(
@@ -261,9 +261,9 @@ impl PyBasinLBFGSB {
     }
 }
 
-impl PyBasinLBFGSB {
-    pub fn to_builder(&self) -> BasinLBFGSBBuilder {
-        BasinLBFGSBBuilder::default()
+impl PyLBFGSB {
+    pub fn to_builder(&self) -> LBFGSBBuilder {
+        LBFGSBBuilder::default()
             .max_iter(self.max_iter)
             .tolerance_projected_grad(self.tolerance_projected_grad)
             .tolerance_cost(self.tolerance_cost)
@@ -271,22 +271,22 @@ impl PyBasinLBFGSB {
     }
 }
 
-/// Box-constrained basin L-BFGS-B with the default More-Thuente line search.
+/// Box-constrained L-BFGS-B with the default More-Thuente line search.
 #[pyfunction]
 #[pyo3(signature = (max_iter = 1000, tolerance_projected_grad = Some(1e-6), tolerance_cost = None, history_size = 10))]
-pub fn basin_lbfgsb(
+pub fn lbfgsb(
     max_iter: u64,
     tolerance_projected_grad: Option<f64>,
     tolerance_cost: Option<f64>,
     history_size: usize,
-) -> PyBasinLBFGSB {
-    PyBasinLBFGSB::new(max_iter, tolerance_projected_grad, tolerance_cost, history_size)
+) -> PyLBFGSB {
+    PyLBFGSB::new(max_iter, tolerance_projected_grad, tolerance_cost, history_size)
 }
 
-/// Box-constrained basin Nelder-Mead with projected trial vertices and standard coefficients.
+/// Box-constrained Nelder-Mead with projected trial vertices and standard coefficients.
 #[pyclass(from_py_object)]
 #[derive(Debug, Clone)]
-pub struct PyBasinBoundedNelderMead {
+pub struct PyBoundedNelderMead {
     /// Maximum number of basin executor iterations, excluding initialization.
     #[pyo3(get, set)]
     pub max_iter: u64,
@@ -302,7 +302,7 @@ pub struct PyBasinBoundedNelderMead {
 }
 
 #[pymethods]
-impl PyBasinBoundedNelderMead {
+impl PyBoundedNelderMead {
     #[new]
     #[pyo3(signature = (max_iter = 1000, simplex_delta = 0.1, tolerance_simplex = Some(1e-6), tolerance_cost = Some(1e-8)))]
     fn new(
@@ -315,9 +315,9 @@ impl PyBasinBoundedNelderMead {
     }
 }
 
-impl PyBasinBoundedNelderMead {
-    pub fn to_builder(&self) -> BasinBoundedNelderMeadBuilder {
-        BasinBoundedNelderMeadBuilder::default()
+impl PyBoundedNelderMead {
+    pub fn to_builder(&self) -> BoundedNelderMeadBuilder {
+        BoundedNelderMeadBuilder::default()
             .max_iter(self.max_iter)
             .simplex_delta(self.simplex_delta)
             .tolerance_simplex(self.tolerance_simplex)
@@ -325,22 +325,22 @@ impl PyBasinBoundedNelderMead {
     }
 }
 
-/// Box-constrained basin Nelder-Mead with projected trial vertices and standard coefficients.
+/// Box-constrained Nelder-Mead with projected trial vertices and standard coefficients.
 #[pyfunction]
 #[pyo3(signature = (max_iter = 1000, simplex_delta = 0.1, tolerance_simplex = Some(1e-6), tolerance_cost = Some(1e-8)))]
-pub fn basin_bounded_nelder_mead(
+pub fn bounded_nelder_mead(
     max_iter: u64,
     simplex_delta: f64,
     tolerance_simplex: Option<f64>,
     tolerance_cost: Option<f64>,
-) -> PyBasinBoundedNelderMead {
-    PyBasinBoundedNelderMead::new(max_iter, simplex_delta, tolerance_simplex, tolerance_cost)
+) -> PyBoundedNelderMead {
+    PyBoundedNelderMead::new(max_iter, simplex_delta, tolerance_simplex, tolerance_cost)
 }
 
-/// Box-constrained basin BOBYQA. Basin reduces the radii automatically for narrow boxes.
+/// Box-constrained BOBYQA. Basin reduces the radii automatically for narrow boxes.
 #[pyclass(from_py_object)]
 #[derive(Debug, Clone)]
-pub struct PyBasinBOBYQA {
+pub struct PyBOBYQA {
     /// Maximum number of basin executor iterations, excluding initialization.
     #[pyo3(get, set)]
     pub max_iter: u64,
@@ -356,7 +356,7 @@ pub struct PyBasinBOBYQA {
 }
 
 #[pymethods]
-impl PyBasinBOBYQA {
+impl PyBOBYQA {
     #[new]
     #[pyo3(signature = (max_iter = 1000, initial_radius = 1.0, final_radius = 1e-6, interpolation_points = None))]
     fn new(
@@ -369,9 +369,9 @@ impl PyBasinBOBYQA {
     }
 }
 
-impl PyBasinBOBYQA {
-    pub fn to_builder(&self) -> BasinBOBYQABuilder {
-        BasinBOBYQABuilder::default()
+impl PyBOBYQA {
+    pub fn to_builder(&self) -> BOBYQABuilder {
+        BOBYQABuilder::default()
             .max_iter(self.max_iter)
             .initial_radius(self.initial_radius)
             .final_radius(self.final_radius)
@@ -379,32 +379,224 @@ impl PyBasinBOBYQA {
     }
 }
 
-/// Box-constrained basin BOBYQA. Basin reduces the radii automatically for narrow boxes.
+/// Box-constrained BOBYQA. Basin reduces the radii automatically for narrow boxes.
 #[pyfunction]
 #[pyo3(signature = (max_iter = 1000, initial_radius = 1.0, final_radius = 1e-6, interpolation_points = None))]
-pub fn basin_bobyqa(
+pub fn bobyqa(
     max_iter: u64,
     initial_radius: f64,
     final_radius: f64,
     interpolation_points: Option<usize>,
-) -> PyBasinBOBYQA {
-    PyBasinBOBYQA::new(max_iter, initial_radius, final_radius, interpolation_points)
+) -> PyBOBYQA {
+    PyBOBYQA::new(max_iter, initial_radius, final_radius, interpolation_points)
+}
+
+/// Gradient-based SLSQP with box, linear, and nonlinear constraints.
+///
+/// Requires `gradient` and `constraint_jacobian` on the problem.
+#[pyclass(from_py_object)]
+#[derive(Debug, Clone)]
+pub struct PySLSQP {
+    /// Maximum number of executor iterations (outer SLSQP steps).
+    #[pyo3(get, set)]
+    pub max_iter: u64,
+    /// Kraft composite accuracy tolerance. None disables convergence tests.
+    #[pyo3(get, set)]
+    pub accuracy: Option<f64>,
+    /// NNLS active-set iteration limit per QP subproblem. None selects default.
+    #[pyo3(get, set)]
+    pub max_subproblem_iter: Option<usize>,
+}
+
+#[pymethods]
+impl PySLSQP {
+    #[new]
+    #[pyo3(signature = (max_iter = 1000, accuracy = Some(1e-6), max_subproblem_iter = None))]
+    fn new(max_iter: u64, accuracy: Option<f64>, max_subproblem_iter: Option<usize>) -> Self {
+        Self { max_iter, accuracy, max_subproblem_iter }
+    }
+}
+
+impl PySLSQP {
+    pub fn to_builder(&self) -> SLSQPBuilder {
+        SLSQPBuilder::default()
+            .max_iter(self.max_iter)
+            .accuracy(self.accuracy)
+            .max_subproblem_iter(self.max_subproblem_iter)
+    }
+}
+
+/// Gradient-based SLSQP with box, linear, and nonlinear constraints.
+#[pyfunction]
+#[pyo3(signature = (max_iter = 1000, accuracy = Some(1e-6), max_subproblem_iter = None))]
+pub fn slsqp(
+    max_iter: u64,
+    accuracy: Option<f64>,
+    max_subproblem_iter: Option<usize>,
+) -> PySLSQP {
+    PySLSQP::new(max_iter, accuracy, max_subproblem_iter)
+}
+
+/// Log-barrier method over a BFGS inner solver for linear inequalities `A x <= b`.
+///
+/// Requires `gradient` and `linear_inequalities` on the problem. Box bounds
+/// are folded into the inequality system and enforced exactly.
+#[pyclass(from_py_object)]
+#[derive(Debug, Clone)]
+pub struct PyBarrier {
+    /// Maximum number of outer barrier iterations (safety budget).
+    #[pyo3(get, set)]
+    pub max_iter: u64,
+    /// Initial barrier parameter. Must be positive.
+    #[pyo3(get, set)]
+    pub mu0: f64,
+    /// Per-iteration shrink factor. Must exceed 1.
+    #[pyo3(get, set)]
+    pub reduction: f64,
+    /// Outer duality-gap tolerance: stop once `m * mu <= tol`.
+    #[pyo3(get, set)]
+    pub duality_gap_tol: f64,
+    /// Iteration budget for each inner barrier-subproblem solve.
+    #[pyo3(get, set)]
+    pub inner_max_iter: u64,
+}
+
+#[pymethods]
+impl PyBarrier {
+    #[new]
+    #[pyo3(signature = (max_iter = 100, mu0 = 1.0, reduction = 10.0, duality_gap_tol = 1e-8, inner_max_iter = 50))]
+    fn new(
+        max_iter: u64,
+        mu0: f64,
+        reduction: f64,
+        duality_gap_tol: f64,
+        inner_max_iter: u64,
+    ) -> Self {
+        Self { max_iter, mu0, reduction, duality_gap_tol, inner_max_iter }
+    }
+}
+
+impl PyBarrier {
+    pub fn to_builder(&self) -> BarrierBuilder {
+        BarrierBuilder::default()
+            .max_iter(self.max_iter)
+            .mu0(self.mu0)
+            .reduction(self.reduction)
+            .duality_gap_tol(self.duality_gap_tol)
+            .inner_max_iter(self.inner_max_iter)
+    }
+}
+
+/// Log-barrier method over a BFGS inner solver for linear inequalities `A x <= b`.
+#[pyfunction]
+#[pyo3(signature = (max_iter = 100, mu0 = 1.0, reduction = 10.0, duality_gap_tol = 1e-8, inner_max_iter = 50))]
+pub fn barrier(
+    max_iter: u64,
+    mu0: f64,
+    reduction: f64,
+    duality_gap_tol: f64,
+    inner_max_iter: u64,
+) -> PyBarrier {
+    PyBarrier::new(max_iter, mu0, reduction, duality_gap_tol, inner_max_iter)
+}
+
+/// Augmented-Lagrangian method over a BFGS inner solver for linear equalities `A x = b`.
+///
+/// Requires `gradient` and `linear_equalities` on the problem. Box bounds
+/// are not enforced during local search (as with the unconstrained solvers);
+/// use SLSQP when box and equalities must both hold strictly.
+#[pyclass(from_py_object)]
+#[derive(Debug, Clone)]
+pub struct PyAugmentedLagrangian {
+    /// Maximum number of outer iterations (safety budget).
+    #[pyo3(get, set)]
+    pub max_iter: u64,
+    /// Initial penalty parameter. Must be positive.
+    #[pyo3(get, set)]
+    pub rho0: f64,
+    /// Penalty growth factor when feasibility stalls. Must exceed 1.
+    #[pyo3(get, set)]
+    pub rho_increase: f64,
+    /// Required feasibility-decrease ratio in (0, 1) for multiplier updates.
+    #[pyo3(get, set)]
+    pub feasibility_decrease: f64,
+    /// Outer feasibility tolerance: stop once `||A x - b|| <= tol`.
+    #[pyo3(get, set)]
+    pub feasibility_tol: f64,
+    /// Iteration budget for each inner subproblem solve.
+    #[pyo3(get, set)]
+    pub inner_max_iter: u64,
+}
+
+#[pymethods]
+impl PyAugmentedLagrangian {
+    #[new]
+    #[pyo3(signature = (max_iter = 100, rho0 = 10.0, rho_increase = 10.0, feasibility_decrease = 0.25, feasibility_tol = 1e-8, inner_max_iter = 50))]
+    fn new(
+        max_iter: u64,
+        rho0: f64,
+        rho_increase: f64,
+        feasibility_decrease: f64,
+        feasibility_tol: f64,
+        inner_max_iter: u64,
+    ) -> Self {
+        Self { max_iter, rho0, rho_increase, feasibility_decrease, feasibility_tol, inner_max_iter }
+    }
+}
+
+impl PyAugmentedLagrangian {
+    pub fn to_builder(&self) -> AugmentedLagrangianBuilder {
+        AugmentedLagrangianBuilder::default()
+            .max_iter(self.max_iter)
+            .rho0(self.rho0)
+            .rho_increase(self.rho_increase)
+            .feasibility_decrease(self.feasibility_decrease)
+            .feasibility_tol(self.feasibility_tol)
+            .inner_max_iter(self.inner_max_iter)
+    }
+}
+
+/// Augmented-Lagrangian method over a BFGS inner solver for linear equalities `A x = b`.
+#[pyfunction]
+#[pyo3(signature = (max_iter = 100, rho0 = 10.0, rho_increase = 10.0, feasibility_decrease = 0.25, feasibility_tol = 1e-8, inner_max_iter = 50))]
+pub fn augmented_lagrangian(
+    max_iter: u64,
+    rho0: f64,
+    rho_increase: f64,
+    feasibility_decrease: f64,
+    feasibility_tol: f64,
+    inner_max_iter: u64,
+) -> PyAugmentedLagrangian {
+    PyAugmentedLagrangian::new(
+        max_iter,
+        rho0,
+        rho_increase,
+        feasibility_decrease,
+        feasibility_tol,
+        inner_max_iter,
+    )
 }
 
 pub(super) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<PyBasinLBFGS>()?;
-    m.add_function(wrap_pyfunction!(basin_lbfgs, m)?)?;
-    m.add_class::<PyBasinGradientDescent>()?;
-    m.add_function(wrap_pyfunction!(basin_gradient_descent, m)?)?;
-    m.add_class::<PyBasinTrustRegion>()?;
-    m.add_function(wrap_pyfunction!(basin_trust_region, m)?)?;
-    m.add_class::<PyBasinNelderMead>()?;
-    m.add_function(wrap_pyfunction!(basin_nelder_mead, m)?)?;
-    m.add_class::<PyBasinLBFGSB>()?;
-    m.add_function(wrap_pyfunction!(basin_lbfgsb, m)?)?;
-    m.add_class::<PyBasinBoundedNelderMead>()?;
-    m.add_function(wrap_pyfunction!(basin_bounded_nelder_mead, m)?)?;
-    m.add_class::<PyBasinBOBYQA>()?;
-    m.add_function(wrap_pyfunction!(basin_bobyqa, m)?)?;
+    m.add_class::<PyLBFGS>()?;
+    m.add_function(wrap_pyfunction!(lbfgs, m)?)?;
+    m.add_class::<PyGradientDescent>()?;
+    m.add_function(wrap_pyfunction!(gradient_descent, m)?)?;
+    m.add_class::<PyTrustRegion>()?;
+    m.add_function(wrap_pyfunction!(trust_region, m)?)?;
+    m.add_class::<PyNelderMead>()?;
+    m.add_function(wrap_pyfunction!(nelder_mead, m)?)?;
+    m.add_class::<PyLBFGSB>()?;
+    m.add_function(wrap_pyfunction!(lbfgsb, m)?)?;
+    m.add_class::<PyBoundedNelderMead>()?;
+    m.add_function(wrap_pyfunction!(bounded_nelder_mead, m)?)?;
+    m.add_class::<PyBOBYQA>()?;
+    m.add_function(wrap_pyfunction!(bobyqa, m)?)?;
+    m.add_class::<PySLSQP>()?;
+    m.add_function(wrap_pyfunction!(slsqp, m)?)?;
+    m.add_class::<PyBarrier>()?;
+    m.add_function(wrap_pyfunction!(barrier, m)?)?;
+    m.add_class::<PyAugmentedLagrangian>()?;
+    m.add_function(wrap_pyfunction!(augmented_lagrangian, m)?)?;
     Ok(())
 }

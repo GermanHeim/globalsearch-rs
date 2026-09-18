@@ -1,4 +1,4 @@
-//! Adapters for the optional basin local solvers.
+//! Adapters for the Basin-backed local solvers.
 
 use super::builders::{LocalSolverConfig, TrustRegionRadiusMethod};
 use super::runner::LocalSolverError;
@@ -62,7 +62,7 @@ impl<P: Problem> basin::BoxConstraints for BasinProblem<'_, P> {
 }
 
 fn invalid(solver_type: &LocalSolverType, reason: impl Into<String>) -> LocalSolverError {
-    LocalSolverError::InvalidBasinConfig {
+    LocalSolverError::InvalidConfig {
         solver_type: format!("{solver_type:?}"),
         reason: reason.into(),
     }
@@ -156,9 +156,7 @@ pub(super) fn solve<P: Problem>(
     }
     let bounded = matches!(
         solver_type,
-        LocalSolverType::BasinLBFGSB
-            | LocalSolverType::BasinBoundedNelderMead
-            | LocalSolverType::BasinBOBYQA
+        LocalSolverType::LBFGSB | LocalSolverType::BoundedNelderMead | LocalSolverType::BOBYQA
     );
     if initial.is_empty() || initial.iter().any(|v| !v.is_finite()) {
         return Err(invalid(solver_type, "The starting point must be nonempty and finite."));
@@ -194,10 +192,17 @@ pub(super) fn solve<P: Problem>(
         solver_type: format!("{solver_type:?}"),
         reason: error.to_string(),
     };
-    if !problem.constraints(&Array1::from_vec(start.clone())).map_err(failed)?.is_empty() {
+    if !problem.constraints(&Array1::from_vec(start.clone())).map_err(failed)?.is_empty()
+        || !problem
+            .nonlinear_equalities(&Array1::from_vec(start.clone()))
+            .map_err(failed)?
+            .is_empty()
+        || problem.linear_inequalities().is_some_and(|(a, _)| a.nrows() > 0)
+        || problem.linear_equalities().is_some_and(|(a, _)| a.nrows() > 0)
+    {
         return Err(invalid(
             solver_type,
-            "Nonlinear constraints are unsupported by this solver. Use COBYLA instead.",
+            "Constrained problems are unsupported by this solver. Use COBYLA (derivative-free), SLSQP (gradient-based), Barrier (linear inequalities), or AugmentedLagrangian (linear equalities) instead.",
         ));
     }
     macro_rules! run {
@@ -210,12 +215,7 @@ pub(super) fn solve<P: Problem>(
         }};
     }
     match config {
-        LocalSolverConfig::BasinLBFGS {
-            max_iter,
-            tolerance_grad,
-            tolerance_cost,
-            history_size,
-        } => {
+        LocalSolverConfig::LBFGS { max_iter, tolerance_grad, tolerance_cost, history_size } => {
             tolerance(solver_type, "tolerance_grad", *tolerance_grad)?;
             tolerance(solver_type, "tolerance_cost", *tolerance_cost)?;
             if *history_size == 0 {
@@ -227,7 +227,7 @@ pub(super) fn solve<P: Problem>(
                 .with_absolute_cost_change_tolerance(*tolerance_cost);
             run!(solver, LbfgsState::new(start, *history_size), max_iter)
         }
-        LocalSolverConfig::BasinLBFGSB {
+        LocalSolverConfig::LBFGSB {
             max_iter,
             tolerance_projected_grad,
             tolerance_cost,
@@ -243,7 +243,7 @@ pub(super) fn solve<P: Problem>(
                 .with_absolute_cost_change_tolerance(*tolerance_cost);
             run!(solver, LbfgsState::new(start, *history_size), max_iter)
         }
-        LocalSolverConfig::BasinGradientDescent { max_iter, tolerance_grad, tolerance_cost } => {
+        LocalSolverConfig::GradientDescent { max_iter, tolerance_grad, tolerance_cost } => {
             tolerance(solver_type, "tolerance_grad", *tolerance_grad)?;
             tolerance(solver_type, "tolerance_cost", *tolerance_cost)?;
             let solver = basin::GradientDescent::with_line_search(basin::MoreThuente::new())
@@ -251,7 +251,7 @@ pub(super) fn solve<P: Problem>(
                 .with_absolute_cost_change_tolerance(*tolerance_cost);
             run!(solver, BasicState::new(start), max_iter)
         }
-        LocalSolverConfig::BasinTrustRegion {
+        LocalSolverConfig::TrustRegion {
             max_iter,
             tolerance_grad,
             trust_region_radius_method,
@@ -283,13 +283,13 @@ pub(super) fn solve<P: Problem>(
                 TrustRegionRadiusMethod::Steihaug => trust_region!(basin::Steihaug::new()),
             }
         }
-        LocalSolverConfig::BasinNelderMead {
+        LocalSolverConfig::NelderMead {
             max_iter,
             simplex_delta,
             tolerance_simplex,
             tolerance_cost,
         }
-        | LocalSolverConfig::BasinBoundedNelderMead {
+        | LocalSolverConfig::BoundedNelderMead {
             max_iter,
             simplex_delta,
             tolerance_simplex,
@@ -321,7 +321,7 @@ pub(super) fn solve<P: Problem>(
                 run!(solver, state, max_iter)
             }
         }
-        LocalSolverConfig::BasinBOBYQA {
+        LocalSolverConfig::BOBYQA {
             max_iter,
             initial_radius,
             final_radius,

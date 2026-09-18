@@ -63,11 +63,14 @@ def test_hessian_receives_ndarray():
     """Hessian callback must receive a numpy ndarray"""
     received = []
 
+    # NOTE: the optimum (1, -1) is deliberately placed away from the bounds
+    # midpoint, which scatter search seeds exactly. Starting converged would
+    # let the trust-region solver terminate before evaluating the Hessian.
     def objective(x):
-        return float(x[0] ** 2 + x[1] ** 2)
+        return float((x[0] - 1.0) ** 2 + (x[1] + 1.0) ** 2)
 
     def gradient(x):
-        return np.array([2.0 * x[0], 2.0 * x[1]])
+        return np.array([2.0 * (x[0] - 1.0), 2.0 * (x[1] + 1.0)])
 
     def hessian(x):
         received.append(type(x))

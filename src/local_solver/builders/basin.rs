@@ -1,5 +1,7 @@
-//! Basin solver builders. Settings are validated when the local solve starts.
-//! All solvers reject nonlinear constraints; use COBYLA for those problems.
+//! Solver builders backed by Basin. Settings are validated when the local solve starts.
+//! COBYLA and SLSQP accept nonlinear constraints; Barrier accepts linear
+//! inequalities and AugmentedLagrangian accepts linear equalities. All other
+//! solvers reject constrained problems.
 //!
 //! Defaults are 1,000 executor iterations and a gradient tolerance of 1e-6.
 //! L-BFGS methods retain 10 correction pairs. Cost-change stopping is disabled
@@ -11,22 +13,22 @@
 
 use super::{LocalSolverConfig, TrustRegionRadiusMethod};
 
-/// Unconstrained basin L-BFGS with the default More-Thuente line search.
+/// Unconstrained L-BFGS with the default More-Thuente line search.
 #[derive(Debug, Clone)]
-pub struct BasinLBFGSBuilder {
+pub struct LBFGSBuilder {
     max_iter: u64,
     tolerance_grad: Option<f64>,
     tolerance_cost: Option<f64>,
     history_size: usize,
 }
 
-impl Default for BasinLBFGSBuilder {
+impl Default for LBFGSBuilder {
     fn default() -> Self {
         Self { max_iter: 1000, tolerance_grad: Some(1e-6), tolerance_cost: None, history_size: 10 }
     }
 }
 
-impl BasinLBFGSBuilder {
+impl LBFGSBuilder {
     /// Creates a builder with the documented defaults.
     pub fn new() -> Self {
         Self::default()
@@ -58,7 +60,7 @@ impl BasinLBFGSBuilder {
 
     /// Builds the configuration. Validation occurs when solving.
     pub fn build(self) -> LocalSolverConfig {
-        LocalSolverConfig::BasinLBFGS {
+        LocalSolverConfig::LBFGS {
             max_iter: self.max_iter,
             tolerance_grad: self.tolerance_grad,
             tolerance_cost: self.tolerance_cost,
@@ -69,19 +71,19 @@ impl BasinLBFGSBuilder {
 
 /// Unconstrained basin gradient descent with the default More-Thuente line search and no momentum.
 #[derive(Debug, Clone)]
-pub struct BasinGradientDescentBuilder {
+pub struct GradientDescentBuilder {
     max_iter: u64,
     tolerance_grad: Option<f64>,
     tolerance_cost: Option<f64>,
 }
 
-impl Default for BasinGradientDescentBuilder {
+impl Default for GradientDescentBuilder {
     fn default() -> Self {
         Self { max_iter: 1000, tolerance_grad: Some(1e-6), tolerance_cost: None }
     }
 }
 
-impl BasinGradientDescentBuilder {
+impl GradientDescentBuilder {
     /// Creates a builder with the documented defaults.
     pub fn new() -> Self {
         Self::default()
@@ -107,7 +109,7 @@ impl BasinGradientDescentBuilder {
 
     /// Builds the configuration. Validation occurs when solving.
     pub fn build(self) -> LocalSolverConfig {
-        LocalSolverConfig::BasinGradientDescent {
+        LocalSolverConfig::GradientDescent {
             max_iter: self.max_iter,
             tolerance_grad: self.tolerance_grad,
             tolerance_cost: self.tolerance_cost,
@@ -117,7 +119,7 @@ impl BasinGradientDescentBuilder {
 
 /// Unconstrained basin trust-region optimization using the supplied gradient and Hessian.
 #[derive(Debug, Clone)]
-pub struct BasinTrustRegionBuilder {
+pub struct TrustRegionBuilder {
     max_iter: u64,
     tolerance_grad: Option<f64>,
     trust_region_radius_method: TrustRegionRadiusMethod,
@@ -126,7 +128,7 @@ pub struct BasinTrustRegionBuilder {
     eta: f64,
 }
 
-impl Default for BasinTrustRegionBuilder {
+impl Default for TrustRegionBuilder {
     fn default() -> Self {
         Self {
             max_iter: 1000,
@@ -139,7 +141,7 @@ impl Default for BasinTrustRegionBuilder {
     }
 }
 
-impl BasinTrustRegionBuilder {
+impl TrustRegionBuilder {
     /// Creates a builder with the documented defaults.
     pub fn new() -> Self {
         Self::default()
@@ -183,7 +185,7 @@ impl BasinTrustRegionBuilder {
 
     /// Builds the configuration. Validation occurs when solving.
     pub fn build(self) -> LocalSolverConfig {
-        LocalSolverConfig::BasinTrustRegion {
+        LocalSolverConfig::TrustRegion {
             max_iter: self.max_iter,
             tolerance_grad: self.tolerance_grad,
             trust_region_radius_method: self.trust_region_radius_method,
@@ -196,14 +198,14 @@ impl BasinTrustRegionBuilder {
 
 /// Unconstrained basin Nelder-Mead with standard coefficients.
 #[derive(Debug, Clone)]
-pub struct BasinNelderMeadBuilder {
+pub struct NelderMeadBuilder {
     max_iter: u64,
     simplex_delta: f64,
     tolerance_simplex: Option<f64>,
     tolerance_cost: Option<f64>,
 }
 
-impl Default for BasinNelderMeadBuilder {
+impl Default for NelderMeadBuilder {
     fn default() -> Self {
         Self {
             max_iter: 1000,
@@ -214,7 +216,7 @@ impl Default for BasinNelderMeadBuilder {
     }
 }
 
-impl BasinNelderMeadBuilder {
+impl NelderMeadBuilder {
     /// Creates a builder with the documented defaults.
     pub fn new() -> Self {
         Self::default()
@@ -246,7 +248,7 @@ impl BasinNelderMeadBuilder {
 
     /// Builds the configuration. Validation occurs when solving.
     pub fn build(self) -> LocalSolverConfig {
-        LocalSolverConfig::BasinNelderMead {
+        LocalSolverConfig::NelderMead {
             max_iter: self.max_iter,
             simplex_delta: self.simplex_delta,
             tolerance_simplex: self.tolerance_simplex,
@@ -257,14 +259,14 @@ impl BasinNelderMeadBuilder {
 
 /// Box-constrained basin L-BFGS-B with the default More-Thuente line search.
 #[derive(Debug, Clone)]
-pub struct BasinLBFGSBBuilder {
+pub struct LBFGSBBuilder {
     max_iter: u64,
     tolerance_projected_grad: Option<f64>,
     tolerance_cost: Option<f64>,
     history_size: usize,
 }
 
-impl Default for BasinLBFGSBBuilder {
+impl Default for LBFGSBBuilder {
     fn default() -> Self {
         Self {
             max_iter: 1000,
@@ -275,7 +277,7 @@ impl Default for BasinLBFGSBBuilder {
     }
 }
 
-impl BasinLBFGSBBuilder {
+impl LBFGSBBuilder {
     /// Creates a builder with the documented defaults.
     pub fn new() -> Self {
         Self::default()
@@ -307,7 +309,7 @@ impl BasinLBFGSBBuilder {
 
     /// Builds the configuration. Validation occurs when solving.
     pub fn build(self) -> LocalSolverConfig {
-        LocalSolverConfig::BasinLBFGSB {
+        LocalSolverConfig::LBFGSB {
             max_iter: self.max_iter,
             tolerance_projected_grad: self.tolerance_projected_grad,
             tolerance_cost: self.tolerance_cost,
@@ -318,14 +320,14 @@ impl BasinLBFGSBBuilder {
 
 /// Box-constrained basin Nelder-Mead with projected trial vertices and standard coefficients.
 #[derive(Debug, Clone)]
-pub struct BasinBoundedNelderMeadBuilder {
+pub struct BoundedNelderMeadBuilder {
     max_iter: u64,
     simplex_delta: f64,
     tolerance_simplex: Option<f64>,
     tolerance_cost: Option<f64>,
 }
 
-impl Default for BasinBoundedNelderMeadBuilder {
+impl Default for BoundedNelderMeadBuilder {
     fn default() -> Self {
         Self {
             max_iter: 1000,
@@ -336,7 +338,7 @@ impl Default for BasinBoundedNelderMeadBuilder {
     }
 }
 
-impl BasinBoundedNelderMeadBuilder {
+impl BoundedNelderMeadBuilder {
     /// Creates a builder with the documented defaults.
     pub fn new() -> Self {
         Self::default()
@@ -368,7 +370,7 @@ impl BasinBoundedNelderMeadBuilder {
 
     /// Builds the configuration. Validation occurs when solving.
     pub fn build(self) -> LocalSolverConfig {
-        LocalSolverConfig::BasinBoundedNelderMead {
+        LocalSolverConfig::BoundedNelderMead {
             max_iter: self.max_iter,
             simplex_delta: self.simplex_delta,
             tolerance_simplex: self.tolerance_simplex,
@@ -379,20 +381,20 @@ impl BasinBoundedNelderMeadBuilder {
 
 /// Box-constrained basin BOBYQA. Basin reduces the radii automatically for narrow boxes.
 #[derive(Debug, Clone)]
-pub struct BasinBOBYQABuilder {
+pub struct BOBYQABuilder {
     max_iter: u64,
     initial_radius: f64,
     final_radius: f64,
     interpolation_points: Option<usize>,
 }
 
-impl Default for BasinBOBYQABuilder {
+impl Default for BOBYQABuilder {
     fn default() -> Self {
         Self { max_iter: 1000, initial_radius: 1.0, final_radius: 1e-6, interpolation_points: None }
     }
 }
 
-impl BasinBOBYQABuilder {
+impl BOBYQABuilder {
     /// Creates a builder with the documented defaults.
     pub fn new() -> Self {
         Self::default()
@@ -424,7 +426,7 @@ impl BasinBOBYQABuilder {
 
     /// Builds the configuration. Validation occurs when solving.
     pub fn build(self) -> LocalSolverConfig {
-        LocalSolverConfig::BasinBOBYQA {
+        LocalSolverConfig::BOBYQA {
             max_iter: self.max_iter,
             initial_radius: self.initial_radius,
             final_radius: self.final_radius,

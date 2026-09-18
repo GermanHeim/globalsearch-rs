@@ -158,25 +158,30 @@ If `PyGlobalSearch` has been significant in your research, and you would like to
 
 ## Basin local solvers
 
-Python builds include Basin and argmin. Existing solver names keep their current
-implementations; select a Basin method explicitly, for example:
+Python builds use the Basin-backed solvers with canonical (non-prefixed) names.
+Select a solver explicitly, for example:
 
 ```python
-config = gs.builders.basin_lbfgsb(max_iter=500, tolerance_projected_grad=1e-8)
+config = gs.builders.lbfgsb(max_iter=500, tolerance_projected_grad=1e-8)
 result = gs.optimize(problem, params, local_solver_config=config)
-result = gs.optimize(problem, params, local_solver="basin_bobyqa")
+result = gs.optimize(problem, params, local_solver="bobyqa")
 ```
 
-The new names are `basin_lbfgs`, `basin_gradient_descent`, `basin_trust_region`,
-`basin_nelder_mead`, `basin_lbfgsb`, `basin_bounded_nelder_mead`, and
-`basin_bobyqa`. Each has a factory under `gs.builders` and a matching configuration
-class, such as `gs.builders.PyBasinLBFGSB`. Names are case-insensitive and also
-accept hyphens or compact spelling. A supplied solver name must match the
+The names are `lbfgs`, `gradient_descent`, `trust_region`,
+`nelder_mead`, `lbfgsb`, `bounded_nelder_mead`,
+`bobyqa`, `cobyla`, `slsqp`, `barrier`, and `augmented_lagrangian`.
+Each has a builder under `gs.builders` and a matching configuration
+class, such as `gs.builders.PyLBFGSB`. A supplied solver name must match the
 configuration's inferred solver type.
 
-L-BFGS-B, bounded Nelder-Mead, and BOBYQA enforce box bounds during local search.
-The other new methods are unconstrained. All seven reject nonempty nonlinear
-constraints; use `cobyla` for those problems. L-BFGS, L-BFGS-B, and gradient
+L-BFGS-B, bounded Nelder-Mead, BOBYQA, SLSQP, and Barrier enforce box bounds
+during local search. The other classic methods are unconstrained. The seven
+classic Basin-backed solvers reject constrained problems; use `cobyla`
+(derivative-free), `slsqp` (gradient-based, needs `gradient` and
+`constraint_jacobian`), `barrier` (linear inequalities `A x <= b` via
+`linear_inequalities`), or `augmented_lagrangian` (linear equalities `A x = b`
+via `linear_equalities`) for those problems. Nonlinear equalities use
+`nonlinear_equalities` (`h(x) == 0`). L-BFGS, L-BFGS-B, and gradient
 descent require a gradient; trust region also requires a Hessian.
 
 `max_iter` counts executor iterations for the new methods and defaults to 1,000.

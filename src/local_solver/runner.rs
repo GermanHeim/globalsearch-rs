@@ -1,13 +1,13 @@
 //! # Local Solver Runner Module
 //!
 //! This module implements the execution engine for local optimization algorithms,
-//! providing a unified interface between the OQNLP framework and the `basin` and `argmin`
-//! crates.
+//! providing a unified interface between the OQNLP framework and the `basin`
+//! crate.
 //!
 //! ## Architecture
 //!
 //! The runner acts as an adapter layer that:
-//! - Converts problem definitions to `basin` or `argmin`-compatible formats
+//! - Converts problem definitions to `basin`-compatible formats
 //! - Manages solver configuration and initialization
 //! - Handles execution and result extraction
 //! - Provides error handling and recovery mechanisms
@@ -19,23 +19,20 @@
 //! for smooth problems:
 //!
 //! #### L-BFGS (Limited-memory BFGS)
-//! - **Requirements**: Objective function + Gradient + Line Search
+//! - **Requirements**: Objective function + Gradient
 //! - **Memory**: Limited-memory quasi-Newton approximation
-//! - **Line Search**: Requires compatible line search method
 //!
-//! #### Steepest Descent
-//! - **Requirements**: Objective function + Gradient + Line Search
-//! - **Method**: Simple gradient descent with line search
-//! - **Line Search**: Requires compatible line search method
+//! #### Gradient Descent
+//! - **Requirements**: Objective function + Gradient
+//! - **Method**: Gradient descent with line search
 //!
 //! #### Trust Region
 //! - **Requirements**: Objective function + Gradient + Hessian
 //! - **Method**: Second-order optimization with adaptive step sizing
 //!
-//! #### Newton-CG
-//! - **Requirements**: Objective function + Gradient + Hessian + Line Search
-//! - **Method**: Newton direction via conjugate gradient
-//! - **Line Search**: Requires compatible line search method
+//! #### L-BFGS-B
+//! - **Requirements**: Objective function + Gradient
+//! - **Method**: Box-constrained limited-memory BFGS
 //!
 //! ### Derivative-Free Algorithms
 //! These methods only require function evaluations and are suitable for
@@ -44,6 +41,14 @@
 //! #### Nelder-Mead
 //! - **Requirements**: Objective function only
 //! - **Method**: Simplex-based direct search
+//!
+//! #### Bounded Nelder-Mead
+//! - **Requirements**: Objective function only
+//! - **Method**: Projected simplex for box bounds
+//!
+//! #### BOBYQA
+//! - **Requirements**: Objective function only
+//! - **Method**: Model-based trust region for box bounds
 //!
 //! #### COBYLA (Constrained Optimization BY Linear Approximation)
 //! - **Requirements**: Objective function (optional constraints support)
@@ -64,55 +69,17 @@
 //! 2. **Candidate solution polishing** in Stage 2
 
 use crate::local_solver::builders::LocalSolverConfig;
-#[cfg(feature = "argmin")]
-use crate::local_solver::builders::{LineSearchMethod, TrustRegionRadiusMethod};
 use crate::problem::Problem;
 use crate::types::{EvaluationError, LocalSolution, LocalSolverType};
-#[cfg(feature = "argmin")]
-use argmin::core::{CostFunction, Error, Executor, Gradient, Hessian};
-#[cfg(feature = "argmin")]
-use argmin::solver::{
-    gradientdescent::SteepestDescent,
-    linesearch::{HagerZhangLineSearch, MoreThuenteLineSearch},
-    neldermead::NelderMead,
-    newton::NewtonCG,
-    quasinewton::LBFGS,
-    trustregion::{CauchyPoint, Steihaug, TrustRegion},
-};
 use ndarray::Array1;
-#[cfg(feature = "argmin")]
-use ndarray::Array2;
 use std::{cell::Cell, rc::Rc};
 use thiserror::Error;
-
-// TODO: Do not repeat code in the linesearch branch, use helper function?
 
 #[derive(Error, Debug, PartialEq)]
 /// Local solver error enum
 pub enum LocalSolverError {
-    #[cfg(feature = "basin")]
     #[error("Local Solver Error: Invalid {solver_type} configuration. {reason}")]
-    InvalidBasinConfig { solver_type: String, reason: String },
-
-    #[cfg(feature = "argmin")]
-    #[error("Local Solver Error: Invalid LocalSolverConfig for L-BFGS solver. {reason}")]
-    InvalidLBFGSConfig { reason: String },
-
-    #[cfg(feature = "argmin")]
-    #[error("Local Solver Error: Invalid LocalSolverConfig for Nelder-Mead solver. {reason}")]
-    InvalidNelderMeadConfig { reason: String },
-
-    #[cfg(feature = "argmin")]
-    #[error("Local Solver Error: Invalid LocalSolverConfig for Steepest Descent solver. {reason}")]
-    InvalidSteepestDescentConfig { reason: String },
-
-    #[cfg(feature = "argmin")]
-    #[error("Local Solver Error: Invalid LocalSolverConfig for Trust Region solver. {reason}")]
-    InvalidTrustRegionConfig { reason: String },
-
-    #[cfg(feature = "argmin")]
-    #[error("Local Solver Error: Invalid LocalSolverConfig for Newton-CG method solver. {reason}")]
-    InvalidNewtonCG { reason: String },
+    InvalidConfig { solver_type: String, reason: String },
 
     #[error("Local Solver Error: Invalid LocalSolverConfig for COBYLA solver. {reason}")]
     InvalidCOBYLAConfig { reason: String },
@@ -145,6 +112,11 @@ struct BasinProblem<'a, P: Problem> {
     lower_bounds: Vec<f64>,
     upper_bounds: Vec<f64>,
     problem_constraint_count: usize,
+    problem_equality_count: usize,
+    linear_ineq_a: Vec<Vec<f64>>,
+    linear_ineq_b: Vec<f64>,
+    linear_eq_a: Vec<Vec<f64>>,
+    linear_eq_b: Vec<f64>,
     objective_evaluations: Rc<Cell<u64>>,
     max_objective_evaluations: u64,
 }
@@ -189,7 +161,7 @@ impl<P: Problem> basin::CostFunction for BasinProblem<'_, P> {
 
 impl<P: Problem> basin::NonlinearInequalityConstraints for BasinProblem<'_, P> {
     fn constraints(&self, param: &Self::Param) -> Result<Self::Param, Self::Error> {
-        let mut constraints = Vec::with_capacity(self.problem_constraint_count + 2 * param.len());
+        let mut constraints = Vec::with_capacity(self.num_constraints());
         // Basin uses c(x) <= 0 and gives COBYLA no separate channel for box bounds.
         let point = Array1::from_vec(self.project_into_bounds(param));
         let problem_constraints = self.problem.constraints(&point)?;
@@ -203,6 +175,33 @@ impl<P: Problem> basin::NonlinearInequalityConstraints for BasinProblem<'_, P> {
         }
         constraints.extend(problem_constraints.iter().map(|value| -*value));
 
+        // Nonlinear equalities h(x) = 0 fold into a pair of inequalities.
+        if self.problem_equality_count > 0 {
+            let equalities = self.problem.nonlinear_equalities(&point)?;
+            if equalities.len() != self.problem_equality_count {
+                return Err(EvaluationError::ConstraintDimensionMismatch {
+                    expected: self.problem_equality_count,
+                    actual: equalities.len(),
+                });
+            }
+            for value in equalities.iter() {
+                constraints.push(-*value);
+                constraints.push(*value);
+            }
+        }
+
+        // Linear blocks are pure math (no domain to protect), so evaluate at
+        // the raw trial point like the box bounds below.
+        for (row, rhs) in self.linear_ineq_a.iter().zip(&self.linear_ineq_b) {
+            let residual: f64 = row.iter().zip(param.iter()).map(|(a, x)| a * x).sum();
+            constraints.push(residual - rhs);
+        }
+        for (row, rhs) in self.linear_eq_a.iter().zip(&self.linear_eq_b) {
+            let residual: f64 = row.iter().zip(param.iter()).map(|(a, x)| a * x).sum();
+            constraints.push(residual - rhs);
+            constraints.push(rhs - residual);
+        }
+
         for (index, value) in param.iter().enumerate() {
             constraints.push(self.lower_bounds[index] - value);
             constraints.push(value - self.upper_bounds[index]);
@@ -212,7 +211,11 @@ impl<P: Problem> basin::NonlinearInequalityConstraints for BasinProblem<'_, P> {
     }
 
     fn num_constraints(&self) -> usize {
-        self.problem_constraint_count + 2 * self.lower_bounds.len()
+        self.problem_constraint_count
+            + 2 * self.problem_equality_count
+            + self.linear_ineq_a.len()
+            + 2 * self.linear_eq_a.len()
+            + 2 * self.lower_bounds.len()
     }
 }
 
@@ -268,8 +271,7 @@ fn cobyla_rho_end(initial_step_size: f64, xtol_rel: f64, xtol_abs: &[f64]) -> f6
     let absolute_tolerance =
         xtol_abs.iter().copied().filter(|tolerance| *tolerance > 0.0).fold(0.0, f64::max);
 
-    // The former backend used zero when parameter tolerances were disabled. Basin
-    // requires a positive radius, so use the smallest scale-relative radius that
+    // Basin requires a positive radius, so use the smallest scale-relative radius that
     // remains numerically meaningful for its simplex geometry.
     let numerical_floor = (f64::EPSILON.sqrt() * initial_step_size).max(f64::MIN_POSITIVE);
     relative_tolerance.max(absolute_tolerance).max(numerical_floor)
@@ -311,14 +313,13 @@ impl<P: Problem> LocalSolver<P> {
         track_evaluations: bool,
     ) -> Result<(LocalSolution, u64), LocalSolverError> {
         match self.local_solver_type {
-            #[cfg(feature = "basin")]
-            LocalSolverType::BasinLBFGS
-            | LocalSolverType::BasinGradientDescent
-            | LocalSolverType::BasinTrustRegion
-            | LocalSolverType::BasinNelderMead
-            | LocalSolverType::BasinLBFGSB
-            | LocalSolverType::BasinBoundedNelderMead
-            | LocalSolverType::BasinBOBYQA => super::basin::solve(
+            LocalSolverType::LBFGS
+            | LocalSolverType::GradientDescent
+            | LocalSolverType::TrustRegion
+            | LocalSolverType::NelderMead
+            | LocalSolverType::LBFGSB
+            | LocalSolverType::BoundedNelderMead
+            | LocalSolverType::BOBYQA => super::basin::solve(
                 &self.problem,
                 initial_point,
                 &self.local_solver_config,
@@ -326,798 +327,57 @@ impl<P: Problem> LocalSolver<P> {
                 track_evaluations,
             ),
 
-            #[cfg(feature = "argmin")]
-            LocalSolverType::LBFGS => {
-                self.solve_lbfgs(initial_point, &self.local_solver_config, track_evaluations)
-            }
-            #[cfg(feature = "argmin")]
-            LocalSolverType::NelderMead => {
-                self.solve_nelder_mead(initial_point, &self.local_solver_config, track_evaluations)
-            }
-            #[cfg(feature = "argmin")]
-            LocalSolverType::SteepestDescent => self.solve_steepestdescent(
-                initial_point,
-                &self.local_solver_config,
-                track_evaluations,
-            ),
-            #[cfg(feature = "argmin")]
-            LocalSolverType::TrustRegion => {
-                self.solve_trust_region(initial_point, &self.local_solver_config, track_evaluations)
-            }
-            #[cfg(feature = "argmin")]
-            LocalSolverType::NewtonCG => {
-                self.solve_newton_cg(initial_point, &self.local_solver_config, track_evaluations)
-            }
             LocalSolverType::COBYLA => {
                 self.solve_cobyla(initial_point, &self.local_solver_config, track_evaluations)
             }
-        }
-    }
 
-    /// Solve the optimization problem using the L-BFGS local solver
-    #[cfg(feature = "argmin")]
-    fn solve_lbfgs(
-        &self,
-        initial_point: Array1<f64>,
-        solver_config: &LocalSolverConfig,
-        track_evaluations: bool,
-    ) -> Result<(LocalSolution, u64), LocalSolverError> {
-        use std::sync::{
-            Arc,
-            atomic::{AtomicU64, Ordering},
-        };
-
-        struct ProblemCost<'a, P: Problem> {
-            problem: &'a P,
-            eval_count: Option<Arc<AtomicU64>>,
-        }
-
-        impl<P: Problem> CostFunction for ProblemCost<'_, P> {
-            type Param = Array1<f64>;
-            type Output = f64;
-
-            fn cost(&self, param: &Self::Param) -> std::result::Result<Self::Output, Error> {
-                if let Some(counter) = &self.eval_count {
-                    counter.fetch_add(1, Ordering::Relaxed);
-                }
-                self.problem.objective(param).map_err(|e| Error::msg(e.to_string()))
-            }
-        }
-
-        impl<P: Problem> Gradient for ProblemCost<'_, P> {
-            type Param = Array1<f64>;
-            type Gradient = Array1<f64>;
-
-            fn gradient(&self, param: &Self::Param) -> std::result::Result<Self::Gradient, Error> {
-                self.problem.gradient(param).map_err(|e| Error::msg(e.to_string()))
-            }
-        }
-
-        let eval_count = if track_evaluations { Some(Arc::new(AtomicU64::new(0))) } else { None };
-        let cost = ProblemCost { problem: &self.problem, eval_count: eval_count.clone() };
-
-        if let LocalSolverConfig::LBFGS {
-            max_iter,
-            tolerance_grad,
-            tolerance_cost,
-            history_size,
-            l1_coefficient,
-            line_search_params,
-        } = solver_config
-        {
-            // Match line search method
-            match &line_search_params.method {
-                LineSearchMethod::MoreThuente { c1, c2, width_tolerance, bounds } => {
-                    let linesearch = MoreThuenteLineSearch::new()
-                        .with_c(*c1, *c2)
-                        .map_err(|e: Error| LocalSolverError::InvalidLBFGSConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_bounds(bounds[0], bounds[1])
-                        .map_err(|e: Error| LocalSolverError::InvalidLBFGSConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_width_tolerance(*width_tolerance)
-                        .map_err(|e: Error| LocalSolverError::InvalidLBFGSConfig {
-                            reason: e.to_string(),
-                        })?;
-
-                    let mut solver = LBFGS::new(linesearch, *history_size)
-                        .with_tolerance_cost(*tolerance_cost)
-                        .map_err(|e: Error| LocalSolverError::InvalidLBFGSConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_tolerance_grad(*tolerance_grad)
-                        .map_err(|e: Error| LocalSolverError::InvalidLBFGSConfig {
-                            reason: e.to_string(),
-                        })?;
-
-                    if let Some(l1_coeff) = l1_coefficient {
-                        solver = solver.with_l1_regularization(*l1_coeff).map_err(|e: Error| {
-                            LocalSolverError::InvalidLBFGSConfig { reason: e.to_string() }
-                        })?;
-                    }
-
-                    let res = Executor::new(cost, solver)
-                        .configure(|state| state.param(initial_point).max_iters(*max_iter))
-                        .run()
-                        .map_err(|e: Error| LocalSolverError::RunFailed {
-                            solver_type: "unknown".to_string(),
-                            reason: e.to_string(),
-                        })?;
-
-                    let solution = LocalSolution {
-                        point: res
-                            .state()
-                            .best_param
-                            .as_ref()
-                            .ok_or(LocalSolverError::NoSolution {
-                                solver_type: "unknown".to_string(),
-                                iterations: 0,
-                            })?
-                            .clone(),
-                        objective: res.state().best_cost,
-                    };
-                    let evaluations =
-                        eval_count.as_ref().map(|c| c.load(Ordering::Relaxed)).unwrap_or(0);
-                    Ok((solution, evaluations))
-                }
-                LineSearchMethod::HagerZhang {
-                    delta,
-                    sigma,
-                    epsilon,
-                    theta,
-                    gamma,
-                    eta,
-                    bounds,
-                } => {
-                    let linesearch = HagerZhangLineSearch::new()
-                        .with_delta_sigma(*delta, *sigma)
-                        .map_err(|e: Error| LocalSolverError::InvalidLBFGSConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_epsilon(*epsilon)
-                        .map_err(|e: Error| LocalSolverError::InvalidLBFGSConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_theta(*theta)
-                        .map_err(|e: Error| LocalSolverError::InvalidLBFGSConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_gamma(*gamma)
-                        .map_err(|e: Error| LocalSolverError::InvalidLBFGSConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_eta(*eta)
-                        .map_err(|e: Error| LocalSolverError::InvalidLBFGSConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_bounds(bounds[0], bounds[1])
-                        .map_err(|e: Error| LocalSolverError::InvalidLBFGSConfig {
-                            reason: e.to_string(),
-                        })?;
-
-                    let mut solver = LBFGS::new(linesearch, *history_size)
-                        .with_tolerance_cost(*tolerance_cost)
-                        .map_err(|e: Error| LocalSolverError::InvalidLBFGSConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_tolerance_grad(*tolerance_grad)
-                        .map_err(|e: Error| LocalSolverError::InvalidLBFGSConfig {
-                            reason: e.to_string(),
-                        })?;
-
-                    if let Some(l1_coeff) = l1_coefficient {
-                        solver = solver.with_l1_regularization(*l1_coeff).map_err(|e: Error| {
-                            LocalSolverError::InvalidLBFGSConfig { reason: e.to_string() }
-                        })?;
-                    }
-
-                    let res = Executor::new(cost, solver)
-                        .configure(|state| state.param(initial_point).max_iters(*max_iter))
-                        .run()
-                        .map_err(|e: Error| LocalSolverError::RunFailed {
-                            solver_type: "unknown".to_string(),
-                            reason: e.to_string(),
-                        })?;
-
-                    let solution = LocalSolution {
-                        point: res
-                            .state()
-                            .best_param
-                            .as_ref()
-                            .ok_or(LocalSolverError::NoSolution {
-                                solver_type: "unknown".to_string(),
-                                iterations: 0,
-                            })?
-                            .clone(),
-                        objective: res.state().best_cost,
-                    };
-                    let evaluations =
-                        eval_count.as_ref().map(|c| c.load(Ordering::Relaxed)).unwrap_or(0);
-                    Ok((solution, evaluations))
-                }
-            }
-        } else {
-            Err(LocalSolverError::InvalidLBFGSConfig {
-                reason: "Error parsing solver config".to_string(),
-            })
-        }
-    }
-
-    /// Solve the optimization problem using the Nelder-Mead local solver
-    #[cfg(feature = "argmin")]
-    fn solve_nelder_mead(
-        &self,
-        initial_point: Array1<f64>,
-        solver_config: &LocalSolverConfig,
-        track_evaluations: bool,
-    ) -> Result<(LocalSolution, u64), LocalSolverError> {
-        use std::sync::{
-            Arc,
-            atomic::{AtomicU64, Ordering},
-        };
-
-        struct ProblemCost<'a, P: Problem> {
-            problem: &'a P,
-            eval_count: Option<Arc<AtomicU64>>,
-        }
-
-        impl<P: Problem> CostFunction for ProblemCost<'_, P> {
-            type Param = Array1<f64>;
-            type Output = f64;
-
-            fn cost(&self, param: &Self::Param) -> std::result::Result<Self::Output, Error> {
-                if let Some(counter) = &self.eval_count {
-                    counter.fetch_add(1, Ordering::Relaxed);
-                }
-                self.problem.objective(param).map_err(|e| Error::msg(e.to_string()))
-            }
-        }
-
-        let eval_count = if track_evaluations { Some(Arc::new(AtomicU64::new(0))) } else { None };
-        let cost = ProblemCost { problem: &self.problem, eval_count: eval_count.clone() };
-
-        if let LocalSolverConfig::NelderMead {
-            simplex_delta,
-            sd_tolerance,
-            max_iter,
-            alpha,
-            gamma,
-            rho,
-            sigma,
-        } = solver_config
-        {
-            // Generate initial simplex
-            let mut simplex = vec![initial_point.clone()];
-            for i in 0..initial_point.len() {
-                let mut point = initial_point.clone();
-                point[i] += simplex_delta;
-                simplex.push(point);
+            LocalSolverType::SLSQP => {
+                let (solution, evaluations) = super::constrained::solve_slsqp(
+                    &self.problem,
+                    initial_point,
+                    &self.local_solver_config,
+                    &self.local_solver_type,
+                    track_evaluations,
+                )?;
+                super::constrained::check_constrained_feasibility(
+                    &self.problem,
+                    &solution.point,
+                    &self.local_solver_type,
+                )?;
+                Ok((solution, evaluations))
             }
 
-            let solver = NelderMead::new(simplex)
-                .with_sd_tolerance(*sd_tolerance)
-                .map_err(|e: Error| LocalSolverError::InvalidNelderMeadConfig {
-                    reason: e.to_string(),
-                })?
-                .with_alpha(*alpha)
-                .map_err(|e: Error| LocalSolverError::InvalidNelderMeadConfig {
-                    reason: e.to_string(),
-                })?
-                .with_gamma(*gamma)
-                .map_err(|e: Error| LocalSolverError::InvalidNelderMeadConfig {
-                    reason: e.to_string(),
-                })?
-                .with_rho(*rho)
-                .map_err(|e: Error| LocalSolverError::InvalidNelderMeadConfig {
-                    reason: e.to_string(),
-                })?
-                .with_sigma(*sigma)
-                .map_err(|e: Error| LocalSolverError::InvalidNelderMeadConfig {
-                    reason: e.to_string(),
-                })?;
-
-            let res = Executor::new(cost, solver)
-                .configure(|state| state.max_iters(*max_iter))
-                .run()
-                .map_err(|e: Error| LocalSolverError::RunFailed {
-                    solver_type: "unknown".to_string(),
-                    reason: e.to_string(),
-                })?;
-
-            let solution = LocalSolution {
-                point: res
-                    .state()
-                    .best_param
-                    .as_ref()
-                    .ok_or(LocalSolverError::NoSolution {
-                        solver_type: "unknown".to_string(),
-                        iterations: 0,
-                    })?
-                    .clone(),
-                objective: res.state().best_cost,
-            };
-            let evaluations = eval_count.as_ref().map(|c| c.load(Ordering::Relaxed)).unwrap_or(0);
-            Ok((solution, evaluations))
-        } else {
-            Err(LocalSolverError::InvalidNelderMeadConfig {
-                reason: "Error parsing solver configuration".to_string(),
-            })
-        }
-    }
-
-    /// Solve the optimization problem using the Steepest Descent local solver
-    #[cfg(feature = "argmin")]
-    fn solve_steepestdescent(
-        &self,
-        initial_point: Array1<f64>,
-        solver_config: &LocalSolverConfig,
-        track_evaluations: bool,
-    ) -> Result<(LocalSolution, u64), LocalSolverError> {
-        use std::sync::{
-            Arc,
-            atomic::{AtomicU64, Ordering},
-        };
-
-        struct ProblemCost<'a, P: Problem> {
-            problem: &'a P,
-            eval_count: Option<Arc<AtomicU64>>,
-        }
-
-        impl<P: Problem> CostFunction for ProblemCost<'_, P> {
-            type Param = Array1<f64>;
-            type Output = f64;
-
-            fn cost(&self, param: &Self::Param) -> std::result::Result<Self::Output, Error> {
-                if let Some(counter) = &self.eval_count {
-                    counter.fetch_add(1, Ordering::Relaxed);
-                }
-                self.problem.objective(param).map_err(|e| Error::msg(e.to_string()))
+            LocalSolverType::Barrier => {
+                let (solution, evaluations) = super::constrained::solve_barrier(
+                    &self.problem,
+                    initial_point,
+                    &self.local_solver_config,
+                    &self.local_solver_type,
+                    track_evaluations,
+                )?;
+                super::constrained::check_constrained_feasibility(
+                    &self.problem,
+                    &solution.point,
+                    &self.local_solver_type,
+                )?;
+                Ok((solution, evaluations))
             }
-        }
 
-        impl<P: Problem> Gradient for ProblemCost<'_, P> {
-            type Param = Array1<f64>;
-            type Gradient = Array1<f64>;
-
-            fn gradient(&self, param: &Self::Param) -> std::result::Result<Self::Gradient, Error> {
-                self.problem.gradient(param).map_err(|e| Error::msg(e.to_string()))
+            LocalSolverType::AugmentedLagrangian => {
+                let (solution, evaluations) = super::constrained::solve_augmented_lagrangian(
+                    &self.problem,
+                    initial_point,
+                    &self.local_solver_config,
+                    &self.local_solver_type,
+                    track_evaluations,
+                )?;
+                super::constrained::check_constrained_feasibility(
+                    &self.problem,
+                    &solution.point,
+                    &self.local_solver_type,
+                )?;
+                Ok((solution, evaluations))
             }
-        }
-
-        let eval_count = if track_evaluations { Some(Arc::new(AtomicU64::new(0))) } else { None };
-        let cost = ProblemCost { problem: &self.problem, eval_count: eval_count.clone() };
-
-        if let LocalSolverConfig::SteepestDescent { max_iter, line_search_params } = solver_config {
-            // Match line search method
-            match &line_search_params.method {
-                LineSearchMethod::MoreThuente { c1, c2, width_tolerance, bounds } => {
-                    let linesearch = MoreThuenteLineSearch::new()
-                        .with_c(*c1, *c2)
-                        .map_err(|e: Error| LocalSolverError::InvalidSteepestDescentConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_bounds(bounds[0], bounds[1])
-                        .map_err(|e: Error| LocalSolverError::InvalidSteepestDescentConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_width_tolerance(*width_tolerance)
-                        .map_err(|e: Error| LocalSolverError::InvalidSteepestDescentConfig {
-                            reason: e.to_string(),
-                        })?;
-
-                    let solver = SteepestDescent::new(linesearch);
-
-                    let res = Executor::new(cost, solver)
-                        .configure(|state| state.param(initial_point).max_iters(*max_iter))
-                        .run()
-                        .map_err(|e: Error| LocalSolverError::RunFailed {
-                            solver_type: "unknown".to_string(),
-                            reason: e.to_string(),
-                        })?;
-
-                    let solution = LocalSolution {
-                        point: res
-                            .state()
-                            .best_param
-                            .as_ref()
-                            .ok_or(LocalSolverError::NoSolution {
-                                solver_type: "unknown".to_string(),
-                                iterations: 0,
-                            })?
-                            .clone(),
-                        objective: res.state().best_cost,
-                    };
-                    let evaluations =
-                        eval_count.as_ref().map(|c| c.load(Ordering::Relaxed)).unwrap_or(0);
-                    Ok((solution, evaluations))
-                }
-                LineSearchMethod::HagerZhang {
-                    delta,
-                    sigma,
-                    epsilon,
-                    theta,
-                    gamma,
-                    eta,
-                    bounds,
-                } => {
-                    let linesearch = HagerZhangLineSearch::new()
-                        .with_delta_sigma(*delta, *sigma)
-                        .map_err(|e: Error| LocalSolverError::InvalidSteepestDescentConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_epsilon(*epsilon)
-                        .map_err(|e: Error| LocalSolverError::InvalidSteepestDescentConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_theta(*theta)
-                        .map_err(|e: Error| LocalSolverError::InvalidSteepestDescentConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_gamma(*gamma)
-                        .map_err(|e: Error| LocalSolverError::InvalidSteepestDescentConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_eta(*eta)
-                        .map_err(|e: Error| LocalSolverError::InvalidSteepestDescentConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_bounds(bounds[0], bounds[1])
-                        .map_err(|e: Error| LocalSolverError::InvalidSteepestDescentConfig {
-                            reason: e.to_string(),
-                        })?;
-
-                    let solver = SteepestDescent::new(linesearch);
-
-                    let res = Executor::new(cost, solver)
-                        .configure(|state| state.param(initial_point).max_iters(*max_iter))
-                        .run()
-                        .map_err(|e: Error| LocalSolverError::RunFailed {
-                            solver_type: "unknown".to_string(),
-                            reason: e.to_string(),
-                        })?;
-
-                    let solution = LocalSolution {
-                        point: res
-                            .state()
-                            .best_param
-                            .as_ref()
-                            .ok_or(LocalSolverError::NoSolution {
-                                solver_type: "unknown".to_string(),
-                                iterations: 0,
-                            })?
-                            .clone(),
-                        objective: res.state().best_cost,
-                    };
-                    let evaluations =
-                        eval_count.as_ref().map(|c| c.load(Ordering::Relaxed)).unwrap_or(0);
-                    Ok((solution, evaluations))
-                }
-            }
-        } else {
-            Err(LocalSolverError::InvalidSteepestDescentConfig {
-                reason: "Error parsing solver configuration".to_string(),
-            })
-        }
-    }
-
-    /// Solve the optimization problem using the Trust Region local solver
-    #[cfg(feature = "argmin")]
-    fn solve_trust_region(
-        &self,
-        initial_point: Array1<f64>,
-        solver_config: &LocalSolverConfig,
-        track_evaluations: bool,
-    ) -> Result<(LocalSolution, u64), LocalSolverError> {
-        use std::sync::{
-            Arc,
-            atomic::{AtomicU64, Ordering},
-        };
-
-        struct ProblemCost<'a, P: Problem> {
-            problem: &'a P,
-            eval_count: Option<Arc<AtomicU64>>,
-        }
-
-        impl<P: Problem> CostFunction for ProblemCost<'_, P> {
-            type Param = Array1<f64>;
-            type Output = f64;
-
-            fn cost(&self, param: &Self::Param) -> std::result::Result<Self::Output, Error> {
-                if let Some(counter) = &self.eval_count {
-                    counter.fetch_add(1, Ordering::Relaxed);
-                }
-                self.problem.objective(param).map_err(|e| Error::msg(e.to_string()))
-            }
-        }
-
-        impl<P: Problem> Gradient for ProblemCost<'_, P> {
-            type Param = Array1<f64>;
-            type Gradient = Array1<f64>;
-
-            fn gradient(&self, param: &Self::Param) -> std::result::Result<Self::Gradient, Error> {
-                self.problem.gradient(param).map_err(|e| Error::msg(e.to_string()))
-            }
-        }
-
-        impl<P: Problem> Hessian for ProblemCost<'_, P> {
-            type Param = Array1<f64>;
-            type Hessian = Array2<f64>;
-
-            fn hessian(&self, param: &Self::Param) -> std::result::Result<Self::Hessian, Error> {
-                self.problem.hessian(param).map_err(|e| Error::msg(e.to_string()))
-            }
-        }
-
-        let eval_count = if track_evaluations { Some(Arc::new(AtomicU64::new(0))) } else { None };
-        let cost = ProblemCost { problem: &self.problem, eval_count: eval_count.clone() };
-
-        if let LocalSolverConfig::TrustRegion {
-            trust_region_radius_method,
-            max_iter,
-            radius,
-            max_radius,
-            eta,
-        } = solver_config
-        {
-            match trust_region_radius_method {
-                TrustRegionRadiusMethod::Cauchy => {
-                    let subproblem = CauchyPoint::new();
-                    let solver = TrustRegion::new(subproblem)
-                        .with_radius(*radius)
-                        .map_err(|e: Error| LocalSolverError::InvalidTrustRegionConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_max_radius(*max_radius)
-                        .map_err(|e: Error| LocalSolverError::InvalidTrustRegionConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_eta(*eta)
-                        .map_err(|e: Error| LocalSolverError::InvalidTrustRegionConfig {
-                            reason: e.to_string(),
-                        })?;
-                    let res = Executor::new(cost, solver)
-                        .configure(|state| state.param(initial_point).max_iters(*max_iter))
-                        .run()
-                        .map_err(|e: Error| LocalSolverError::RunFailed {
-                            solver_type: "unknown".to_string(),
-                            reason: e.to_string(),
-                        })?;
-
-                    let solution = LocalSolution {
-                        point: res
-                            .state()
-                            .best_param
-                            .as_ref()
-                            .ok_or(LocalSolverError::NoSolution {
-                                solver_type: "unknown".to_string(),
-                                iterations: 0,
-                            })?
-                            .clone(),
-                        objective: res.state().best_cost,
-                    };
-                    let evaluations =
-                        eval_count.as_ref().map(|c| c.load(Ordering::Relaxed)).unwrap_or(0);
-                    Ok((solution, evaluations))
-                }
-                TrustRegionRadiusMethod::Steihaug => {
-                    let subproblem = Steihaug::new();
-                    let solver = TrustRegion::new(subproblem)
-                        .with_radius(*radius)
-                        .map_err(|e: Error| LocalSolverError::InvalidTrustRegionConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_max_radius(*max_radius)
-                        .map_err(|e: Error| LocalSolverError::InvalidTrustRegionConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_eta(*eta)
-                        .map_err(|e: Error| LocalSolverError::InvalidTrustRegionConfig {
-                            reason: e.to_string(),
-                        })?;
-                    let res = Executor::new(cost, solver)
-                        .configure(|state| state.param(initial_point).max_iters(*max_iter))
-                        .run()
-                        .map_err(|e: Error| LocalSolverError::RunFailed {
-                            solver_type: "unknown".to_string(),
-                            reason: e.to_string(),
-                        })?;
-
-                    let solution = LocalSolution {
-                        point: res
-                            .state()
-                            .best_param
-                            .as_ref()
-                            .ok_or(LocalSolverError::NoSolution {
-                                solver_type: "unknown".to_string(),
-                                iterations: 0,
-                            })?
-                            .clone(),
-                        objective: res.state().best_cost,
-                    };
-                    let evaluations =
-                        eval_count.as_ref().map(|c| c.load(Ordering::Relaxed)).unwrap_or(0);
-                    Ok((solution, evaluations))
-                }
-            }
-        } else {
-            Err(LocalSolverError::InvalidTrustRegionConfig {
-                reason: "Error parsing solver configuration".to_string(),
-            })
-        }
-    }
-
-    #[cfg(feature = "argmin")]
-    fn solve_newton_cg(
-        &self,
-        initial_point: Array1<f64>,
-        solver_config: &LocalSolverConfig,
-        track_evaluations: bool,
-    ) -> Result<(LocalSolution, u64), LocalSolverError> {
-        use std::sync::{
-            Arc,
-            atomic::{AtomicU64, Ordering},
-        };
-
-        struct ProblemCost<'a, P: Problem> {
-            problem: &'a P,
-            eval_count: Option<Arc<AtomicU64>>,
-        }
-
-        impl<P: Problem> CostFunction for ProblemCost<'_, P> {
-            type Param = Array1<f64>;
-            type Output = f64;
-
-            fn cost(&self, param: &Self::Param) -> std::result::Result<Self::Output, Error> {
-                if let Some(counter) = &self.eval_count {
-                    counter.fetch_add(1, Ordering::Relaxed);
-                }
-                self.problem.objective(param).map_err(|e| Error::msg(e.to_string()))
-            }
-        }
-
-        impl<P: Problem> Gradient for ProblemCost<'_, P> {
-            type Param = Array1<f64>;
-            type Gradient = Array1<f64>;
-
-            fn gradient(&self, param: &Self::Param) -> std::result::Result<Self::Gradient, Error> {
-                self.problem.gradient(param).map_err(|e| Error::msg(e.to_string()))
-            }
-        }
-
-        impl<P: Problem> Hessian for ProblemCost<'_, P> {
-            type Param = Array1<f64>;
-            type Hessian = Array2<f64>;
-
-            fn hessian(&self, param: &Self::Param) -> std::result::Result<Self::Hessian, Error> {
-                self.problem.hessian(param).map_err(|e| Error::msg(e.to_string()))
-            }
-        }
-
-        let eval_count = if track_evaluations { Some(Arc::new(AtomicU64::new(0))) } else { None };
-        let cost = ProblemCost { problem: &self.problem, eval_count: eval_count.clone() };
-
-        if let LocalSolverConfig::NewtonCG {
-            max_iter,
-            curvature_threshold,
-            tolerance,
-            line_search_params,
-        } = solver_config
-        {
-            match &line_search_params.method {
-                LineSearchMethod::MoreThuente { c1, c2, width_tolerance, bounds } => {
-                    let linesearch = MoreThuenteLineSearch::new()
-                        .with_c(*c1, *c2)
-                        .map_err(|e: Error| LocalSolverError::InvalidSteepestDescentConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_bounds(bounds[0], bounds[1])
-                        .map_err(|e: Error| LocalSolverError::InvalidSteepestDescentConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_width_tolerance(*width_tolerance)
-                        .map_err(|e: Error| LocalSolverError::InvalidSteepestDescentConfig {
-                            reason: e.to_string(),
-                        })?;
-
-                    let solver = NewtonCG::new(linesearch)
-                        .with_curvature_threshold(*curvature_threshold)
-                        .with_tolerance(*tolerance)
-                        .map_err(|e: Error| LocalSolverError::InvalidNewtonCG {
-                            reason: e.to_string(),
-                        })?;
-
-                    let res = Executor::new(cost, solver)
-                        .configure(|state| state.param(initial_point).max_iters(*max_iter))
-                        .run()
-                        .map_err(|e: Error| LocalSolverError::RunFailed {
-                            solver_type: "unknown".to_string(),
-                            reason: e.to_string(),
-                        })?;
-
-                    let solution = LocalSolution {
-                        point: res
-                            .state()
-                            .best_param
-                            .as_ref()
-                            .ok_or(LocalSolverError::NoSolution {
-                                solver_type: "unknown".to_string(),
-                                iterations: 0,
-                            })?
-                            .clone(),
-                        objective: res.state().best_cost,
-                    };
-                    let evaluations =
-                        eval_count.as_ref().map(|c| c.load(Ordering::Relaxed)).unwrap_or(0);
-                    Ok((solution, evaluations))
-                }
-                LineSearchMethod::HagerZhang {
-                    delta,
-                    sigma,
-                    epsilon,
-                    theta,
-                    gamma,
-                    eta,
-                    bounds,
-                } => {
-                    let linesearch = HagerZhangLineSearch::new()
-                        .with_delta_sigma(*delta, *sigma)
-                        .map_err(|e: Error| LocalSolverError::InvalidSteepestDescentConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_epsilon(*epsilon)
-                        .map_err(|e: Error| LocalSolverError::InvalidSteepestDescentConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_theta(*theta)
-                        .map_err(|e: Error| LocalSolverError::InvalidSteepestDescentConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_gamma(*gamma)
-                        .map_err(|e: Error| LocalSolverError::InvalidSteepestDescentConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_eta(*eta)
-                        .map_err(|e: Error| LocalSolverError::InvalidSteepestDescentConfig {
-                            reason: e.to_string(),
-                        })?
-                        .with_bounds(bounds[0], bounds[1])
-                        .map_err(|e: Error| LocalSolverError::InvalidSteepestDescentConfig {
-                            reason: e.to_string(),
-                        })?;
-
-                    let solver = NewtonCG::new(linesearch);
-
-                    let res = Executor::new(cost, solver)
-                        .configure(|state| state.param(initial_point).max_iters(*max_iter))
-                        .run()
-                        .map_err(|e: Error| LocalSolverError::RunFailed {
-                            solver_type: "unknown".to_string(),
-                            reason: e.to_string(),
-                        })?;
-
-                    let solution = LocalSolution {
-                        point: res
-                            .state()
-                            .best_param
-                            .as_ref()
-                            .ok_or(LocalSolverError::NoSolution {
-                                solver_type: "unknown".to_string(),
-                                iterations: 0,
-                            })?
-                            .clone(),
-                        objective: res.state().best_cost,
-                    };
-                    let evaluations =
-                        eval_count.as_ref().map(|c| c.load(Ordering::Relaxed)).unwrap_or(0);
-                    Ok((solution, evaluations))
-                }
-            }
-        } else {
-            Err(LocalSolverError::InvalidNewtonCG {
-                reason: "Error parsing solver configuration".to_string(),
-            })
         }
     }
 
@@ -1128,10 +388,6 @@ impl<P: Problem> LocalSolver<P> {
         solver_config: &LocalSolverConfig,
         track_evaluations: bool,
     ) -> Result<(LocalSolution, u64), LocalSolverError> {
-        #[cfg_attr(
-            not(any(feature = "argmin", feature = "basin")),
-            allow(irrefutable_let_patterns)
-        )]
         if let LocalSolverConfig::COBYLA {
             max_iter,
             initial_step_size,
@@ -1170,20 +426,40 @@ impl<P: Problem> LocalSolver<P> {
                 });
             }
 
-            let problem_constraint_count = self
+            let run_failed = |error: EvaluationError| LocalSolverError::RunFailed {
+                solver_type: "COBYLA".to_string(),
+                reason: error.to_string(),
+            };
+            let problem_constraint_count =
+                self.problem.constraints(&initial_point).map_err(run_failed)?.len();
+            let problem_equality_count =
+                self.problem.nonlinear_equalities(&initial_point).map_err(run_failed)?.len();
+            crate::problem::validate_linear_blocks(&self.problem, initial_point.len())
+                .map_err(run_failed)?;
+            let to_rows = |a: ndarray::Array2<f64>| {
+                (0..a.nrows()).map(|i| a.row(i).to_vec()).collect::<Vec<_>>()
+            };
+            let (linear_ineq_a, linear_ineq_b) = self
                 .problem
-                .constraints(&initial_point)
-                .map_err(|error| LocalSolverError::RunFailed {
-                    solver_type: "COBYLA".to_string(),
-                    reason: error.to_string(),
-                })?
-                .len();
+                .linear_inequalities()
+                .map(|(a, b)| (to_rows(a), b.to_vec()))
+                .unwrap_or_default();
+            let (linear_eq_a, linear_eq_b) = self
+                .problem
+                .linear_equalities()
+                .map(|(a, b)| (to_rows(a), b.to_vec()))
+                .unwrap_or_default();
             let objective_evaluations = Rc::new(Cell::new(0));
             let problem = BasinProblem {
                 problem: &self.problem,
                 lower_bounds: problem_bounds.column(0).to_vec(),
                 upper_bounds: problem_bounds.column(1).to_vec(),
                 problem_constraint_count,
+                problem_equality_count,
+                linear_ineq_a,
+                linear_ineq_b,
+                linear_eq_a,
+                linear_eq_b,
                 objective_evaluations: Rc::clone(&objective_evaluations),
                 max_objective_evaluations: *max_iter,
             };
@@ -1192,8 +468,6 @@ impl<P: Problem> LocalSolver<P> {
                 .with_initial_radius(*initial_step_size)
                 .with_final_radius(rho_end);
             let mut cost_tolerance = CobylaCostTolerance::new(*ftol_rel, *ftol_abs);
-            // Despite its historical name, `max_iter` was passed to the former
-            // backend as its objective-evaluation budget.
             let result = basin::Executor::from_start(problem, solver, initial_point.to_vec())
                 .max_iter(u64::MAX)
                 .max_cost_evals(*max_iter)
@@ -1223,10 +497,6 @@ impl<P: Problem> LocalSolver<P> {
 mod tests_local_solvers {
     use super::*;
     use crate::local_solver::builders::COBYLABuilder;
-    #[cfg(feature = "argmin")]
-    use crate::local_solver::builders::{
-        HagerZhangBuilder, LBFGSBuilder, MoreThuenteBuilder, SteepestDescentBuilder,
-    };
     use crate::types::{EvaluationError, LocalSolverType};
     use ndarray::{Array2, array};
     use std::sync::{
@@ -1363,439 +633,6 @@ mod tests_local_solvers {
         fn constraints(&self, x: &Array1<f64>) -> Result<Array1<f64>, EvaluationError> {
             if x[0] < 0.5 { Ok(array![1.0]) } else { Ok(Array1::zeros(0)) }
         }
-    }
-
-    #[cfg(feature = "argmin")]
-    #[derive(Debug, Clone)]
-    pub struct NoHessianSixHumpCamel;
-
-    #[cfg(feature = "argmin")]
-    impl Problem for NoHessianSixHumpCamel {
-        fn objective(&self, x: &Array1<f64>) -> Result<f64, EvaluationError> {
-            Ok((4.0 - 2.1 * x[0].powi(2) + x[0].powi(4) / 3.0) * x[0].powi(2)
-                + x[0] * x[1]
-                + (-4.0 + 4.0 * x[1].powi(2)) * x[1].powi(2))
-        }
-
-        // Calculated analytically, reference didn't provide gradient
-        fn gradient(&self, x: &Array1<f64>) -> Result<Array1<f64>, EvaluationError> {
-            Ok(array![
-                (8.0 - 8.4 * x[0].powi(2) + 2.0 * x[0].powi(4)) * x[0] + x[1],
-                x[0] + (-8.0 + 16.0 * x[1].powi(2)) * x[1]
-            ])
-        }
-
-        fn variable_bounds(&self) -> Array2<f64> {
-            array![[-3.0, 3.0], [-2.0, 2.0]]
-        }
-    }
-
-    // Tests for argmin-based solvers
-
-    #[cfg(feature = "argmin")]
-    #[test]
-    /// Test the Nelder-Mead local solver with a problem that doesn't
-    /// have a gradient. Since Nelder-Mead doesn't require a gradient,
-    /// the local solver should run without an error.
-    fn test_nelder_mead_no_gradient() {
-        let problem: NoGradientSixHumpCamel = NoGradientSixHumpCamel;
-
-        let local_solver: LocalSolver<NoGradientSixHumpCamel> = LocalSolver::new(
-            problem.clone(),
-            LocalSolverType::NelderMead,
-            LocalSolverConfig::NelderMead {
-                simplex_delta: 0.1,
-                sd_tolerance: 1e-6,
-                max_iter: 1000,
-                alpha: 1.0,
-                gamma: 2.0,
-                rho: 0.5,
-                sigma: 0.5,
-            },
-        );
-
-        let initial_point: Array1<f64> = array![0.0, 0.0];
-        let res: LocalSolution = local_solver.solve(initial_point).unwrap();
-        assert_eq!(res.objective, -1.0316278623977673);
-    }
-
-    #[cfg(feature = "argmin")]
-    #[test]
-    /// Test the Steepest Descent local solver with a problem that doesn't
-    /// have a gradient. Since Steepest Descent requires a gradient,
-    /// the local solver should return an error.
-    fn test_steepest_descent_no_gradient() {
-        let problem: NoGradientSixHumpCamel = NoGradientSixHumpCamel;
-
-        let local_solver: LocalSolver<NoGradientSixHumpCamel> = LocalSolver::new(
-            problem,
-            LocalSolverType::SteepestDescent,
-            SteepestDescentBuilder::default().build(),
-        );
-
-        let initial_point: Array1<f64> = array![0.0, 0.0];
-        let error: LocalSolverError = local_solver.solve(initial_point).unwrap_err();
-        assert!(
-            matches!(error, LocalSolverError::RunFailed { reason, .. } if reason.contains("Gradient not implemented"))
-        );
-    }
-
-    #[cfg(feature = "argmin")]
-    #[test]
-    /// Test the L-BFGS local solver with a problem that doesn't
-    /// have a gradient. Since L-BFGS requires a gradient,
-    /// the local solver should return an error.
-    fn test_lbfgs_no_gradient() {
-        let problem: NoGradientSixHumpCamel = NoGradientSixHumpCamel;
-
-        let local_solver: LocalSolver<NoGradientSixHumpCamel> =
-            LocalSolver::new(problem, LocalSolverType::LBFGS, LBFGSBuilder::default().build());
-
-        let initial_point: Array1<f64> = array![0.0, 0.0];
-        let error: LocalSolverError = local_solver.solve(initial_point).unwrap_err();
-        assert!(
-            matches!(error, LocalSolverError::RunFailed { reason, .. } if reason.contains("Gradient not implemented"))
-        );
-    }
-
-    #[cfg(feature = "argmin")]
-    #[test]
-    /// Test the Newton CG local solver with a problem that doesn't
-    /// have a gradient. Since Newton CG requires a gradient and a hessian,
-    /// the local solver should return an error.
-    fn test_newton_cg_no_gradient_hessian() {
-        let problem: NoGradientSixHumpCamel = NoGradientSixHumpCamel;
-
-        let local_solver: LocalSolver<NoGradientSixHumpCamel> = LocalSolver::new(
-            problem,
-            LocalSolverType::NewtonCG,
-            LocalSolverConfig::NewtonCG {
-                max_iter: 1000,
-                curvature_threshold: 1e-6,
-                tolerance: 1e-6,
-                line_search_params: HagerZhangBuilder::default().build(),
-            },
-        );
-
-        let initial_point: Array1<f64> = array![0.0, 0.0];
-        let error: LocalSolverError = local_solver.solve(initial_point).unwrap_err();
-        assert!(
-            matches!(error, LocalSolverError::RunFailed { reason, .. } if reason.contains("Gradient not implemented"))
-        );
-
-        let problem: NoHessianSixHumpCamel = NoHessianSixHumpCamel;
-
-        let local_solver: LocalSolver<NoHessianSixHumpCamel> = LocalSolver::new(
-            problem,
-            LocalSolverType::NewtonCG,
-            LocalSolverConfig::NewtonCG {
-                max_iter: 1000,
-                curvature_threshold: 1e-6,
-                tolerance: 1e-6,
-                line_search_params: HagerZhangBuilder::default().build(),
-            },
-        );
-
-        let initial_point: Array1<f64> = array![0.0, 0.0];
-        let error: LocalSolverError = local_solver.solve(initial_point).unwrap_err();
-        assert!(
-            matches!(error, LocalSolverError::RunFailed { reason, .. } if reason.contains("Hessian not implemented and ne"))
-        );
-    }
-
-    #[cfg(feature = "argmin")]
-    #[test]
-    /// Test creating a HagerZhangLineSearch instance with an invalid configurations
-    fn invalid_hagerzhang() {
-        let problem: NoGradientSixHumpCamel = NoGradientSixHumpCamel;
-        let initial_point: Array1<f64> = array![0.0, 0.0];
-
-        // Invalid delta value
-        // Delta must be in (0, 1) and sigma must be in [delta, 1)
-        // Here we set it to 2.0
-        let local_solver: LocalSolver<NoGradientSixHumpCamel> = LocalSolver::new(
-            problem.clone(),
-            LocalSolverType::LBFGS,
-            LocalSolverConfig::LBFGS {
-                max_iter: 1000,
-                tolerance_grad: 1e-6,
-                tolerance_cost: 1e-6,
-                history_size: 5,
-                l1_coefficient: None,
-                line_search_params: HagerZhangBuilder::default().delta(2.0).build(),
-            },
-        );
-
-        let error: LocalSolverError = local_solver.solve(initial_point.clone()).unwrap_err();
-
-        assert_eq!(
-            error,
-            LocalSolverError::InvalidLBFGSConfig {
-                reason: "Invalid parameter: \"`HagerZhangLineSearch`: delta must be in (0, 1) and sigma must be in [delta, 1).\"".to_string()
-            }
-        );
-
-        // Invalid sigma value
-        // Delta must be in (0, 1) and sigma must be in [delta, 1)
-        // Here we set delta to 0.7 and sigma to 0.5
-        let local_solver: LocalSolver<NoGradientSixHumpCamel> = LocalSolver::new(
-            problem.clone(),
-            LocalSolverType::LBFGS,
-            LocalSolverConfig::LBFGS {
-                max_iter: 1000,
-                tolerance_grad: 1e-6,
-                tolerance_cost: 1e-6,
-                history_size: 5,
-                l1_coefficient: None,
-                line_search_params: HagerZhangBuilder::default().delta(0.7).sigma(0.5).build(),
-            },
-        );
-
-        let error: LocalSolverError = local_solver.solve(initial_point.clone()).unwrap_err();
-        assert_eq!(
-            error,
-            LocalSolverError::InvalidLBFGSConfig {
-                reason: "Invalid parameter: \"`HagerZhangLineSearch`: delta must be in (0, 1) and sigma must be in [delta, 1).\"".to_string()
-            }
-        );
-
-        // Invalid epsilon value
-        // Epsilon must be non-negative
-        // Here we set epsilon to -0.5
-        let local_solver: LocalSolver<NoGradientSixHumpCamel> = LocalSolver::new(
-            problem.clone(),
-            LocalSolverType::LBFGS,
-            LocalSolverConfig::LBFGS {
-                max_iter: 1000,
-                tolerance_grad: 1e-6,
-                tolerance_cost: 1e-6,
-                history_size: 5,
-                l1_coefficient: None,
-                line_search_params: HagerZhangBuilder::default().epsilon(-0.5).build(),
-            },
-        );
-
-        let error: LocalSolverError = local_solver.solve(initial_point.clone()).unwrap_err();
-        assert_eq!(
-            error,
-            LocalSolverError::InvalidLBFGSConfig {
-                reason: "Invalid parameter: \"`HagerZhangLineSearch`: epsilon must be >= 0.\""
-                    .to_string()
-            }
-        );
-
-        // Invalid theta value
-        // Theta must be in (0, 1)
-        // Here we set theta to 1.5
-        let local_solver: LocalSolver<NoGradientSixHumpCamel> = LocalSolver::new(
-            problem.clone(),
-            LocalSolverType::LBFGS,
-            LocalSolverConfig::LBFGS {
-                max_iter: 1000,
-                tolerance_grad: 1e-6,
-                tolerance_cost: 1e-6,
-                history_size: 5,
-                l1_coefficient: None,
-                line_search_params: HagerZhangBuilder::default().theta(1.5).build(),
-            },
-        );
-
-        let error: LocalSolverError = local_solver.solve(initial_point.clone()).unwrap_err();
-        assert_eq!(
-            error,
-            LocalSolverError::InvalidLBFGSConfig {
-                reason: "Invalid parameter: \"`HagerZhangLineSearch`: theta must be in (0, 1).\""
-                    .to_string()
-            }
-        );
-
-        // Invalid gamma value
-        // Gamma must be in (0, 1)
-        // Here we set gamma to 1.5
-        let local_solver: LocalSolver<NoGradientSixHumpCamel> = LocalSolver::new(
-            problem.clone(),
-            LocalSolverType::LBFGS,
-            LocalSolverConfig::LBFGS {
-                max_iter: 1000,
-                tolerance_grad: 1e-6,
-                tolerance_cost: 1e-6,
-                history_size: 5,
-                l1_coefficient: None,
-                line_search_params: HagerZhangBuilder::default().gamma(1.5).build(),
-            },
-        );
-
-        let error: LocalSolverError = local_solver.solve(initial_point.clone()).unwrap_err();
-        assert_eq!(
-            error,
-            LocalSolverError::InvalidLBFGSConfig {
-                reason: "Invalid parameter: \"`HagerZhangLineSearch`: gamma must be in (0, 1).\""
-                    .to_string()
-            }
-        );
-
-        // Invalid eta value
-        // Eta must be larger than zero
-        // Here we set eta to -0.5
-        let local_solver: LocalSolver<NoGradientSixHumpCamel> = LocalSolver::new(
-            problem.clone(),
-            LocalSolverType::LBFGS,
-            LocalSolverConfig::LBFGS {
-                max_iter: 1000,
-                tolerance_grad: 1e-6,
-                tolerance_cost: 1e-6,
-                history_size: 5,
-                l1_coefficient: None,
-                line_search_params: HagerZhangBuilder::default().eta(-0.5).build(),
-            },
-        );
-
-        let error: LocalSolverError = local_solver.solve(initial_point.clone()).unwrap_err();
-        assert_eq!(
-            error,
-            LocalSolverError::InvalidLBFGSConfig {
-                reason: "Invalid parameter: \"`HagerZhangLineSearch`: eta must be > 0.\""
-                    .to_string()
-            }
-        );
-
-        // Invalid bounds value
-        // Bounds must be a tuple with two values, where the first value
-        // (step_min) is smaller than the second value (step_max)
-        // both values should be higher or equal to zero
-        // Here we set bounds to [1.0, 0.0]
-        let local_solver: LocalSolver<NoGradientSixHumpCamel> = LocalSolver::new(
-            problem,
-            LocalSolverType::LBFGS,
-            LocalSolverConfig::LBFGS {
-                max_iter: 1000,
-                tolerance_grad: 1e-6,
-                tolerance_cost: 1e-6,
-                history_size: 5,
-                l1_coefficient: None,
-                line_search_params: HagerZhangBuilder::default().bounds(array![1.0, 0.0]).build(),
-            },
-        );
-
-        let error: LocalSolverError = local_solver.solve(initial_point).unwrap_err();
-        assert_eq!(
-            error,
-            LocalSolverError::InvalidLBFGSConfig {
-                reason: "Invalid parameter: \"`HagerZhangLineSearch`: minimum and maximum step length must be chosen such that 0 <= step_min < step_max.\"".to_string()
-            }
-        );
-    }
-
-    #[cfg(feature = "argmin")]
-    #[test]
-    /// Test creating a MoreThuenteLineSearch instance with an invalid configurations
-    fn invalid_morethuente() {
-        let problem: NoGradientSixHumpCamel = NoGradientSixHumpCamel;
-        let initial_point: Array1<f64> = array![0.0, 0.0];
-
-        // Invalid c1 and c2 values
-        // c1 and c2 must be in (0, 1) and c1 < c2
-        // Here we set c1 to 1.0 and c2 to 0.5
-        let local_solver: LocalSolver<NoGradientSixHumpCamel> = LocalSolver::new(
-            problem.clone(),
-            LocalSolverType::LBFGS,
-            LocalSolverConfig::LBFGS {
-                max_iter: 1000,
-                tolerance_grad: 1e-6,
-                tolerance_cost: 1e-6,
-                history_size: 5,
-                l1_coefficient: None,
-                line_search_params: MoreThuenteBuilder::default().c1(1.0).c2(0.5).build(),
-            },
-        );
-
-        let error: LocalSolverError = local_solver.solve(initial_point.clone()).unwrap_err();
-        assert_eq!(
-            error,
-            LocalSolverError::InvalidLBFGSConfig {
-                reason: "Invalid parameter: \"`MoreThuenteLineSearch`: Parameter c1 must be in (0, c2).\"".to_string()
-            }
-        );
-
-        // Invalid bounds value
-        // Bounds must be a tuple with two values, where the first value
-        // (step_min) is smaller than the second value (step_max)
-        // Here we set bounds to [1.0, 0.0]
-        let local_solver: LocalSolver<NoGradientSixHumpCamel> = LocalSolver::new(
-            problem.clone(),
-            LocalSolverType::LBFGS,
-            LocalSolverConfig::LBFGS {
-                max_iter: 1000,
-                tolerance_grad: 1e-6,
-                tolerance_cost: 1e-6,
-                history_size: 5,
-                l1_coefficient: None,
-                line_search_params: MoreThuenteBuilder::default().bounds(array![1.0, 0.0]).build(),
-            },
-        );
-
-        let error: LocalSolverError = local_solver.solve(initial_point.clone()).unwrap_err();
-        assert_eq!(
-            error,
-            LocalSolverError::InvalidLBFGSConfig {
-                reason: "Invalid parameter: \"`MoreThuenteLineSearch`: step_min must be smaller than step_max.\"".to_string()
-            }
-        );
-
-        // Invalid width_tolerance value
-        // Width tolerance must be larger than zero
-        // Here we set width_tolerance to -0.5
-        let local_solver: LocalSolver<NoGradientSixHumpCamel> = LocalSolver::new(
-            problem,
-            LocalSolverType::LBFGS,
-            LocalSolverConfig::LBFGS {
-                max_iter: 1000,
-                tolerance_grad: 1e-6,
-                tolerance_cost: 1e-6,
-                history_size: 5,
-                l1_coefficient: None,
-                line_search_params: MoreThuenteBuilder::default().width_tolerance(-0.5).build(),
-            },
-        );
-
-        let error: LocalSolverError = local_solver.solve(initial_point).unwrap_err();
-        assert_eq!(
-            error,
-            LocalSolverError::InvalidLBFGSConfig {
-                reason: "Invalid parameter: \"`MoreThuenteLineSearch`: relative width tolerance must be >= 0.0.\"".to_string()
-            }
-        );
-    }
-
-    #[cfg(feature = "argmin")]
-    #[test]
-    /// Test creating a Trust Region solver using an invalid eta value
-    /// In this case, eta must be in [0, 1/4) and we set it to 1.0
-    fn invalid_trust_region_eta() {
-        let problem: NoGradientSixHumpCamel = NoGradientSixHumpCamel;
-
-        let local_solver: LocalSolver<NoGradientSixHumpCamel> = LocalSolver::new(
-            problem,
-            LocalSolverType::TrustRegion,
-            LocalSolverConfig::TrustRegion {
-                trust_region_radius_method: TrustRegionRadiusMethod::Steihaug,
-                max_iter: 1000,
-                radius: 0.1,
-                max_radius: 1.0,
-                eta: 1.0,
-            },
-        );
-
-        let initial_point: Array1<f64> = array![0.0, 0.0];
-        let error: LocalSolverError = local_solver.solve(initial_point).unwrap_err();
-
-        assert_eq!(
-            error,
-            LocalSolverError::InvalidTrustRegionConfig {
-                reason: "Invalid parameter: \"`TrustRegion`: eta must be in [0, 1/4).\""
-                    .to_string()
-            }
-        );
     }
 
     // COBYLA tests (always available)

@@ -1,7 +1,7 @@
 //! # Local Solver Module
 //!
 //! This module provides a comprehensive interface to classical optimization algorithms
-//! from the `basin` and `argmin` crates, adapted specifically for use within the OQNLP global
+//! from the `basin` crate, adapted specifically for use within the OQNLP global
 //! optimization framework.
 //!
 //! ## Module Structure
@@ -14,23 +14,31 @@
 //! ### Gradient-Based Methods
 //! - **L-BFGS**: Limited-memory Broyden-Fletcher-Goldfarb-Shanno
 //!   - Best for: Smooth, unconstrained problems
-//!   - Requires: Gradient information and Line Search method
+//!   - Requires: Gradient information
 //!
-//! - **Steepest Descent**: Basic gradient descent with line search
+//! - **Gradient Descent**: Basic gradient descent with line search
 //!   - Best for: Simple problems, debugging
-//!   - Requires: Gradient information and Line Search method
+//!   - Requires: Gradient information
 //!
 //! - **Trust Region**: Advanced second-order method
 //!   - Best for: Smooth problems with available Hessian
 //!   - Requires: Gradient and Hessian
 //!
-//! - **Newton-CG**: Newton method with conjugate gradient
-//!   - Best for: Large-scale smooth problems
-//!   - Requires: Gradient, Hessian and Line Search method
+//! - **L-BFGS-B**: Box-constrained limited-memory BFGS
+//!   - Best for: Smooth problems with box bounds
+//!   - Requires: Gradient information
 //!
 //! ### Derivative-Free Methods
 //! - **Nelder-Mead**: Simplex-based direct search
 //!   - Best for: Non-smooth, noisy problems
+//!   - Requires: Only objective function
+//!
+//! - **Bounded Nelder-Mead**: Projected simplex for box bounds
+//!   - Best for: Non-smooth problems with box bounds
+//!   - Requires: Only objective function
+//!
+//! - **BOBYQA**: Model-based trust region for box bounds
+//!   - Best for: Expensive smooth problems with box bounds
 //!   - Requires: Only objective function
 //!
 //! - **COBYLA**: Basin's Constrained Optimization BY Linear Approximation
@@ -45,25 +53,20 @@
 //!
 //! ## Configuration Example
 //!
-//! ```ignore
-//! use globalsearch::local_solver::builders::{
-//!     LBFGSBuilder, HagerZhangBuilder, TrustRegionBuilder, TrustRegionRadiusMethod
-//! };
+//! ```rust
+//! use globalsearch::local_solver::builders::LBFGSBuilder;
 //! use globalsearch::types::OQNLPParams;
 //!
-//! // L-BFGS with custom line search
+//! // L-BFGS with custom tolerances
 //! let lbfgs_config = LBFGSBuilder::default()
 //!     .max_iter(1000)
 //!     .tolerance_grad(1e-8)
-//!     .line_search_params(HagerZhangBuilder::default()
-//!         .delta(0.1)
-//!         .sigma(0.9)
-//!         .build())
+//!     .history_size(10)
 //!     .build();
 //!
 //! // Trust region with Steihaug solver
-//! let trust_region_config = TrustRegionBuilder::default()
-//!     .method(TrustRegionRadiusMethod::Steihaug)
+//! let trust_region_config = globalsearch::local_solver::builders::TrustRegionBuilder::default()
+//!     .method(globalsearch::local_solver::builders::TrustRegionRadiusMethod::Steihaug)
 //!     .max_iter(500)
 //!     .radius(1.0)
 //!     .build();
@@ -75,11 +78,8 @@
 //! };
 //! ```
 
-//! The optional `basin` feature adds explicitly named Basin builders for
-//! L-BFGS, gradient descent, trust region, Nelder-Mead, L-BFGS-B, bounded
-//! Nelder-Mead, and BOBYQA. Existing builders retain their implementations.
 pub mod builders;
 pub mod runner;
 
-#[cfg(feature = "basin")]
 mod basin;
+mod constrained;

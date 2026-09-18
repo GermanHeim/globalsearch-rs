@@ -18,9 +18,9 @@ name = "pyglobalsearch"
 crate-type = ["cdylib"]
 
 [dependencies]
-globalsearch = { version = "0.6.0", path = "..", features = ["rayon", "argmin", "basin"] }
+globalsearch = { version = "0.6.0", path = "..", features = ["rayon"] }
 pyo3 = { version = "0.28.3", features = ["extension-module"] }
-ndarray = "0.16.1"
+ndarray = "0.17"
 numpy = "0.28.0"
 
 [package.metadata.maturin]

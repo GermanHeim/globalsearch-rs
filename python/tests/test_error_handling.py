@@ -49,30 +49,27 @@ def test_gradient_not_implemented_lbfgs():
     except Exception as e:
         assert (
             str(e)
-            == "OQNLP Error: Local solver failed: Local Solver Error: unknown failed to run: Gradient not implemented and needed for local solver"
+            == "OQNLP Error: Local solver failed: Local Solver Error: LBFGS failed to run: Gradient not implemented and needed for local solver"
         )
 
 
-def test_gradient_not_implemented_steepestdescent():
-    """Test that SteepestDescent fails when the gradient is not implemented."""
+def test_gradient_not_implemented_gradientdescent():
+    """Test that GradientDescent fails when the gradient is not implemented."""
     try:
-        gs.optimize(problem, params, local_solver="SteepestDescent")
+        gs.optimize(problem, params, local_solver="GradientDescent")
     except Exception as e:
         assert (
             str(e)
-            == "OQNLP Error: Local solver failed: Local Solver Error: unknown failed to run: Gradient not implemented and needed for local solver"
+            == "OQNLP Error: Local solver failed: Local Solver Error: GradientDescent failed to run: Gradient not implemented and needed for local solver"
         )
 
 
-def test_hessian_not_implemented_newtoncg():
-    """Test that NewtonCG fails when the hessian is not implemented."""
+def test_removed_newtoncg_solver_is_rejected():
+    """Test that the removed NewtonCG solver name is rejected as invalid."""
     try:
         gs.optimize(problem_grad, params, local_solver="NewtonCG")
     except Exception as e:
-        assert (
-            str(e)
-            == "OQNLP Error: Local solver failed: Local Solver Error: unknown failed to run: Hessian not implemented and needed for local solver"
-        )
+        assert str(e) == "Invalid solver type."
 
 
 def test_hessian_not_implemented_trustregion():
@@ -82,7 +79,7 @@ def test_hessian_not_implemented_trustregion():
     except Exception as e:
         assert (
             str(e)
-            == "OQNLP Error: Local solver failed: Local Solver Error: unknown failed to run: Hessian not implemented and needed for local solver"
+            == "OQNLP Error: Local solver failed: Local Solver Error: TrustRegion failed to run: Hessian not implemented and needed for local solver"
         )
 
 
@@ -101,7 +98,7 @@ def test_trustregion_requires_hessian():
     except Exception as e:
         assert (
             str(e)
-            == "OQNLP Error: Local solver failed: Local Solver Error: unknown failed to run: Hessian not implemented and needed for local solver"
+            == "OQNLP Error: Local solver failed: Local Solver Error: TrustRegion failed to run: Hessian not implemented and needed for local solver"
         )
 
 

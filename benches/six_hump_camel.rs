@@ -11,7 +11,7 @@
 ///
 /// Molga, M., & Smutnicki, C. Test functions for optimization needs (April 3, 2005), pp. 27-28. Retrieved January 2025, from https://robertmarks.org/Classes/ENGR5358/Papers/functions.pdf
 use criterion::{Criterion, criterion_group, criterion_main};
-use globalsearch::local_solver::builders::SteepestDescentBuilder;
+use globalsearch::local_solver::builders::GradientDescentBuilder;
 use globalsearch::problem::Problem;
 use globalsearch::{
     oqnlp::OQNLP,
@@ -50,7 +50,7 @@ fn six_hump_camel() -> Result<SolutionSet, Box<dyn std::error::Error>> {
         threshold_factor: 0.2,
         distance_factor: 0.75,
         population_size: 100,
-        local_solver_config: SteepestDescentBuilder::default().build(),
+        local_solver_config: GradientDescentBuilder::default().build(),
         seed: 0,
     };
 

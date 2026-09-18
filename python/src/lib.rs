@@ -3,10 +3,9 @@ mod observers;
 
 use crate::observers::PyObserver;
 use globalsearch::local_solver::builders::{
-    BasinBOBYQABuilder, BasinBoundedNelderMeadBuilder, BasinGradientDescentBuilder,
-    BasinLBFGSBBuilder, BasinLBFGSBuilder, BasinNelderMeadBuilder, BasinTrustRegionBuilder,
-    COBYLABuilder, LBFGSBuilder, NelderMeadBuilder, NewtonCGBuilder, SteepestDescentBuilder,
-    TrustRegionBuilder,
+    AugmentedLagrangianBuilder, BOBYQABuilder, BarrierBuilder, BoundedNelderMeadBuilder,
+    COBYLABuilder, GradientDescentBuilder, LBFGSBBuilder, LBFGSBuilder, NelderMeadBuilder,
+    SLSQPBuilder, TrustRegionBuilder,
 };
 use globalsearch::oqnlp::OQNLP;
 use globalsearch::problem::Problem;
@@ -418,10 +417,16 @@ fn resolve_variable_bounds(py: Python<'_>, obj: &Py<PyAny>) -> PyResult<Array2<f
 /// >>> def gradient(x): return np.array([2*x[0], 2*x[1]])
 /// >>> problem = gs.PyProblem(objective, bounds, gradient=gradient)
 ///
-/// Constrained problem (requires COBYLA solver):
+/// Constrained problem (requires a constrained solver: COBYLA, SLSQP, Barrier, or AugmentedLagrangian):
 ///
 /// >>> def constraint(x): return x[0] + x[1] - 1  # x[0] + x[1] >= 1
 /// >>> problem = gs.PyProblem(objective, bounds, constraints=[constraint])
+///
+/// Linearly constrained problem (SLSQP, Barrier, or AugmentedLagrangian):
+///
+/// >>> import numpy as np
+/// >>> problem = gs.PyProblem(objective, bounds,
+/// ...                        linear_inequalities=(np.array([[1.0, 1.0]]), np.array([1.0])))
 #[pyclass(from_py_object)]
 #[derive(Debug)]
 pub struct PyProblem {
@@ -464,6 +469,30 @@ pub struct PyProblem {
     /// :return: Constraint value (float), should be >= 0 to be satisfied
     /// :raises ValueError: If any constraint function does not return a float
     constraints: Option<Py<pyo3::PyAny>>,
+
+    #[pyo3(get, set)]
+    /// Linear inequality constraints as ``(A, b)`` with ``A x <= b``.
+    ///
+    /// ``A`` is a 2D array of shape (m, n) and ``b`` a 1D array of length m.
+    linear_inequalities: Option<(Vec<Vec<f64>>, Vec<f64>)>,
+
+    #[pyo3(get, set)]
+    /// Linear equality constraints as ``(A, b)`` with ``A x == b``.
+    ///
+    /// ``A`` is a 2D array of shape (m, n) and ``b`` a 1D array of length m.
+    linear_equalities: Option<(Vec<Vec<f64>>, Vec<f64>)>,
+
+    #[pyo3(get, set)]
+    /// List of nonlinear equality functions where ``h(x) == 0`` means satisfied.
+    nonlinear_equalities: Option<Py<pyo3::PyAny>>,
+
+    #[pyo3(get, set)]
+    /// Jacobian of the nonlinear constraint blocks.
+    ///
+    /// :param x: Input parameters as a list or array of floats
+    /// :return: 2D array of shape (n_eq + n_ineq, n_vars); equality rows
+    ///     first, then inequality rows in callback order
+    constraint_jacobian: Option<Py<pyo3::PyAny>>,
 }
 
 impl Clone for PyProblem {
@@ -475,6 +504,10 @@ impl Clone for PyProblem {
             gradient: self.gradient.as_ref().map(|g| g.clone_ref(py)),
             hessian: self.hessian.as_ref().map(|h| h.clone_ref(py)),
             constraints: self.constraints.as_ref().map(|c| c.clone_ref(py)),
+            linear_inequalities: self.linear_inequalities.clone(),
+            linear_equalities: self.linear_equalities.clone(),
+            nonlinear_equalities: self.nonlinear_equalities.as_ref().map(|c| c.clone_ref(py)),
+            constraint_jacobian: self.constraint_jacobian.as_ref().map(|c| c.clone_ref(py)),
         })
     }
 }
@@ -482,7 +515,7 @@ impl Clone for PyProblem {
 #[pymethods]
 impl PyProblem {
     #[new]
-    #[pyo3(signature = (objective, variable_bounds, gradient=None, hessian=None, constraints=None))]
+    #[pyo3(signature = (objective, variable_bounds, gradient=None, hessian=None, constraints=None, linear_inequalities=None, linear_equalities=None, nonlinear_equalities=None, constraint_jacobian=None))]
     fn new(
         py: Python<'_>,
         objective: Py<pyo3::PyAny>,
@@ -490,9 +523,24 @@ impl PyProblem {
         gradient: Option<Py<pyo3::PyAny>>,
         hessian: Option<Py<pyo3::PyAny>>,
         constraints: Option<Py<pyo3::PyAny>>,
+        linear_inequalities: Option<(Vec<Vec<f64>>, Vec<f64>)>,
+        linear_equalities: Option<(Vec<Vec<f64>>, Vec<f64>)>,
+        nonlinear_equalities: Option<Py<pyo3::PyAny>>,
+        constraint_jacobian: Option<Py<pyo3::PyAny>>,
     ) -> PyResult<Self> {
         let cached_bounds = resolve_variable_bounds(py, &variable_bounds)?;
-        Ok(PyProblem { objective, variable_bounds, cached_bounds, gradient, hessian, constraints })
+        Ok(PyProblem {
+            objective,
+            variable_bounds,
+            cached_bounds,
+            gradient,
+            hessian,
+            constraints,
+            linear_inequalities,
+            linear_equalities,
+            nonlinear_equalities,
+            constraint_jacobian,
+        })
     }
 }
 
@@ -601,6 +649,97 @@ impl Problem for PyProblem {
             Ok(Array1::from_vec(values))
         })
     }
+
+    fn linear_inequalities(&self) -> Option<(Array2<f64>, Array1<f64>)> {
+        let (a_rows, b) = self.linear_inequalities.as_ref()?;
+        let m = a_rows.len();
+        let b_arr = Array1::from_vec(b.clone());
+        if m == 0 {
+            return Some((Array2::zeros((0, self.cached_bounds.nrows())), b_arr));
+        }
+        let n = a_rows[0].len();
+        let flat: Vec<f64> = a_rows.iter().flatten().copied().collect();
+        let a_arr = Array2::from_shape_vec((m, n), flat).ok()?;
+        Some((a_arr, b_arr))
+    }
+
+    fn linear_equalities(&self) -> Option<(Array2<f64>, Array1<f64>)> {
+        let (a_rows, b) = self.linear_equalities.as_ref()?;
+        let m = a_rows.len();
+        let b_arr = Array1::from_vec(b.clone());
+        if m == 0 {
+            return Some((Array2::zeros((0, self.cached_bounds.nrows())), b_arr));
+        }
+        let n = a_rows[0].len();
+        let flat: Vec<f64> = a_rows.iter().flatten().copied().collect();
+        let a_arr = Array2::from_shape_vec((m, n), flat).ok()?;
+        Some((a_arr, b_arr))
+    }
+
+    fn nonlinear_equalities(&self, x: &Array1<f64>) -> Result<Array1<f64>, EvaluationError> {
+        let Some(equalities) = &self.nonlinear_equalities else {
+            return Ok(Array1::from_vec(Vec::new()));
+        };
+
+        let _guard = get_python_call_mutex().lock().unwrap();
+        Python::attach(|py| {
+            let x_py = x.to_pyarray(py);
+            let evaluate = |index: usize, constraint: &Bound<'_, pyo3::PyAny>| {
+                constraint.call1((x_py.clone(),)).and_then(|value| value.extract::<f64>()).map_err(
+                    |error| EvaluationError::ConstraintEvaluationFailed {
+                        index,
+                        reason: error.to_string(),
+                    },
+                )
+            };
+
+            let values = if let Ok(list) = equalities.cast_bound::<pyo3::types::PyList>(py) {
+                list.iter()
+                    .enumerate()
+                    .map(|(index, constraint)| evaluate(index, &constraint))
+                    .collect::<Result<Vec<_>, _>>()?
+            } else if let Ok(tuple) = equalities.cast_bound::<pyo3::types::PyTuple>(py) {
+                tuple
+                    .iter()
+                    .enumerate()
+                    .map(|(index, constraint)| evaluate(index, &constraint))
+                    .collect::<Result<Vec<_>, _>>()?
+            } else {
+                vec![evaluate(0, equalities.bind(py))?]
+            };
+
+            Ok(Array1::from_vec(values))
+        })
+    }
+
+    fn constraint_jacobian(&self, x: &Array1<f64>) -> Result<Array2<f64>, EvaluationError> {
+        let Some(jac_fn) = &self.constraint_jacobian else {
+            return Err(EvaluationError::ConstraintJacobianNotImplemented);
+        };
+        let _guard = get_python_call_mutex().lock().unwrap();
+        Python::attach(|py| {
+            let x_py = x.to_pyarray(py);
+            let result = jac_fn
+                .call1(py, (x_py,))
+                .map_err(|e| EvaluationError::InvalidInput { reason: e.to_string() })?;
+
+            if let Ok(arr) = result.bind(py).cast::<PyArray2<f64>>() {
+                Ok(arr.readonly().as_array().to_owned())
+            } else {
+                let rows: Vec<Vec<f64>> = result.extract(py).map_err(|e: PyErr| {
+                    EvaluationError::InvalidInput { reason: e.to_string() }
+                })?;
+                let nrows = rows.len();
+                let ncols = rows.first().map_or(0, Vec::len);
+                let flat: Vec<f64> = rows.into_iter().flatten().collect();
+                Array2::from_shape_vec((nrows, ncols), flat).map_err(|_| {
+                    EvaluationError::InvalidInput {
+                        reason: "Constraint Jacobian shape mismatch".to_string(),
+                    }
+                })
+            }
+        })
+    }
 }
 
 /// Perform global optimization on the given problem.
@@ -622,13 +761,13 @@ impl Problem for PyProblem {
 /// :param observer: Optional observer for tracking algorithm progress and metrics
 /// :type observer: PyObserver, optional
 /// :param local_solver: Local optimization algorithm to use with its default configuration.
-///     One of: ``"COBYLA"`` (default), ``"LBFGS"``, ``"NewtonCG"``, ``"TrustRegion"``, ``"NelderMead"``, ``"SteepestDescent"``.
+///     One of: ``"COBYLA"`` (default), ``"LBFGS"``, ``"GradientDescent"``, ``"TrustRegion"``, ``"NelderMead"``, ``"LBFGSB"``, ``"BoundedNelderMead"``, ``"BOBYQA"``, ``"SLSQP"``, ``"Barrier"``, ``"AugmentedLagrangian"``.
 ///     When passed alongside ``local_solver_config``, must match the config type or a ``ValueError`` is raised.
 /// :type local_solver: str, optional
 /// :param local_solver_config: Custom configuration for the local solver. The solver type is inferred
-///     directly from the config object's type (e.g. ``PyCOBYLA``, ``PyLBFGS``).
+///     directly from the config object's type (e.g. ``PyCOBYLA``, ``PyLBFGS``, ``PySLSQP``).
 ///     When passed alongside ``local_solver``, both must refer to the same solver type.
-/// :type local_solver_config: PyCOBYLA | PyLBFGS | PyNelderMead | PySteepestDescent | PyNewtonCG | PyTrustRegion, optional
+/// :type local_solver_config: PyCOBYLA | PyLBFGS | PyGradientDescent | PyTrustRegion | PyNelderMead | PyLBFGSB | PyBoundedNelderMead | PyBOBYQA | PySLSQP | PyBarrier | PyAugmentedLagrangian, optional
 /// :param seed: Random seed for reproducible results
 /// :type seed: int, optional
 /// :param target_objective: Stop optimization when this objective value is reached
@@ -723,41 +862,37 @@ fn optimize(
         // - Pass neither -> COBYLA with default config.
         // - Pass both -> allowed only when they agree, errors on mismatch.
         let local_solver_config = if let Some(config) = local_solver_config {
-            let (built_config, inferred_type) = if let Ok(c) =
-                config.extract::<crate::builders::PyCOBYLA>(py)
-            {
-                (c.to_builder().build(), LocalSolverType::COBYLA)
-            } else if let Ok(c) = config.extract::<crate::builders::PyLBFGS>(py) {
-                (c.to_builder().build(), LocalSolverType::LBFGS)
-            } else if let Ok(c) = config.extract::<crate::builders::PyNelderMead>(py) {
-                (c.to_builder().build(), LocalSolverType::NelderMead)
-            } else if let Ok(c) = config.extract::<crate::builders::PySteepestDescent>(py) {
-                (c.to_builder().build(), LocalSolverType::SteepestDescent)
-            } else if let Ok(c) = config.extract::<crate::builders::PyNewtonCG>(py) {
-                (c.to_builder().build(), LocalSolverType::NewtonCG)
-            } else if let Ok(c) = config.extract::<crate::builders::PyTrustRegion>(py) {
-                (c.to_builder().build(), LocalSolverType::TrustRegion)
-            } else if let Ok(c) = config.extract::<crate::builders::PyBasinLBFGS>(py) {
-                (c.to_builder().build(), LocalSolverType::BasinLBFGS)
-            } else if let Ok(c) = config.extract::<crate::builders::PyBasinGradientDescent>(py) {
-                (c.to_builder().build(), LocalSolverType::BasinGradientDescent)
-            } else if let Ok(c) = config.extract::<crate::builders::PyBasinTrustRegion>(py) {
-                (c.to_builder().build(), LocalSolverType::BasinTrustRegion)
-            } else if let Ok(c) = config.extract::<crate::builders::PyBasinNelderMead>(py) {
-                (c.to_builder().build(), LocalSolverType::BasinNelderMead)
-            } else if let Ok(c) = config.extract::<crate::builders::PyBasinLBFGSB>(py) {
-                (c.to_builder().build(), LocalSolverType::BasinLBFGSB)
-            } else if let Ok(c) = config.extract::<crate::builders::PyBasinBoundedNelderMead>(py) {
-                (c.to_builder().build(), LocalSolverType::BasinBoundedNelderMead)
-            } else if let Ok(c) = config.extract::<crate::builders::PyBasinBOBYQA>(py) {
-                (c.to_builder().build(), LocalSolverType::BasinBOBYQA)
-            } else {
-                return Err(PyValueError::new_err(
-                        "local_solver_config must be one of: PyCOBYLA, PyLBFGS, PyNelderMead, \
-                         PySteepestDescent, PyNewtonCG, PyTrustRegion, PyBasinLBFGS, PyBasinGradientDescent, PyBasinTrustRegion, PyBasinNelderMead, PyBasinLBFGSB, PyBasinBoundedNelderMead, PyBasinBOBYQA"
+            let (built_config, inferred_type) =
+                if let Ok(c) = config.extract::<crate::builders::PyCOBYLA>(py) {
+                    (c.to_builder().build(), LocalSolverType::COBYLA)
+                } else if let Ok(c) = config.extract::<crate::builders::PyLBFGS>(py) {
+                    (c.to_builder().build(), LocalSolverType::LBFGS)
+                } else if let Ok(c) = config.extract::<crate::builders::PyNelderMead>(py) {
+                    (c.to_builder().build(), LocalSolverType::NelderMead)
+                } else if let Ok(c) = config.extract::<crate::builders::PyGradientDescent>(py) {
+                    (c.to_builder().build(), LocalSolverType::GradientDescent)
+                } else if let Ok(c) = config.extract::<crate::builders::PyTrustRegion>(py) {
+                    (c.to_builder().build(), LocalSolverType::TrustRegion)
+                } else if let Ok(c) = config.extract::<crate::builders::PyLBFGSB>(py) {
+                    (c.to_builder().build(), LocalSolverType::LBFGSB)
+                } else if let Ok(c) = config.extract::<crate::builders::PyBoundedNelderMead>(py) {
+                    (c.to_builder().build(), LocalSolverType::BoundedNelderMead)
+                } else if let Ok(c) = config.extract::<crate::builders::PyBOBYQA>(py) {
+                    (c.to_builder().build(), LocalSolverType::BOBYQA)
+                } else if let Ok(c) = config.extract::<crate::builders::PySLSQP>(py) {
+                    (c.to_builder().build(), LocalSolverType::SLSQP)
+                } else if let Ok(c) = config.extract::<crate::builders::PyBarrier>(py) {
+                    (c.to_builder().build(), LocalSolverType::Barrier)
+                } else if let Ok(c) = config.extract::<crate::builders::PyAugmentedLagrangian>(py) {
+                    (c.to_builder().build(), LocalSolverType::AugmentedLagrangian)
+                } else {
+                    return Err(PyValueError::new_err(
+                        "local_solver_config must be one of: PyCOBYLA, PyLBFGS, PyGradientDescent, \
+                         PyTrustRegion, PyNelderMead, PyLBFGSB, PyBoundedNelderMead, PyBOBYQA, \
+                         PySLSQP, PyBarrier, PyAugmentedLagrangian"
                             .to_string(),
                     ));
-            };
+                };
 
             // If a solver name was also supplied, verify it agrees with the config type.
             if let Some(name) = local_solver {
@@ -780,21 +915,17 @@ fn optimize(
             match solver_type {
                 LocalSolverType::COBYLA => COBYLABuilder::default().build(),
                 LocalSolverType::LBFGS => LBFGSBuilder::default().build(),
-                LocalSolverType::NelderMead => NelderMeadBuilder::default().build(),
-                LocalSolverType::SteepestDescent => SteepestDescentBuilder::default().build(),
-                LocalSolverType::NewtonCG => NewtonCGBuilder::default().build(),
+                LocalSolverType::GradientDescent => GradientDescentBuilder::default().build(),
                 LocalSolverType::TrustRegion => TrustRegionBuilder::default().build(),
-                LocalSolverType::BasinLBFGS => BasinLBFGSBuilder::default().build(),
-                LocalSolverType::BasinGradientDescent => {
-                    BasinGradientDescentBuilder::default().build()
+                LocalSolverType::NelderMead => NelderMeadBuilder::default().build(),
+                LocalSolverType::LBFGSB => LBFGSBBuilder::default().build(),
+                LocalSolverType::BoundedNelderMead => BoundedNelderMeadBuilder::default().build(),
+                LocalSolverType::BOBYQA => BOBYQABuilder::default().build(),
+                LocalSolverType::SLSQP => SLSQPBuilder::default().build(),
+                LocalSolverType::Barrier => BarrierBuilder::default().build(),
+                LocalSolverType::AugmentedLagrangian => {
+                    AugmentedLagrangianBuilder::default().build()
                 }
-                LocalSolverType::BasinTrustRegion => BasinTrustRegionBuilder::default().build(),
-                LocalSolverType::BasinNelderMead => BasinNelderMeadBuilder::default().build(),
-                LocalSolverType::BasinLBFGSB => BasinLBFGSBBuilder::default().build(),
-                LocalSolverType::BasinBoundedNelderMead => {
-                    BasinBoundedNelderMeadBuilder::default().build()
-                }
-                LocalSolverType::BasinBOBYQA => BasinBOBYQABuilder::default().build(),
             }
         };
 
@@ -936,7 +1067,7 @@ fn optimize(
 ///
 /// Key Features
 /// ------------
-/// * **Multiple Solvers**: COBYLA, L-BFGS, Newton-CG, Trust Region, Nelder-Mead, Steepest Descent
+/// * **Multiple Solvers**: COBYLA, L-BFGS, Gradient Descent, Trust Region, Nelder-Mead, L-BFGS-B, Bounded Nelder-Mead, BOBYQA, SLSQP, Barrier, AugmentedLagrangian
 /// * **Constraint Support**: Inequality constraints via COBYLA solver
 /// * **Builder Pattern**: Flexible solver configuration using builder functions
 /// * **Multiple Solutions**: Returns all global minima found

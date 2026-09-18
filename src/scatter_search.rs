@@ -43,7 +43,7 @@
 //! ```
 
 use crate::observers::Observer;
-use crate::problem::{Problem, evaluate_constraints};
+use crate::problem::Problem;
 use crate::types::{EvaluationError, OQNLPParams};
 use ndarray::Array1;
 use rand::rngs::StdRng;
@@ -152,6 +152,7 @@ pub struct ScatterSearch<'a, P: Problem> {
     /// Custom points to seed the reference set
     custom_points: Option<Vec<Array1<f64>>>,
     constraint_dimension: OnceLock<usize>,
+    equality_dimension: OnceLock<usize>,
 }
 
 impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
@@ -189,6 +190,7 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
             observer: None,
             custom_points: None,
             constraint_dimension: OnceLock::new(),
+            equality_dimension: OnceLock::new(),
         };
 
         Ok(ss)
@@ -329,7 +331,12 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
         ];
 
         for point in seed_points {
-            if is_feasible(&point, &self.problem, &self.constraint_dimension)? {
+            if is_feasible(
+                &point,
+                &self.problem,
+                &self.constraint_dimension,
+                &self.equality_dimension,
+            )? {
                 ref_set.push(point);
             }
         }
@@ -343,8 +350,13 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
                     custom_points
                         .par_iter()
                         .map(|point| {
-                            is_feasible(point, &self.problem, &self.constraint_dimension)
-                                .map(|feasible| feasible.then(|| point.clone()))
+                            is_feasible(
+                                point,
+                                &self.problem,
+                                &self.constraint_dimension,
+                                &self.equality_dimension,
+                            )
+                            .map(|feasible| feasible.then(|| point.clone()))
                         })
                         .collect::<Result<Vec<_>, _>>()?
                         .into_iter()
@@ -354,8 +366,13 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
                     custom_points
                         .iter()
                         .map(|point| {
-                            is_feasible(point, &self.problem, &self.constraint_dimension)
-                                .map(|feasible| feasible.then(|| point.clone()))
+                            is_feasible(
+                                point,
+                                &self.problem,
+                                &self.constraint_dimension,
+                                &self.equality_dimension,
+                            )
+                            .map(|feasible| feasible.then(|| point.clone()))
                         })
                         .collect::<Result<Vec<_>, _>>()?
                         .into_iter()
@@ -367,8 +384,13 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
             let feasible_custom: Vec<Array1<f64>> = custom_points
                 .iter()
                 .map(|point| {
-                    is_feasible(point, &self.problem, &self.constraint_dimension)
-                        .map(|feasible| feasible.then(|| point.clone()))
+                    is_feasible(
+                        point,
+                        &self.problem,
+                        &self.constraint_dimension,
+                        &self.equality_dimension,
+                    )
+                    .map(|feasible| feasible.then(|| point.clone()))
                 })
                 .collect::<Result<Vec<_>, _>>()?
                 .into_iter()
@@ -434,14 +456,23 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
         let mut candidates = self.generate_stratified_samples(self.params.population_size)?;
 
         // Filter out constraint-violating candidates before diversification.
-        candidates = filter_feasible(candidates, &self.problem, &self.constraint_dimension)?;
+        candidates = filter_feasible(
+            candidates,
+            &self.problem,
+            &self.constraint_dimension,
+            &self.equality_dimension,
+        )?;
 
         // If we don't have enough feasible candidates after filtering, generate more.
         let mut attempts = 0;
         while candidates.len() < self.params.population_size && attempts < 10 {
             let new_batch = self.generate_stratified_samples(self.params.population_size * 2)?;
-            let feasible_batch =
-                filter_feasible(new_batch, &self.problem, &self.constraint_dimension)?;
+            let feasible_batch = filter_feasible(
+                new_batch,
+                &self.problem,
+                &self.constraint_dimension,
+                &self.equality_dimension,
+            )?;
             candidates.extend(feasible_batch);
             attempts += 1;
         }
@@ -776,7 +807,12 @@ impl<'a, P: Problem + Sync + Send> ScatterSearch<'a, P> {
         // 3. Expensive objective evaluation only for diverse, feasible points
         let evaluate_trial =
             |point: &Array1<f64>| -> Result<Option<(Array1<f64>, f64)>, EvaluationError> {
-                if !is_feasible(point, &self.problem, &self.constraint_dimension)? {
+                if !is_feasible(
+                    point,
+                    &self.problem,
+                    &self.constraint_dimension,
+                    &self.equality_dimension,
+                )? {
                     return Ok(None);
                 }
 
@@ -911,13 +947,15 @@ fn euclidean_distance_squared(a: &Array1<f64>, b: &Array1<f64>) -> f64 {
 
 /// Check if a point satisfies all constraints.
 ///
-/// A point is feasible if all constraint values are non-negative.
-/// Constraint convention: g(x) >= 0 means satisfied, g(x) < 0 means violated.
+/// Nonlinear inequalities use `g(x) >= 0` satisfied; nonlinear and linear
+/// equalities use absolute tolerances; linear inequalities use `A x <= b`.
+/// See [`crate::problem::is_feasible_point`].
 ///
 /// # Arguments
 /// * `point` - The point to check
 /// * `problem` - The problem defining the constraints
-/// * `constraint_dimension` - Dimension inferred from the first constraint evaluation
+/// * `constraint_dimension` - Dimension inferred from the first inequality evaluation
+/// * `equality_dimension` - Dimension inferred from the first equality evaluation
 ///
 /// # Returns
 /// * `true` if all constraints are satisfied or if there are no constraints
@@ -927,22 +965,27 @@ fn is_feasible<P: Problem>(
     point: &Array1<f64>,
     problem: &P,
     constraint_dimension: &OnceLock<usize>,
+    equality_dimension: &OnceLock<usize>,
 ) -> Result<bool, EvaluationError> {
-    Ok(evaluate_constraints(problem, point, constraint_dimension)?
-        .iter()
-        .all(|&value| value >= 0.0))
+    // Project onto A x = b first: equality surfaces have zero volume, so
+    // rejection sampling alone can never hit them. Projection is idempotent,
+    // so applying it here (as well as in `filter_feasible`) is harmless.
+    let projected = crate::problem::project_onto_linear_equalities(problem, point);
+    crate::problem::is_feasible_point(problem, &projected, constraint_dimension, equality_dimension)
 }
 
 fn filter_feasible<P: Problem>(
     points: Vec<Array1<f64>>,
     problem: &P,
     constraint_dimension: &OnceLock<usize>,
+    equality_dimension: &OnceLock<usize>,
 ) -> Result<Vec<Array1<f64>>, EvaluationError> {
     points
         .into_iter()
         .map(|point| {
-            is_feasible(&point, problem, constraint_dimension)
-                .map(|feasible| feasible.then_some(point))
+            let projected = crate::problem::project_onto_linear_equalities(problem, &point);
+            is_feasible(&projected, problem, constraint_dimension, equality_dimension)
+                .map(|feasible| feasible.then_some(projected))
         })
         .collect::<Result<Vec<_>, _>>()
         .map(|points| points.into_iter().flatten().collect())

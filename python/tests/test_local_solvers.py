@@ -43,19 +43,12 @@ problem_full = gs.PyProblem(
 
 def test_lbfgs_custom_config():
     """Test LBFGS with custom configuration using builders."""
-    # Create custom line search parameters
-    morethuente_params = gs.builders.PyMoreThuente(
-        c1=1e-5, c2=0.8, width_tolerance=1e-12
-    )
-    line_search = gs.builders.PyLineSearchParams(morethuente_params)
-
     # Create custom LBFGS configuration
     custom_lbfgs = gs.builders.PyLBFGS(
         max_iter=50,
         tolerance_grad=1e-6,
         tolerance_cost=1e-12,
         history_size=5,
-        line_search_params=line_search,
     )
     result = gs.optimize(
         problem_grad, params, local_solver="LBFGS", local_solver_config=custom_lbfgs
@@ -65,18 +58,12 @@ def test_lbfgs_custom_config():
     assert abs(result[0].fun()) < 1e-6  # Should still find minimum
 
 
-def test_lbfgs_with_hagerzhang_line_search():
-    """Test LBFGS with HagerZhang line search."""
-    hagerzhang_params = gs.builders.PyHagerZhang(
-        delta=0.05, sigma=0.95, epsilon=1e-8, theta=0.4, gamma=0.7, eta=0.02
-    )
-    line_search = gs.builders.PyLineSearchParams(hagerzhang_params)
-
+def test_lbfgs_tight_tolerance():
+    """Test LBFGS with tight tolerances."""
     custom_lbfgs = gs.builders.PyLBFGS(
         max_iter=100,
         tolerance_grad=1e-8,
         history_size=8,
-        line_search_params=line_search,
     )
     result = gs.optimize(
         problem_grad, params, local_solver="LBFGS", local_solver_config=custom_lbfgs
@@ -88,13 +75,10 @@ def test_lbfgs_with_hagerzhang_line_search():
 def test_nelder_mead_custom_config():
     """Test NelderMead with custom configuration."""
     custom_nelder_mead = gs.builders.PyNelderMead(
-        simplex_delta=0.05,
-        sd_tolerance=1e-8,
         max_iter=200,
-        alpha=1.5,
-        gamma=2.5,
-        rho=0.3,
-        sigma=0.3,
+        simplex_delta=0.05,
+        tolerance_simplex=1e-8,
+        tolerance_cost=1e-10,
     )
     result = gs.optimize(
         problem,

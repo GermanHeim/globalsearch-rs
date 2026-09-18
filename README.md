@@ -32,7 +32,7 @@
 
 `globalsearch-rs`: Rust implementation of a modified version of the _OQNLP_ (_OptQuest/NLP_) algorithm with the core ideas from "Scatter Search and Local NLP Solvers: A Multistart Framework for Global Optimization" by Ugray et al. (2007). It combines scatter search metaheuristics with local minimization for global optimization of nonlinear problems.
 
-Similar to MATLAB's `GlobalSearch` \[2\], using Basin, argmin, Rayon, and ndarray.
+Similar to MATLAB's `GlobalSearch` \[2\], using Basin, Rayon, and ndarray.
 
 ## Features
 
@@ -40,7 +40,7 @@ Similar to MATLAB's `GlobalSearch` \[2\], using Basin, argmin, Rayon, and ndarra
 
 - 🎯 Multistart heuristic framework for global optimization
 
-- 📦 Local optimization using the Basin \[3\] and argmin \[4\] crates
+- 📦 Local optimization using the Basin \[3\] crate
 
 - 🚀 Parallel execution using Rayon
 
@@ -80,40 +80,42 @@ Similar to MATLAB's `GlobalSearch` \[2\], using Basin, argmin, Rayon, and ndarra
        }
 
        fn constraints(&self, x: &Array1<f64>) -> Result<Array1<f64>, EvaluationError> {
+             Ok(array![
+               ..., // Optional: Constraint values here; needs COBYLA or SLSQP
+             ])
+       }
+   }
+   ```
+
+    The `constraints` method (nonlinear inequalities; supported by COBYLA and SLSQP) evaluates every constraint at a point. Its output length and order must remain stable throughout optimization. Constraints follow this sign convention:
+    - **Positive or zero**: constraint satisfied
+    - **Negative**: constraint violated
+
+    Example:
+
+    ```rust
+    impl Problem for MinimizeProblem {
+        // ...
+        fn constraints(&self, x: &Array1<f64>) -> Result<Array1<f64>, EvaluationError> {
             Ok(array![
-              ..., // Optional: Constraint values here, only valid with COBYLA
+                1.0 - x[0] - x[1], // x[0] + x[1] <= 1.0
+                x[0] - 0.5,        // x[0] >= 0.5
             ])
-       }
-   }
-   ```
+        }
+    }
+    ```
 
-   The `constraints` method (only available with the COBYLA local solver) evaluates every constraint at a point. Its output length and order must remain stable throughout optimization. Constraints follow this sign convention:
-   - **Positive or zero**: constraint satisfied  
-   - **Negative**: constraint violated
+    Linear constraints use `linear_inequalities` (`A x <= b`, supported by SLSQP, Barrier, and COBYLA) and `linear_equalities` (`A x = b`, supported by SLSQP, AugmentedLagrangian, and COBYLA). Nonlinear equalities use `nonlinear_equalities` (`h(x) = 0`, supported by SLSQP and COBYLA); SLSQP additionally requires `constraint_jacobian` (equality rows first, then inequality rows). Scatter search projects samples onto `A x = b`, so linear equalities work globally; nonlinear equalities have measure-zero surfaces that rejection sampling cannot hit, so they are for local solves (or warm-started runs), while inequalities work globally.
 
-   Example:
+    Depending on your choice of local solver, you might need to implement the `gradient` and `hessian` methods. Learn more in the [Basin docs](https://docs.rs/basin/1.13.0/basin/), or see [`LocalSolverType`](https://docs.rs/globalsearch/latest/globalsearch/types/enum.LocalSolverType.html).
 
-   ```rust
-   impl Problem for MinimizeProblem {
-       // ...
-       fn constraints(&self, x: &Array1<f64>) -> Result<Array1<f64>, EvaluationError> {
-           Ok(array![
-               1.0 - x[0] - x[1], // x[0] + x[1] <= 1.0
-               x[0] - 0.5,        // x[0] >= 0.5
-           ])
-       }
-   }
-   ```
-
-   Depending on your choice of local solver, you might need to implement the `gradient` and `hessian` methods. Learn more in the [Basin docs](https://docs.rs/basin/1.11.0/basin/) and [argmin docs](https://docs.rs/argmin/latest/argmin/solver/index.html), or see [`LocalSolverType`](https://docs.rs/globalsearch/latest/globalsearch/types/enum.LocalSolverType.html).
-
-   > **Bounds:** COBYLA, Basin L-BFGS-B, Basin bounded Nelder-Mead, and Basin BOBYQA enforce variable bounds during local optimization. Other local solvers use bounds only during scatter search and can return points outside them. Use `exclude_out_of_bounds` to filter those solutions if needed. Only COBYLA supports nonlinear constraints.
+    > **Bounds:** COBYLA, L-BFGS-B, bounded Nelder-Mead, BOBYQA, SLSQP, and Barrier enforce variable bounds during local optimization. Other local solvers use bounds only during scatter search and can return points outside them. Use `exclude_out_of_bounds` to filter those solutions if needed. Nonlinear constraints are supported by COBYLA (derivative-free) and SLSQP (gradient-based).
 
 2. Set OQNLP parameters
 
    ```rust
    use globalsearch::types::OQNLPParams;
-   use globalsearch::local_solver::builders::SteepestDescentBuilder;
+   use globalsearch::local_solver::builders::GradientDescentBuilder;
 
    let params: OQNLPParams = OQNLPParams {
        iterations: 125,
@@ -121,7 +123,7 @@ Similar to MATLAB's `GlobalSearch` \[2\], using Basin, argmin, Rayon, and ndarra
        threshold_factor: 0.2,
        distance_factor: 0.75,
        population_size: 250,
-       local_solver_config: SteepestDescentBuilder::default().build(),
+       local_solver_config: GradientDescentBuilder::default().build(),
        seed: 0,
    };
    ```
@@ -162,7 +164,7 @@ Similar to MATLAB's `GlobalSearch` \[2\], using Basin, argmin, Rayon, and ndarra
                 threshold_factor: 0.2,
                 distance_factor: 0.75,
                 population_size: 250,
-                local_solver_config: SteepestDescentBuilder::default().build(),
+                local_solver_config: GradientDescentBuilder::default().build(),
                 seed: 0,
             };
 
@@ -222,40 +224,31 @@ src/
 python/ # Python bindings
 ```
 
-## Choosing a local-solver backend
+## Choosing a local solver
 
-The default `argmin` feature provides the existing L-BFGS, Nelder-Mead, steepest
-descent, trust-region, and Newton-CG solvers. COBYLA always uses Basin and remains
-the default local solver, including when all default features are disabled.
-
-Enable the `basin` feature for additional, explicitly named Basin solvers:
-
-```toml
-[dependencies]
-globalsearch = { version = "0.6", default-features = false, features = ["basin"] }
-```
-
-Keep default features enabled to use both backends in the same application.
-Enabling `basin` does not change existing argmin solver selections. Both paths
-use the existing `Problem` trait and ndarray arrays. Rust 1.87 is required.
+All local solvers are backed by Basin. COBYLA is the default local
+solver. All solvers use the `Problem` trait and ndarray arrays.
 
 | Rust builder | Python factory / solver name | Derivatives | Local constraints |
 | --- | --- | --- | --- |
-| `BasinLBFGSBuilder` | `basin_lbfgs` | Gradient | None |
-| `BasinGradientDescentBuilder` | `basin_gradient_descent` | Gradient | None |
-| `BasinTrustRegionBuilder` | `basin_trust_region` | Gradient and Hessian | None |
-| `BasinNelderMeadBuilder` | `basin_nelder_mead` | None | None |
-| `BasinLBFGSBBuilder` | `basin_lbfgsb` | Gradient | Box bounds |
-| `BasinBoundedNelderMeadBuilder` | `basin_bounded_nelder_mead` | None | Box bounds |
-| `BasinBOBYQABuilder` | `basin_bobyqa` | None | Box bounds |
-| `COBYLABuilder` | `cobyla` | None | Box bounds and nonlinear inequalities |
+| `LBFGSBuilder` | `lbfgs` | Gradient | None |
+| `GradientDescentBuilder` | `gradient_descent` | Gradient | None |
+| `TrustRegionBuilder` | `trust_region` | Gradient and Hessian | None |
+| `NelderMeadBuilder` | `nelder_mead` | None | None |
+| `LBFGSBBuilder` | `lbfgsb` | Gradient | Box bounds |
+| `BoundedNelderMeadBuilder` | `bounded_nelder_mead` | None | Box bounds |
+| `BOBYQABuilder` | `bobyqa` | None | Box bounds |
+| `COBYLABuilder` | `cobyla` | None | Box bounds, linear constraints, nonlinear inequalities and equalities |
+| `SLSQPBuilder` | `slsqp` | Gradient and constraint Jacobian | Box bounds, linear constraints, nonlinear inequalities and equalities |
+| `BarrierBuilder` | `barrier` | Gradient | Box bounds and linear inequalities |
+| `AugmentedLagrangianBuilder` | `augmented_lagrangian` | Gradient | Linear equalities (bounds not enforced locally; use SLSQP for strict box) |
 
 ```rust
-use globalsearch::local_solver::builders::BasinLBFGSBBuilder;
+use globalsearch::local_solver::builders::LBFGSBBuilder;
 use globalsearch::types::OQNLPParams;
 
 let params = OQNLPParams {
-    local_solver_config: BasinLBFGSBBuilder::default()
+    local_solver_config: LBFGSBBuilder::default()
         .max_iter(500)
         .tolerance_projected_grad(1e-8)
         .history_size(10)
@@ -264,54 +257,32 @@ let params = OQNLPParams {
 };
 ```
 
-The seven new solvers reject problems with nonempty nonlinear constraints and
-report that COBYLA is required. They propagate callback errors and require
-analytic derivatives where listed. Configuration errors are returned when the
-local solve starts. The bounded methods project infeasible starting points
-before callbacks; bounded Nelder-Mead initializes its simplex toward the box
-interior. Projection can still collapse vertices during later Nelder-Mead steps.
-
-New Basin builders default to 1,000 executor iterations. Initialization and line
-searches can evaluate the objective multiple times per iteration. COBYLA retains
-its existing interpretation of `max_iter` as an objective-evaluation budget.
-Gradient tolerances default to `1e-6` (Euclidean norm for unconstrained methods,
-projected-gradient infinity norm for L-BFGS-B). Optional tolerances accept `None`
-to disable or zero for an exact threshold. Cost-change stopping is disabled by
-default for L-BFGS, L-BFGS-B, and gradient descent. They use Basin's default
-More–Thuente line search; argmin line-search configurations do not apply.
-
-Nelder-Mead uses standard coefficients, an absolute simplex step of `0.1`, and
-requires both simplex-size (`1e-6`, infinity norm) and simplex-cost (`1e-8`)
-tolerances when both are enabled. Trust region defaults to Steihaug, initial
-radius `1`, maximum radius `100`, and acceptance threshold `0.125`; Cauchy is
-also available. BOBYQA defaults to initial radius `1`, final radius `1e-6`, and
-`2n+1` interpolation points. It automatically reduces radii for narrow boxes.
-Its interpolation count must lie in `[2n+1, (n+1)(n+2)/2]`.
-
-Python distributions include both backends. For example:
+Python example:
 
 ```python
-config = gs.builders.basin_lbfgsb(max_iter=500, tolerance_projected_grad=1e-8)
+config = gs.builders.lbfgsb(max_iter=500, tolerance_projected_grad=1e-8)
 result = gs.optimize(problem, params, local_solver_config=config)
 # Or select default settings by name:
-result = gs.optimize(problem, params, local_solver="basin_bobyqa")
+result = gs.optimize(problem, params, local_solver="bobyqa")
 ```
 
 Names are case-insensitive and accept underscores, hyphens, or compact spelling.
 When both a name and a configuration are provided, they must select the same
-solver. The configuration classes are available as `gs.builders.PyBasinLBFGS`,
-`PyBasinLBFGSB`, and corresponding names for the other methods.
+solver. The configuration classes are available as `gs.builders.PyLBFGS`,
+`PyLBFGSB`, and corresponding names for the other methods.
 
-Checkpoint files retain the existing enum encoding when enabling the `basin`
-feature with the same argmin feature setting. Reading a checkpoint containing a
-Basin solver requires enabling that feature. Checkpoints are not portable across
-changes to the argmin feature setting.
+Checkpoint files written before the removal of the `argmin` backend are not
+portable to this version: solver encodings changed (COBYLA is now the first
+variant). New solver variants (`SLSQP`, `Barrier`, `AugmentedLagrangian`) are
+appended after the existing ones, so checkpoints written with the eight
+original solvers remain portable.
+
+Requires `basin` 1.13.0 or later for SLSQP, Barrier, and AugmentedLagrangian support.
 
 ## Dependencies
 
 - [ndarray](https://github.com/rust-ndarray/ndarray)
-- [Basin](https://github.com/jolars/basin) [COBYLA always available; other solvers: `basin` feature]
-- [argmin](https://github.com/argmin-rs/argmin) [feature: `argmin`]
+- [Basin](https://github.com/jolars/basin)
 - [rayon](https://github.com/rayon-rs/rayon) [feature: `rayon`]
 - [kdam](https://github.com/clitic/kdam) [feature: `progress_bar`]
 - [rand](https://github.com/rust-random/rand)
@@ -353,5 +324,3 @@ If `GlobalSearch-rs` has been significant in your research, and you would like t
 \[2\] GlobalSearch. The MathWorks, Inc. Available at: <https://www.mathworks.com/help/gads/globalsearch.html> (Accessed: 27 January 2025)
 
 \[3\] Johan Larsson. Basin—numerical optimization in pure Rust. Available at: <https://basin.rs> (Accessed: 7 September 2026)
-
-\[4\] Kroboth, S. argmin{}. Available at: <https://argmin-rs.org/> (Accessed: 25 January 2025)
