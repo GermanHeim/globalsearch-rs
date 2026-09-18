@@ -41,7 +41,6 @@ use thiserror::Error;
 #[cfg(feature = "checkpointing")]
 use std::path::PathBuf;
 
-
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "checkpointing", derive(serde::Serialize, serde::Deserialize))]
 /// Configuration parameters for the OQNLP (OptQuest for Nonlinear Programming) algorithm.

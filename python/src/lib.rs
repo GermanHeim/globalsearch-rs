@@ -726,9 +726,9 @@ impl Problem for PyProblem {
             if let Ok(arr) = result.bind(py).cast::<PyArray2<f64>>() {
                 Ok(arr.readonly().as_array().to_owned())
             } else {
-                let rows: Vec<Vec<f64>> = result.extract(py).map_err(|e: PyErr| {
-                    EvaluationError::InvalidInput { reason: e.to_string() }
-                })?;
+                let rows: Vec<Vec<f64>> = result
+                    .extract(py)
+                    .map_err(|e: PyErr| EvaluationError::InvalidInput { reason: e.to_string() })?;
                 let nrows = rows.len();
                 let ncols = rows.first().map_or(0, Vec::len);
                 let flat: Vec<f64> = rows.into_iter().flatten().collect();

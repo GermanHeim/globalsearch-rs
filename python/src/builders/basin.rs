@@ -429,11 +429,7 @@ impl PySLSQP {
 /// Gradient-based SLSQP with box, linear, and nonlinear constraints.
 #[pyfunction]
 #[pyo3(signature = (max_iter = 1000, accuracy = Some(1e-6), max_subproblem_iter = None))]
-pub fn slsqp(
-    max_iter: u64,
-    accuracy: Option<f64>,
-    max_subproblem_iter: Option<usize>,
-) -> PySLSQP {
+pub fn slsqp(max_iter: u64, accuracy: Option<f64>, max_subproblem_iter: Option<usize>) -> PySLSQP {
     PySLSQP::new(max_iter, accuracy, max_subproblem_iter)
 }
 

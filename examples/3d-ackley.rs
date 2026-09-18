@@ -19,7 +19,6 @@ use globalsearch::{
 };
 use ndarray::{Array1, Array2, array};
 
-
 #[derive(Debug, Clone)]
 pub struct ThreeDAckley {
     a: f64,
