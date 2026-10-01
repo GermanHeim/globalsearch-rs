@@ -107,7 +107,7 @@ Similar to MATLAB's `GlobalSearch` \[2\], using Basin, Rayon, and ndarray.
 
     Linear constraints use `linear_inequalities` (`A x <= b`, supported by SLSQP, Barrier, and COBYLA) and `linear_equalities` (`A x = b`, supported by SLSQP, AugmentedLagrangian, and COBYLA). Nonlinear equalities use `nonlinear_equalities` (`h(x) = 0`, supported by SLSQP and COBYLA); SLSQP additionally requires `constraint_jacobian` (equality rows first, then inequality rows). Scatter search projects samples onto `A x = b`, so linear equalities work globally; nonlinear equalities have measure-zero surfaces that rejection sampling cannot hit, so they are for local solves (or warm-started runs), while inequalities work globally.
 
-    Depending on your choice of local solver, you might need to implement the `gradient` and `hessian` methods. Learn more in the [Basin docs](https://docs.rs/basin/1.13.0/basin/), or see [`LocalSolverType`](https://docs.rs/globalsearch/latest/globalsearch/types/enum.LocalSolverType.html).
+    Depending on your choice of local solver, you might need to implement the `gradient` and `hessian` methods. Learn more in the [Basin docs](https://docs.rs/basin/1.15.1/basin/), or see [`LocalSolverType`](https://docs.rs/globalsearch/latest/globalsearch/types/enum.LocalSolverType.html).
 
     > **Bounds:** COBYLA, L-BFGS-B, bounded Nelder-Mead, BOBYQA, SLSQP, and Barrier enforce variable bounds during local optimization. Other local solvers use bounds only during scatter search and can return points outside them. Use `exclude_out_of_bounds` to filter those solutions if needed. Nonlinear constraints are supported by COBYLA (derivative-free) and SLSQP (gradient-based).
 
@@ -277,7 +277,7 @@ variant). New solver variants (`SLSQP`, `Barrier`, `AugmentedLagrangian`) are
 appended after the existing ones, so checkpoints written with the eight
 original solvers remain portable.
 
-Requires `basin` 1.13.0 or later for SLSQP, Barrier, and AugmentedLagrangian support.
+Requires `basin` 1.15.1 or later for the local solver backend, including SLSQP, Barrier, and AugmentedLagrangian support.
 
 ## Dependencies
 

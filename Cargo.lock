@@ -40,9 +40,9 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
 name = "basin"
-version = "1.13.0"
+version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8849676953634be35369f6f462151eafcadd164e280215819fffdfb85a50cfd3"
+checksum = "457347bdaf9524e3c3f715ec390b75f2ec104bf35756f951c5d41920c133a68e"
 dependencies = [
  "num-traits",
  "rand",
