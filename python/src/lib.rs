@@ -170,7 +170,7 @@ impl PyLocalSolution {
     }
 }
 
-#[pyclass(skip_from_py_object)]
+#[pyclass]
 #[derive(Debug, Clone)]
 /// A collection of local solutions found by the optimization algorithm.
 ///

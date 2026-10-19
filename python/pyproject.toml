@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "pyglobalsearch"
 description = "This package provides a Python interface to Rust's globalsearch crate. globalsearch is a multistart framework for global optimization with scatter search and local NLP solvers written in Rust."
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 keywords = ["optimization", "math", "science"]
 license = "MIT"
 classifiers = [
